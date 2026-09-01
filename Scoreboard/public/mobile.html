@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#0B1B2E">
+  <title>FIP Gold Bucharest 2026 — Referee</title>
+  <link rel="stylesheet" href="/mobile.css">
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">🎾 FIP Gold Bucharest</span>
+    <span class="conn"><span id="connDot" class="dot"></span><span id="connText">connecting…</span></span>
+  </header>
+
+  <main class="wrap">
+    <!-- LIVE -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Live</h2>
+        <span id="statusBadge" class="badge">idle</span>
+      </div>
+      <div id="preview" class="preview"></div>
+    </section>
+
+    <!-- SCORING -->
+    <section class="card">
+      <div class="card-head"><h2>Scoring</h2></div>
+
+      <div class="score-grid">
+        <div class="score-team">
+          <div class="score-name"><span data-sname="0"></span><span class="cdot" data-cdot="0"></span></div>
+          <button class="btn point" data-point="0">+ POINT</button>
+          <button class="btn unpoint" data-unpoint="0">− point</button>
+        </div>
+        <div class="score-team">
+          <div class="score-name"><span data-sname="1"></span><span class="cdot" data-cdot="1"></span></div>
+          <button class="btn point" data-point="1">+ POINT</button>
+          <button class="btn unpoint" data-unpoint="1">− point</button>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn tool" id="undoBtn">↶ Undo</button>
+        <button class="btn tool" id="redoBtn">↷ Redo</button>
+        <button class="btn tool" id="swapServeBtn">⇄ Swap serve</button>
+        <button class="btn tool" id="startBtn">▶ Start</button>
+      </div>
+    </section>
+
+    <!-- MANUAL ADJUST -->
+    <section class="card">
+      <div class="card-head"><h2>Manual adjust</h2></div>
+
+      <div class="adj-table">
+        <div class="adj-row adj-header">
+          <span></span>
+          <span class="adj-col" data-acol="0"></span>
+          <span class="adj-col" data-acol="1"></span>
+        </div>
+        <div class="adj-row">
+          <span class="adj-label">Games</span>
+          <span class="stepper">
+            <button class="btn step" data-games-dec="0">−</button>
+            <span class="step-val" data-games-val="0">0</span>
+            <button class="btn step" data-games-inc="0">+</button>
+          </span>
+          <span class="stepper">
+            <button class="btn step" data-games-dec="1">−</button>
+            <span class="step-val" data-games-val="1">0</span>
+            <button class="btn step" data-games-inc="1">+</button>
+          </span>
+        </div>
+        <div class="adj-row">
+          <span class="adj-label">Sets</span>
+          <span class="stepper">
+            <button class="btn step" data-sets-dec="0">−</button>
+            <span class="step-val" data-sets-val="0">0</span>
+            <button class="btn step" data-sets-inc="0">+</button>
+          </span>
+          <span class="stepper">
+            <button class="btn step" data-sets-dec="1">−</button>
+            <span class="step-val" data-sets-val="1">0</span>
+            <button class="btn step" data-sets-inc="1">+</button>
+          </span>
+        </div>
+        <div class="adj-row">
+          <span class="adj-label">Serving</span>
+          <span><button class="btn serve" data-serve-pick="0">serve</button></span>
+          <span><button class="btn serve" data-serve-pick="1">serve</button></span>
+        </div>
+        <div class="adj-row">
+          <span class="adj-label">Player</span>
+          <span class="serve-pair">
+            <button class="btn serve-player" data-serve-player="0-0">P1</button>
+            <button class="btn serve-player" data-serve-player="0-1">P2</button>
+          </span>
+          <span class="serve-pair">
+            <button class="btn serve-player" data-serve-player="1-0">P1</button>
+            <button class="btn serve-player" data-serve-player="1-1">P2</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn tool" id="saveSetBtn">✓ Save set</button>
+        <button class="btn tool" id="undoSetBtn">↶ Undo set</button>
+      </div>
+      <p class="hint"><b>Save set</b> records the current games as a finished set (the side ahead wins it) so it shows on the overlay. <b>Undo set</b> removes the last one. Tap a <b>Player</b> button to mark exactly who is serving.</p>
+    </section>
+  </main>
+
+  <script src="/scoring.js"></script>
+  <script src="/countries.js"></script>
+  <script src="/client.js"></script>
+  <script src="/mobile.js"></script>
+</body>
+</html>

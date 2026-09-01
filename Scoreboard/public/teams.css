@@ -1,0 +1,135 @@
+/* Teams management page — roster list styles (on top of admin.css). */
+
+.layout {
+  max-width: 760px;
+}
+
+.intro-hint {
+  margin-top: 0;
+}
+
+.group-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-light);
+  margin: 14px 2px 8px;
+}
+
+.group-title:first-child {
+  margin-top: 2px;
+}
+
+.roster {
+  display: flex;
+  flex-direction: column;
+}
+
+.roster-row {
+  display: grid;
+  grid-template-columns: 34px 1fr auto 118px;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  transition: opacity 0.2s;
+}
+
+.roster-row.eliminated {
+  opacity: 0.45;
+}
+
+.roster-pos {
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.roster-players {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rp-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.rp-flag {
+  width: 22px;
+  height: 16px;
+  border-radius: 2px;
+  flex: none;
+  background-color: rgba(255, 255, 255, 0.12);
+  background-size: cover;
+  background-position: center;
+}
+
+.rp-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rp-cc {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  flex: none;
+}
+
+.roster-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.wc-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+
+.btn.toggle {
+  padding: 9px 8px;
+  font-size: 13px;
+  width: 100%;
+}
+
+.btn.toggle.is-active {
+  background: rgba(34, 197, 94, 0.16);
+  border: 1px solid rgba(34, 197, 94, 0.55);
+  color: var(--green);
+}
+
+.btn.toggle.is-out {
+  background: rgba(231, 76, 60, 0.16);
+  border: 1px solid rgba(231, 76, 60, 0.55);
+  color: #ff8d80;
+}
+
+@media (max-width: 560px) {
+  .roster-row {
+    grid-template-columns: 26px 1fr 92px;
+  }
+  .roster-badges {
+    display: none;
+  }
+}

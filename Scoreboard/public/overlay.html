@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIP Gold Bucharest 2026 — Overlay</title>
+  <link rel="stylesheet" href="overlay.css" />
+</head>
+<body>
+  <div id="scoreboard" class="scoreboard hidden">
+    <div id="titleBar" class="title-bar">
+      <span id="title" class="title"></span>
+      <span id="subtitle" class="subtitle"></span>
+    </div>
+
+    <div class="board">
+      <div class="team-block" data-block="0">
+        <div class="players-col">
+          <div class="player-row">
+            <span class="flag" data-flag="0-0"></span>
+            <span class="player-name" data-pname="0-0"></span>
+            <span class="serve-dot" data-serve="0-0"></span>
+          </div>
+          <div class="player-row">
+            <span class="flag" data-flag="0-1"></span>
+            <span class="player-name" data-pname="0-1"></span>
+            <span class="serve-dot" data-serve="0-1"></span>
+          </div>
+        </div>
+        <div class="score-cols">
+          <span class="sets" data-sets="0"></span>
+          <span class="games" data-games="0">0</span>
+          <span class="points" data-points="0">0</span>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="team-block" data-block="1">
+        <div class="players-col">
+          <div class="player-row">
+            <span class="flag" data-flag="1-0"></span>
+            <span class="player-name" data-pname="1-0"></span>
+            <span class="serve-dot" data-serve="1-0"></span>
+          </div>
+          <div class="player-row">
+            <span class="flag" data-flag="1-1"></span>
+            <span class="player-name" data-pname="1-1"></span>
+            <span class="serve-dot" data-serve="1-1"></span>
+          </div>
+        </div>
+        <div class="score-cols">
+          <span class="sets" data-sets="1"></span>
+          <span class="games" data-games="1">0</span>
+          <span class="points" data-points="1">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="winnerBanner" class="winner-banner hidden"></div>
+  </div>
+
+  <script src="scoring.js"></script>
+  <script src="countries.js"></script>
+  <script src="client.js"></script>
+  <script src="overlay.js"></script>
+</body>
+</html>

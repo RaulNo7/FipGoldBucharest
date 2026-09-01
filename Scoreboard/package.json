@@ -1,0 +1,23 @@
+{
+  "name": "fip-gold-bucharest-scoreboard",
+  "version": "1.0.0",
+  "description": "FIP Gold Bucharest 2026 — real-time padel scoreboard overlay for OBS with team roster, referee remote and control panel. Zero runtime dependencies.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/scoring.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "padel",
+    "scoreboard",
+    "obs",
+    "overlay",
+    "streaming",
+    "websocket"
+  ],
+  "license": "MIT"
+}

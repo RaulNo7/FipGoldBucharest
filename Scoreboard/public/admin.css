@@ -1,0 +1,368 @@
+/* Control panels (Score settings + Teams) — FIP Gold Bucharest 2026 theme. */
+
+:root {
+  --bg: #0b1b2e;
+  --panel: #142943;
+  --panel-2: #1b3454;
+  --line: #2b4568;
+  --fg: #ffffff;
+  --muted: #9fb1c4;
+  --accent: #d4a017;
+  --accent-light: #e8c158;
+  --accent-fg: #10202f;
+  --blue: #2e6ca4;
+  --green: #22c55e;
+  --red: #e74c3c;
+  --orange: #e67e22;
+  --radius: 12px;
+  --font: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 40px;
+}
+
+/* Topbar */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 22px;
+  background: rgba(11, 27, 46, 0.94);
+  backdrop-filter: blur(8px);
+  border-bottom: 2px solid var(--accent);
+}
+
+.brand {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: var(--accent-light);
+}
+
+.brand-sub {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.conn-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--red);
+  transition: background 0.3s;
+}
+
+.conn-dot.connected {
+  background: var(--green);
+}
+
+.client-count {
+  margin-left: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Layout: single centered column */
+.layout {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 22px;
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+/* Cards */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.card-head h2 {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: var(--panel-2);
+  color: var(--muted);
+}
+
+/* Buttons */
+.btn {
+  border: none;
+  border-radius: 9px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 10px 14px;
+  font-size: 14px;
+  transition: transform 0.05s, filter 0.15s, background 0.15s;
+  color: var(--fg);
+  background: var(--panel-2);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.btn:hover {
+  filter: brightness(1.12);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn-ghost {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+
+.btn-warn {
+  background: var(--orange);
+  color: #2a1500;
+}
+
+.btn-danger {
+  background: var(--red);
+  color: #2a0a06;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+}
+
+.row.gap {
+  gap: 8px;
+}
+
+.row.wrap {
+  flex-wrap: wrap;
+}
+
+.grow {
+  flex: 1 1 auto;
+}
+
+.hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.hint b {
+  color: var(--fg);
+  background: var(--panel-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+/* Match team pickers */
+.match-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .match-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.side-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.side-pick label.error {
+  color: var(--red);
+}
+
+.side-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  min-height: 66px;
+}
+
+.sp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sp-flag {
+  width: 24px;
+  height: 18px;
+  border-radius: 2px;
+  flex: none;
+  background-color: rgba(255, 255, 255, 0.12);
+  background-size: cover;
+  background-position: center;
+}
+
+.sp-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sp-cc {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  flex: none;
+}
+
+/* Forms */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+}
+
+@media (max-width: 560px) {
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+input[type='text'],
+input[type='number'],
+select {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--fg);
+  padding: 10px 11px;
+  font-family: inherit;
+  font-size: 16px; /* 16px keeps iOS Safari from auto-zooming on focus */
+  font-weight: 500;
+  width: 100%;
+}
+
+select option:disabled {
+  color: #5d6f85;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.url-row {
+  margin-top: 10px;
+}
+
+.url-row input {
+  font-size: 12px;
+  font-family: 'Consolas', monospace;
+}
+
+.danger-card {
+  border-color: rgba(231, 76, 60, 0.35);
+}
+
+/* Phone / small-touchscreen tuning */
+@media (max-width: 640px) {
+  .layout {
+    padding: 12px;
+    gap: 14px;
+  }
+  .card {
+    padding: 14px 12px;
+  }
+  .topbar {
+    padding: 10px 14px;
+  }
+  .brand {
+    font-size: 16px;
+  }
+  .brand-sub {
+    display: none;
+  }
+  .btn {
+    min-height: 48px;
+    font-size: 16px;
+  }
+}

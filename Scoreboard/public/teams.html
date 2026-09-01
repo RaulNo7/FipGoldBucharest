@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIP Gold Bucharest 2026 — Teams</title>
+  <link rel="stylesheet" href="admin.css" />
+  <link rel="stylesheet" href="teams.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🎾 FIP Gold Bucharest 2026 <span class="brand-sub">Teams</span></div>
+    <div class="topbar-right">
+      <span id="connDot" class="conn-dot" title="connection"></span>
+      <span id="connText" class="conn-text">connecting…</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <p class="hint intro-hint">Toggle a team to <b>Eliminated</b> after they lose their match. Eliminated teams stay visible here (greyed out) and cannot be picked for a match on the Score settings tab. Changes apply everywhere instantly and survive a restart.</p>
+
+    <div class="card">
+      <div class="card-head"><h2>Men</h2><span class="badge" id="menCount"></span></div>
+      <div id="menList" class="roster"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Women</h2><span class="badge" id="womenCount"></span></div>
+      <div id="womenList" class="roster"></div>
+    </div>
+  </main>
+
+  <script src="countries.js"></script>
+  <script src="client.js"></script>
+  <script src="teams.js"></script>
+</body>
+</html>

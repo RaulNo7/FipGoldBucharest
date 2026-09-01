@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIP Gold Bucharest 2026 — Score settings</title>
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🎾 FIP Gold Bucharest 2026 <span class="brand-sub">Score settings</span></div>
+    <div class="topbar-right">
+      <span id="connDot" class="conn-dot" title="connection"></span>
+      <span id="connText" class="conn-text">connecting…</span>
+      <span id="clientCount" class="client-count" title="overlays + panels connected"></span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <div class="card">
+      <div class="card-head"><h2>Match — select teams</h2></div>
+      <div class="match-grid">
+        <div class="side-pick">
+          <label>Side 1
+            <select data-team-select="0"><option value="">— pick a team —</option></select>
+          </label>
+          <div class="side-preview" data-side-preview="0"></div>
+        </div>
+        <div class="side-pick">
+          <label>Side 2
+            <select data-team-select="1"><option value="">— pick a team —</option></select>
+          </label>
+          <div class="side-preview" data-side-preview="1"></div>
+        </div>
+      </div>
+      <p class="hint">Teams come from the official entry lists (89 pairs). Eliminated teams are greyed out — manage them on the <b>Teams</b> tab. The match format is fixed for the whole tournament: best of 3 sets · star point (two advantages, then golden point) · tiebreak to 7, win by 2.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Overlay display</h2></div>
+      <div class="config-grid">
+        <label>Title (shown above the scorebug)
+          <input type="text" id="dspTitle" placeholder="e.g. FIP GOLD BUCHAREST 2026" />
+        </label>
+        <label>Subtitle
+          <input type="text" id="dspSubtitle" placeholder="e.g. Semi-final · Court 1" />
+        </label>
+        <label class="check"><input type="checkbox" id="dspShowTitle" checked /> Show title bar</label>
+        <label class="check"><input type="checkbox" id="dspShowSets" checked /> Show completed sets</label>
+        <label class="check"><input type="checkbox" id="dspShowServe" checked /> Show serve indicator</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>OBS overlay URL</h2></div>
+      <div class="row gap wrap">
+        <label class="grow">Position
+          <select id="ovPos">
+            <option value="bottom-left">Bottom left</option>
+            <option value="bottom-right">Bottom right</option>
+            <option value="bottom-center">Bottom center</option>
+            <option value="top-left">Top left</option>
+            <option value="top-right">Top right</option>
+            <option value="top-center">Top center</option>
+          </select>
+        </label>
+        <label>Scale
+          <input type="number" id="ovScale" min="0.3" max="3" step="0.05" value="1" />
+        </label>
+      </div>
+      <div class="row gap url-row">
+        <input type="text" id="overlayUrl" readonly />
+        <button class="btn btn-ghost" id="copyUrlBtn">Copy</button>
+        <button class="btn btn-ghost" id="openOverlayBtn">Open</button>
+      </div>
+      <p class="hint">In OBS: Sources → + → Browser → paste this URL. Set width 1920, height 1080, tick "transparent".
+        Sizing the source as a tight crop instead? Use at least 700 × 330 at scale 1 — the scorebug sits 40px
+        from the edge and the winner banner adds height, so anything smaller clips the score columns or title.</p>
+    </div>
+
+    <div class="card danger-card">
+      <div class="card-head"><h2>Reset</h2></div>
+      <div class="row gap wrap">
+        <button class="btn btn-warn" id="resetMatchBtn">Reset score (keep teams)</button>
+        <button class="btn btn-danger" id="resetAllBtn">Reset everything</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="scoring.js"></script>
+  <script src="countries.js"></script>
+  <script src="client.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
