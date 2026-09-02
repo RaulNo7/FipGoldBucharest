@@ -6,6 +6,9 @@
 
   const S = window.PadelScoring;
   const C = window.PadelCountries;
+  // The /tv court page reuses this renderer (via <body data-tv="1">); unlike the
+  // broadcast overlay it never hides during commercial breaks.
+  const tvMode = document.body.dataset.tv === '1';
   const root = document.getElementById('scoreboard');
   const titleBar = document.getElementById('titleBar');
   const titleEl = document.getElementById('title');
@@ -113,7 +116,8 @@
       lastSeq = state.seq;
     }
 
-    root.classList.remove('hidden');
+    // During a commercial break the broadcast overlay hides itself; /tv keeps showing.
+    root.classList.toggle('hidden', !tvMode && d.scoreVisible === false);
   }
 
   function renderSets(container, state, teamIdx) {

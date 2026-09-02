@@ -129,6 +129,15 @@ body {
   color: var(--muted);
 }
 
+.badge.live {
+  background: rgba(34, 197, 94, 0.18);
+  color: var(--green);
+}
+
+.actions {
+  margin-top: 12px;
+}
+
 /* Buttons */
 .btn {
   border: none;

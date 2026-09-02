@@ -80,6 +80,7 @@ function createDefaultState() {
       showServe: true,
       showPlayers: true,
       showTitle: true,
+      scoreVisible: true, // false while the stream shows commercials; the /tv page ignores it
     },
     teams_registry: {}, // live Active/Eliminated flags per entry-list teamId ({ [id]: { active } }; missing = active)
     seq: 0, // monotonically increasing change counter (animation hint)
@@ -349,6 +350,8 @@ function applyCommand(prev, cmd) {
   switch (type) {
     case 'point': {
       const t = cmd.team === 1 ? 1 : 0;
+      // The next match is underway — bring the scorebug back after a commercial break.
+      if (state.status !== 'finished' && state.display) state.display.scoreVisible = true;
       return awardPoint(state, t);
     }
 
@@ -479,6 +482,7 @@ function applyCommand(prev, cmd) {
 
     case 'startMatch':
       state.status = 'live';
+      if (state.display) state.display.scoreVisible = true;
       return state;
 
     case 'setStatus':

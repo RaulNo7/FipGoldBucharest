@@ -7,6 +7,7 @@
   let roster = null; // { tournament, teams } from /api/teams
   let client = null;
   let lastRegistryJson = '';
+  let latestObs = null; // transient OBS/break status from the state broadcasts
 
   // Track which inputs the user is editing so live state updates don't clobber typing.
   const editing = new Set();
@@ -154,11 +155,109 @@
   $('#openOverlayBtn').addEventListener('click', () => window.open($('#overlayUrl').value, '_blank'));
   updateOverlayUrl();
 
+  // ---- court TV URL ----
+  fetch('/api/info')
+    .then((r) => r.json())
+    .then((info) => {
+      const host = info.lanHost || location.hostname;
+      $('#tvUrl').value = `http://${host}:${info.port}/tv`;
+    })
+    .catch(() => {
+      $('#tvUrl').value = new URL('/tv', location.origin).toString();
+    });
+  $('#copyTvUrlBtn').addEventListener('click', () => {
+    $('#tvUrl').select();
+    navigator.clipboard?.writeText($('#tvUrl').value);
+    flash($('#copyTvUrlBtn'), 'Copied!');
+  });
+  $('#openTvBtn').addEventListener('click', () => window.open($('#tvUrl').value, '_blank'));
+
+  // ---- commercial break ----
+  fetch('/api/obs-settings')
+    .then((r) => r.json())
+    .then((cfg) => {
+      $('#obsEnabled').checked = cfg.enabled !== false;
+      $('#obsDelay').value = cfg.autoDelaySeconds;
+      $('#obsUrl').value = cfg.url || '';
+      $('#obsPassword').value = cfg.password || '';
+      $('#obsLiveScene').value = cfg.liveScene || '';
+      $('#obsAdsScene').value = cfg.commercialsScene || '';
+      $('#obsMediaSource').value = cfg.mediaSource || '';
+      $('#obsMaxBreak').value = cfg.maxBreakSeconds;
+    })
+    .catch(() => {
+      $('#breakStatus').textContent = 'Could not load the OBS settings.';
+    });
+
+  $('#saveObsBtn').addEventListener('click', () => {
+    const body = {
+      enabled: $('#obsEnabled').checked,
+      autoDelaySeconds: +$('#obsDelay').value,
+      url: $('#obsUrl').value.trim(),
+      password: $('#obsPassword').value,
+      liveScene: $('#obsLiveScene').value.trim(),
+      commercialsScene: $('#obsAdsScene').value.trim(),
+      mediaSource: $('#obsMediaSource').value.trim(),
+      maxBreakSeconds: +$('#obsMaxBreak').value,
+    };
+    fetch('/api/obs-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then((r) => flash($('#saveObsBtn'), r.ok ? 'Saved!' : 'Failed'))
+      .catch(() => flash($('#saveObsBtn'), 'Failed'));
+  });
+
+  $('#testObsBtn').addEventListener('click', () => {
+    send({ type: 'obsTest' });
+    flash($('#testObsBtn'), 'Testing…');
+  });
+
+  $('#playAdsBtn').addEventListener('click', () => {
+    if (confirm('Switch the stream to the commercials now?')) send({ type: 'playCommercials' });
+  });
+  $('#cancelAdsBtn').addEventListener('click', () => send({ type: 'cancelCommercials' }));
+  $('#toggleScoreBtn').addEventListener('click', () => {
+    const visible = !state || !state.display || state.display.scoreVisible !== false;
+    send({ type: 'setDisplay', display: { scoreVisible: !visible } });
+  });
+
+  function updateBreakUi() {
+    const o = latestObs;
+    if (!o) return;
+    const badge = $('#obsBadge');
+    badge.textContent = o.connected ? 'OBS: connected' : 'OBS: offline';
+    badge.className = 'badge ' + (o.connected ? 'live' : '');
+    $('#cancelAdsBtn').disabled = o.phase === 'idle';
+
+    let text;
+    if (o.phase === 'countdown') {
+      const secs = Math.max(0, Math.ceil((o.countdownEndsAt - Date.now()) / 1000));
+      text = `Match finished — commercials start in ${secs}s. Press Cancel to abort.`;
+    } else if (o.phase === 'running') {
+      text = 'Commercials are playing on the stream…';
+    } else if (!o.enabled) {
+      text = 'Automatic break is OFF — use the button to run it manually.';
+    } else {
+      text = 'Waiting — the break starts automatically after a match ends.';
+    }
+    if (o.lastError) text += ` — last error: ${o.lastError}`;
+    $('#breakStatus').textContent = text;
+  }
+  setInterval(updateBreakUi, 500); // live countdown tick
+
   // ---- render ----
   function render(s, msg) {
     if (msg && typeof msg.clients === 'number') {
       $('#clientCount').textContent = msg.clients + ' connected';
     }
+    if (msg && msg.obs) {
+      latestObs = msg.obs;
+      updateBreakUi();
+    }
+    $('#toggleScoreBtn').textContent =
+      s.display && s.display.scoreVisible === false ? 'Show score' : 'Hide score';
 
     // Rebuild the pickers whenever an elimination flag changes anywhere.
     const rj = JSON.stringify(s.teams_registry || {});

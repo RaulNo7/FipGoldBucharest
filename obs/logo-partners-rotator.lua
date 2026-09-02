@@ -2,8 +2,8 @@
   logo-partners-rotator.lua — FIP Gold Bucharest 2026 stream helper
 
   Alternates two OBS sources on a fixed cycle:
-      Logo source      visible for "Logo time"      (default 30 s — test value)
-      Partners source  visible for "Partners time"  (default 10 s — test value)
+      Logo source      visible for "Logo time"      (default 540 s = 9 min)
+      Partners source  visible for "Partners time"  (default  60 s = 1 min)
   ...and repeats until the "Enabled" box is unticked.
 
   Install once:  OBS → Tools → Scripts → "+" → pick this file.
@@ -96,8 +96,7 @@ end
 function script_description()
   return [[<b>Logo / Partners rotator</b><br/>
 Shows the Logo source, then the Partners source, on a repeating timed cycle
-(defaults: 30 seconds logo, 10 seconds partners — test values; for the
-tournament use 540 / 60).<br/><br/>
+(defaults: 9 minutes logo, 1 minute partners).<br/><br/>
 Pick the two sources, then tick <b>Enabled</b>. The cycle always starts
 with the logo; unticking Enabled shows the logo again.]]
 end
@@ -132,8 +131,8 @@ function script_properties()
 end
 
 function script_defaults(settings)
-  obs.obs_data_set_default_int(settings, "logo_secs", 30)    -- test value (tournament: 540)
-  obs.obs_data_set_default_int(settings, "partner_secs", 10) -- test value (tournament: 60)
+  obs.obs_data_set_default_int(settings, "logo_secs", 540)   -- 9 min
+  obs.obs_data_set_default_int(settings, "partner_secs", 60) -- 1 min
   obs.obs_data_set_default_bool(settings, "enabled", false)
 end
 

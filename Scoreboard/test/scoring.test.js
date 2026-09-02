@@ -279,5 +279,23 @@ console.log('\nRunning padel scoring tests…\n');
   eq(s.teams_registry['M-MD-02'], { active: true }, 'registry: team reactivated');
 })();
 
+// --- Score visibility (commercial breaks) ----------------------------------
+(function scoreVisibleFlag() {
+  let s = scoring.createDefaultState();
+  eq(s.display.scoreVisible, true, 'scoreVisible: defaults to visible');
+  s = scoring.applyCommand(s, { type: 'setDisplay', display: { scoreVisible: false } });
+  eq(s.display.scoreVisible, false, 'scoreVisible: setDisplay can hide the scorebug');
+  s = scoring.applyCommand(s, { type: 'startMatch' });
+  eq(s.display.scoreVisible, true, 'scoreVisible: startMatch shows it again');
+  s = scoring.applyCommand(s, { type: 'setDisplay', display: { scoreVisible: false } });
+  s = scoring.applyCommand(s, { type: 'point', team: 0 });
+  eq(s.display.scoreVisible, true, 'scoreVisible: the first point shows it again');
+  // A stray +POINT while the previous match is still "finished" must NOT reveal it.
+  s = scoring.applyCommand(s, { type: 'finishMatch', winner: 0 });
+  s = scoring.applyCommand(s, { type: 'setDisplay', display: { scoreVisible: false } });
+  s = scoring.applyCommand(s, { type: 'point', team: 0 });
+  eq(s.display.scoreVisible, false, 'scoreVisible: a point on a finished match stays hidden');
+})();
+
 console.log(`\n${passed} passed, ${failed} failed.\n`);
 process.exit(failed ? 1 : 0);

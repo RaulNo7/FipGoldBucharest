@@ -6,6 +6,7 @@ const path = require('path');
 
 const { createWsHub } = require('./src/wsserver');
 const scoring = require('./src/scoring');
+const { ObsClient } = require('./src/obsclient');
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -90,7 +91,8 @@ function pushHistory() {
 const hub = createWsHub();
 
 function stateMessage() {
-  return JSON.stringify({ type: 'state', state, clients: hub.size });
+  // `obs` is transient status for the admin UI — never persisted, never secret.
+  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload() });
 }
 
 function broadcastState() {
@@ -111,14 +113,171 @@ hub.onMessage((socket, text) => {
   handleCommand(msg);
 });
 
+// ---------------------------------------------------------------------------
+// Commercial break (OBS automation)
+// ---------------------------------------------------------------------------
+
+const OBS_SETTINGS_FILE = path.join(path.dirname(STATE_FILE), 'obs-settings.json');
+
+const DEFAULT_OBS_SETTINGS = {
+  enabled: true, // automatic break after a match ends
+  url: 'ws://127.0.0.1:4455',
+  password: '',
+  liveScene: 'LIVE',
+  commercialsScene: 'COMMERCIALS',
+  mediaSource: 'Commercials', // the media source inside the commercials scene
+  autoDelaySeconds: 60,
+  maxBreakSeconds: 300, // safety cap if the media never reports "ended"
+};
+
+let obsSettings = loadObsSettings();
+
+function loadObsSettings() {
+  try {
+    if (fs.existsSync(OBS_SETTINGS_FILE)) {
+      return { ...DEFAULT_OBS_SETTINGS, ...JSON.parse(fs.readFileSync(OBS_SETTINGS_FILE, 'utf8')) };
+    }
+  } catch (err) {
+    console.error('Could not load obs-settings.json:', err.message);
+  }
+  return { ...DEFAULT_OBS_SETTINGS };
+}
+
+function saveObsSettings() {
+  try {
+    fs.writeFileSync(OBS_SETTINGS_FILE, JSON.stringify(obsSettings, null, 2));
+  } catch (err) {
+    console.error('Could not save obs-settings.json:', err.message);
+  }
+}
+
+const obs = new ObsClient();
+const breakState = { phase: 'idle', countdownEndsAt: null, timer: null, abort: false, lastError: null };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function obsStatusPayload() {
+  return {
+    enabled: !!obsSettings.enabled,
+    connected: obs.connected,
+    phase: breakState.phase, // 'idle' | 'countdown' | 'running'
+    countdownEndsAt: breakState.countdownEndsAt,
+    lastError: breakState.lastError || obs.lastError || null,
+  };
+}
+
+/** Auto-break trigger: called after every state change with the previous status. */
+function onStatusMaybeChanged(prevStatus) {
+  if (state.status === 'finished' && prevStatus !== 'finished') scheduleAutoBreak();
+  else if (state.status !== 'finished' && prevStatus === 'finished') cancelBreak();
+}
+
+function scheduleAutoBreak() {
+  if (!obsSettings.enabled || breakState.phase !== 'idle') return;
+  const delayMs = Math.max(0, Number(obsSettings.autoDelaySeconds) || 0) * 1000;
+  breakState.phase = 'countdown';
+  breakState.countdownEndsAt = Date.now() + delayMs;
+  breakState.timer = setTimeout(() => {
+    breakState.timer = null;
+    runBreak();
+  }, delayMs);
+}
+
+/** Cancel a pending countdown, or abort a running break (returns to the live scene). */
+function cancelBreak() {
+  if (breakState.phase === 'countdown') {
+    clearTimeout(breakState.timer);
+    breakState.timer = null;
+    breakState.phase = 'idle';
+    breakState.countdownEndsAt = null;
+    broadcastState();
+  } else if (breakState.phase === 'running') {
+    breakState.abort = true;
+  }
+}
+
+async function runBreak() {
+  if (breakState.phase === 'running') return;
+  breakState.phase = 'running';
+  breakState.countdownEndsAt = null;
+  breakState.abort = false;
+  breakState.lastError = null;
+  broadcastState();
+
+  // 1. Hide the on-stream scorebug (the /tv court page keeps the final score).
+  handleCommand({ type: 'setDisplay', display: { scoreVisible: false } });
+  await sleep(1000); // let the overlay fade out before the scene switch
+
+  try {
+    if (!obs.connected) await obs.connect(obsSettings.url, obsSettings.password);
+    await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.commercialsScene });
+    await waitForCommercialsEnd();
+    await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.liveScene });
+  } catch (err) {
+    breakState.lastError = err.message;
+    console.error('Commercial break failed:', err.message);
+    // Best effort: never leave the stream stuck on the commercials scene.
+    try {
+      if (obs.connected) await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.liveScene });
+    } catch (_) { /* reported above */ }
+  }
+
+  // The score stays hidden; it comes back on startMatch / the first point.
+  breakState.phase = 'idle';
+  broadcastState();
+}
+
+async function waitForCommercialsEnd() {
+  const started = Date.now();
+  const capMs = Math.max(5, Number(obsSettings.maxBreakSeconds) || 300) * 1000;
+  let sawPlayback = false;
+
+  while (Date.now() - started < capMs) {
+    if (breakState.abort) return;
+    await sleep(500);
+
+    let status;
+    try {
+      status = await obs.request('GetMediaInputStatus', { inputName: obsSettings.mediaSource });
+    } catch (_) {
+      // Media source not queryable — fall back to the fixed safety cap.
+      while (Date.now() - started < capMs && !breakState.abort) await sleep(500);
+      return;
+    }
+
+    const s = status.mediaState;
+    if (s === 'OBS_MEDIA_STATE_PLAYING' || s === 'OBS_MEDIA_STATE_PAUSED') {
+      sawPlayback = true;
+      continue;
+    }
+    if (s === 'OBS_MEDIA_STATE_OPENING' || s === 'OBS_MEDIA_STATE_BUFFERING') continue;
+    // ENDED / STOPPED / ERROR / NONE — allow a short startup grace period.
+    if (sawPlayback || Date.now() - started > 3000) return;
+  }
+}
+
+function testObsConnection() {
+  (async () => {
+    try {
+      if (!obs.connected) await obs.connect(obsSettings.url, obsSettings.password);
+      await obs.request('GetVersion');
+      breakState.lastError = null;
+    } catch (err) {
+      breakState.lastError = err.message;
+    }
+    broadcastState();
+  })();
+}
+
 function handleCommand(cmd) {
   if (!cmd || typeof cmd.type !== 'string') return;
 
   if (cmd.type === 'undo') {
     if (undoStack.length) {
+      const prevStatus = state.status;
       redoStack.push(scoring.clone(state));
       state = undoStack.pop();
       persist();
+      onStatusMaybeChanged(prevStatus);
       broadcastState();
     }
     return;
@@ -126,9 +285,11 @@ function handleCommand(cmd) {
 
   if (cmd.type === 'redo') {
     if (redoStack.length) {
+      const prevStatus = state.status;
       undoStack.push(scoring.clone(state));
       state = redoStack.pop();
       persist();
+      onStatusMaybeChanged(prevStatus);
       broadcastState();
     }
     return;
@@ -136,6 +297,27 @@ function handleCommand(cmd) {
 
   if (cmd.type === 'ping') {
     return; // handled by ws layer; ignore app-level pings
+  }
+
+  if (cmd.type === 'playCommercials') {
+    if (breakState.phase === 'countdown') {
+      clearTimeout(breakState.timer);
+      breakState.timer = null;
+      breakState.phase = 'idle';
+      breakState.countdownEndsAt = null;
+    }
+    if (breakState.phase !== 'running') runBreak();
+    return;
+  }
+
+  if (cmd.type === 'cancelCommercials') {
+    cancelBreak();
+    return;
+  }
+
+  if (cmd.type === 'obsTest') {
+    testObsConnection();
+    return;
   }
 
   if (cmd.type === 'selectTeam') {
@@ -151,9 +333,11 @@ function handleCommand(cmd) {
   if (scoring.isMutating(cmd.type)) {
     const next = scoring.applyCommand(state, cmd);
     if (next !== state) {
+      const prevStatus = state.status;
       pushHistory();
       state = next;
       persist();
+      onStatusMaybeChanged(prevStatus);
       broadcastState();
     }
   }
@@ -238,6 +422,55 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Host info so the admin page can build LAN URLs (it may itself be viewed
+  // via 127.0.0.1 inside the desktop app's WebView).
+  if (pathname === '/api/info') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ port: PORT, lanHost: firstLanAddress() }));
+    return;
+  }
+
+  // OBS / commercial-break settings. Server-side only — deliberately NOT part
+  // of the broadcast state, so the OBS password never reaches referee phones.
+  if (pathname === '/api/obs-settings') {
+    if (req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(obsSettings));
+      return;
+    }
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', (c) => {
+        body += c;
+        if (body.length > 1e6) req.destroy();
+      });
+      req.on('end', () => {
+        try {
+          const incoming = JSON.parse(body);
+          const clean = { ...obsSettings };
+          if (typeof incoming.enabled === 'boolean') clean.enabled = incoming.enabled;
+          for (const k of ['url', 'password', 'liveScene', 'commercialsScene', 'mediaSource']) {
+            if (typeof incoming[k] === 'string') clean[k] = incoming[k];
+          }
+          for (const k of ['autoDelaySeconds', 'maxBreakSeconds']) {
+            const n = Number(incoming[k]);
+            if (Number.isFinite(n) && n >= 0) clean[k] = Math.round(n);
+          }
+          obsSettings = clean;
+          saveObsSettings();
+          obs.close(); // reconnect with the new url/password on next use
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+          broadcastState();
+        } catch (_) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false }));
+        }
+      });
+      return;
+    }
+  }
+
   // Shared scoring module (single source of truth for score labels).
   if (pathname === '/scoring.js') {
     serveFile(res, path.join(__dirname, 'src', 'scoring.js'));
@@ -250,6 +483,7 @@ const server = http.createServer((req, res) => {
   if (pathname === '/admin') pathname = '/admin.html';
   if (pathname === '/mobile') pathname = '/mobile.html';
   if (pathname === '/teams') pathname = '/teams.html';
+  if (pathname === '/tv') pathname = '/tv.html';
 
   const filePath = safeJoin(PUBLIC_DIR, pathname);
   if (!filePath) {

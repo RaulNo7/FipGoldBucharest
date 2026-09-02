@@ -1,6 +1,8 @@
 # FIP Gold Bucharest 2026 — Implementation Plan
 
 > **Status: IMPLEMENTED (2026-09-01).** All 12 phases of §8 are built and verified (66/66 engine tests, clean `dotnet build`, live browser checks of overlay/admin/teams/mobile, exe smoke test). Still to do on site, per §9: the OBS Browser Source check and the referee-phone-on-LAN test. `C:\Padel\PadelTool` was not modified. This document remains the design reference.
+>
+> **Phase 2 (2026-09-02): IMPLEMENTED — see §12** (court TV score page + automatic commercial breaks with OBS control). Verified: 84/84 engine tests, a 10/10 end-to-end break test against a mock obs-websocket v5 server (`Scoreboard\test\break.e2e.js`), and live browser checks of `/tv` (1920×1080) and the new admin cards (LAN TV URL, live countdown, Cancel). One implementation simplification vs. the spec: there is no `tv.js` — `tv.html` reuses `overlay.js` via `<body data-tv="1">` (which also makes the /tv page ignore `scoreVisible`), with all TV sizing in `tv.css`. Remaining on-site test: one real break against the user's actual OBS (Test connection button + a finished match).
 
 Everything below is based on a full read of the source project plus two verification passes (a direct read of every relevant file, and an independent research pass), and on the two official FIP entry-list PDFs and the tournament poster.
 
@@ -763,3 +765,110 @@ This file is validated JSON (parsed and count-checked with `ConvertFrom-Json`: 8
   }
 }
 ```
+
+---
+
+## 12. Phase 2 — Court TV page + automatic commercial breaks (planned 2026-09-02)
+
+Two new features requested after the initial release. Nothing below is implemented yet.
+
+### 12.1 Feature A — full-screen court TV score page (`/tv`)
+
+**Goal:** a page showing *only* the score — same content and column semantics as the OBS scorebug (flags, player names, serve dot, blue completed sets, gold current-set games, white points, winner banner) — but scaled to fill the whole browser window on a solid **black** background. Intended for a TV / monitor / laptop at the court, opened over LAN on any device.
+
+**New files** (reuse `scoring.js`, `countries.js`, `client.js` exactly like the overlay does):
+
+| File | Purpose |
+|---|---|
+| `Scoreboard\public\tv.html` | page skeleton: 2 team blocks × 2 player rows + score columns + winner banner |
+| `Scoreboard\public\tv.css` | black `#000` background; all sizes in viewport units (`vw`/`vh` with `clamp()`) so the board fills the screen edge-to-edge at any resolution; landscape 16:9 is the primary target, but it must stay usable in portrait (stacked, smaller) |
+| `Scoreboard\public\tv.js` | a variant of `overlay.js`'s `render()` — same state → DOM mapping, no `?pos=/?scale=` handling (always full-viewport) |
+
+**Server changes** (`server.js`):
+- Route: `/tv` → `tv.html`.
+- New `GET /api/info` → `{ port, lanHost }` (reuse the existing `firstLanAddress()`), because the admin page is often viewed via `127.0.0.1` inside the WPF WebView — it cannot derive the LAN URL from `location.origin`, and the TV is another device.
+
+**Admin panel** (`admin.html`/`admin.js`): a new small card **"Court TV display"** directly under "OBS overlay URL": a read-only URL `http://{lanHost}:{port}/tv` + **Copy** and **Open** buttons (same pattern as the overlay URL row).
+
+**Behavior details:**
+- Identical live semantics to the overlay, including the finished-match collapse (blue sets + winner banner only, no gold/white).
+- The TV page does **not** hide during commercial breaks (§12.2) — people at the court should keep seeing the final score while the stream plays ads. (Flagged as open question Q2.)
+
+### 12.2 Feature B — automatic commercial break after a match (+ manual button)
+
+**Requested behavior:** 60 seconds after a match finishes → hide the score on stream → switch OBS away from the live scene to commercial videos → when the videos end, return to the live court scene **without** the score (the operator sets up the next teams meanwhile). Plus a button in the admin panel to run the same break manually at any moment, and the score must reappear for the next match.
+
+**Architecture decision — OBS control comes back, but in the Node server this time (zero WPF changes).** The old C# `ObsWebSocketClient` was deleted with the replay feature; rather than resurrecting the C#→hub→OBS bridge, the Node server gets a small obs-websocket **v5 client** of its own:
+
+- New `Scoreboard\src\obsclient.js` (~150 lines, no npm deps): uses Node's **built-in global `WebSocket`** (stable since Node 22; the machine runs v24 — bump `package.json` `engines` to `>=22`) + `crypto` for the v5 SHA-256 challenge auth. Needs only 4 requests: `GetVersion` (test), `SetCurrentProgramScene`, `GetMediaInputStatus`, and optionally `TriggerMediaInputAction` (restart). Auto-reconnect with backoff; every failure is reported as a status string, never a crash.
+- The server is the right home because it already knows the match state (it owns the finish transition and the timers) and already handles non-scoring hub commands (the old `replay` relay slot).
+
+**"Hide the score" = the overlay hides itself** (no OBS scene-item calls, no source names to configure): a new persisted display flag `state.display.scoreVisible` (default `true`). When `false`, `overlay.js` applies the existing `.hidden` fade-out class. On stream this is indistinguishable from disabling the browser source, and it survives OBS restarts. The referee page and admin previews keep showing the score regardless (only the broadcast overlay obeys the flag).
+
+**Score reappearance rule:** `scoreVisible` flips back to `true` automatically in the reducer on `startMatch` or on the first `point` — i.e. exactly when the next match actually begins — plus a manual **"Show / hide score"** toggle button in the admin card for full control.
+
+**OBS settings — stored server-side, never broadcast** (the referee's phone must not receive the OBS password): new file `obs-settings.json` saved next to the state file (`%AppData%\FipGoldBucharest\`), managed via `GET/POST /api/obs-settings` (used only by the admin page):
+
+```jsonc
+{
+  "enabled": true,              // master switch for the automatic break
+  "url": "ws://127.0.0.1:4455", // obs-websocket v5
+  "password": "",
+  "liveScene": "LIVE",
+  "commercialsScene": "COMMERCIALS",
+  "mediaSource": "Commercials", // the media/VLC source inside that scene
+  "autoDelaySeconds": 60,       // finish → break countdown
+  "maxBreakSeconds": 300        // safety cap if media status never reports "ended"
+}
+```
+
+**Break orchestration (in `server.js`):**
+1. *Auto trigger:* on every state change, watch for `status` becoming `'finished'` → start a countdown of `autoDelaySeconds`. Broadcast the countdown so the admin card shows "Commercials in 42s" with a **Cancel** button. If the status leaves `'finished'` before it fires (undo, `removeLastSet`, reset), the countdown cancels itself.
+2. *Manual trigger:* new hub/REST commands (handled like `undo` — server-level, not reducer commands): `{type:'playCommercials'}` (run now), `{type:'cancelCommercials'}` (cancel countdown or abort a running break by switching straight back to the live scene).
+3. *The break routine:*
+   a. Apply `setDisplay {scoreVisible:false}` through the normal reducer (history + broadcast + persist for free); wait ~1s for the overlay fade.
+   b. `SetCurrentProgramScene(commercialsScene)`.
+   c. Poll `GetMediaInputStatus(mediaSource)` every 500ms until it reports ended/stopped/error — with a 3s opening grace period and the `maxBreakSeconds` hard cap (same battle-tested pattern as the old replay `WaitForMediaEndAsync`).
+   d. `SetCurrentProgramScene(liveScene)`. `scoreVisible` stays `false` until the next match starts (or the manual toggle).
+4. *Status for the UI:* the `{type:'state'}` broadcast gains a **transient sibling field** (not persisted, not part of `state`): `obs: { connected, breakPhase: 'idle'|'countdown'|'running', countdownEndsAt }` — the admin card renders its status dot and countdown from this.
+5. *Degradation:* if OBS is unreachable, the routine still hides the score, reports `error` in the status, does **not** switch scenes, and never blocks scoring.
+
+**Admin panel — new card "Commercial break"** (below "Court TV display"):
+- Status row: OBS connection dot + break phase / countdown, **Test connection** button.
+- Buttons: **▶ Play commercials now**, **Cancel**, **Show / hide score** toggle.
+- Settings form: the `obs-settings.json` fields above (password as `<input type="password">`), Save via `POST /api/obs-settings`.
+
+**Engine changes** (`scoring.js`): `display.scoreVisible: true` default; `point` and `startMatch` set it `true`. That is all — `playCommercials`/`cancelCommercials` are server-level, not reducer commands.
+
+**Required OBS setup (user, documented in README):**
+- Tools → WebSocket Server Settings → enable, note port + password.
+- A scene named `COMMERCIALS` containing one **Media Source** named `Commercials`, pointing at the single merged commercials mp4 (confirmed, §12.3 item 1), with **"Restart playback when source becomes active"** ticked.
+- The existing `LIVE` scene stays as-is.
+
+### 12.3 Open questions to confirm before implementing
+
+1. **Commercials source type — CONFIRMED (user, 2026-09-02)**: the user will merge the clips into **one single mp4**, played by a standard OBS **Media Source** named `Commercials`. No VLC dependency.
+2. **Court TV during the break — CONFIRMED (user, 2026-09-02)**: `/tv` keeps showing the final score; only the stream (OBS program) switches to the commercials. `scoreVisible` therefore affects the `/overlay` page only.
+3. **Auto-break default — CONFIRMED (user, 2026-09-02)**: enabled by default, with the visible countdown and a Cancel button in the admin card.
+4. **Auto-break delay — CONFIRMED (user, 2026-09-02)**: must be **configurable** in the admin "Commercial break" card (`autoDelaySeconds`, shipped default 60s).
+5. Scene names: keep `LIVE` (already exists from the replay era) and create `COMMERCIALS`, or different names? (Both are configurable in the new card.)
+
+### 12.4 Implementation order
+
+1. `/tv` page + `/api/info` + "Court TV display" admin card *(independent, no risk)*.
+2. `scoring.js`: `scoreVisible` flag + auto-show on `point`/`startMatch`; `overlay.js` honors it; admin Show/hide toggle. Engine tests for the transitions.
+3. `src/obsclient.js` + `obs-settings.json` persistence + `GET/POST /api/obs-settings` + Test connection.
+4. Break orchestration in `server.js` (finish-watcher countdown, `playCommercials`/`cancelCommercials`, media polling, transient `obs` status in broadcasts).
+5. Admin "Commercial break" card (status, countdown, buttons, settings form).
+6. README: OBS setup section (websocket, COMMERCIALS scene, media source checklist).
+
+### 12.5 Testing checklist (phase 2)
+
+- [ ] `/tv` fills a 1920×1080 browser fully, black background, readable from distance; live updates < 1s; finished view collapses like the overlay; usable on a phone/tablet too.
+- [ ] "Court TV display" URL uses the LAN IP (not 127.0.0.1) and opens from another device.
+- [ ] Finish a match → admin shows the countdown → at 0 the overlay fades out, OBS switches to COMMERCIALS, the video plays, OBS returns to LIVE, the score stays hidden.
+- [ ] Pick the next teams, press Start (or score the first point) → the scorebug fades back in.
+- [ ] "Play commercials now" works mid-match; "Cancel" aborts both the countdown and a running break (returns to LIVE).
+- [ ] Undoing the final set during the countdown cancels the break.
+- [ ] OBS closed/wrong password: scoring keeps working, admin shows the error status, no scene stuck.
+- [ ] `scoreboard-state.json` round-trips `scoreVisible`; `obs-settings.json` never appears in any WS broadcast (check a `/ws` dump from the referee phone).

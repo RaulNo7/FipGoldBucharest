@@ -6,10 +6,11 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/scoring.test.js"
+    "test": "node test/scoring.test.js",
+    "test:e2e": "node test/break.e2e.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "keywords": [
     "padel",
