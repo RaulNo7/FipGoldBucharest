@@ -224,8 +224,10 @@ public partial class MainWindow : Window
     /// </summary>
     private void ShowScoreboardViews()
     {
+        // operator=1 unlocks the Broadcast card (players intro / commercials / score
+        // visibility) that the referee's plain /mobile page does not show.
         _ = InitWebViewAsync(HomeWebView, HomePlaceholder, TxtHomePlaceholder,
-            $"http://127.0.0.1:{_scoreboard.Port}/mobile");
+            $"http://127.0.0.1:{_scoreboard.Port}/mobile?operator=1");
         _ = InitWebViewAsync(ScoreboardWebView, ScoreboardPlaceholder, TxtScoreboardPlaceholder,
             _scoreboard.AdminUrl);
         _ = InitWebViewAsync(TeamsWebView, TeamsPlaceholder, TxtTeamsPlaceholder,

@@ -84,6 +84,29 @@ function pushHistory() {
   redoStack.length = 0;
 }
 
+// Undo/redo cover only the score (points, games, sets, serve, match status) —
+// never team selection, display toggles (score / players-intro visibility) or
+// the elimination registry: those are operator settings, not match events.
+const SCORE_FIELDS = [
+  'points', 'games', 'sets', 'setsWon', 'inTiebreak', 'inSuperTiebreak', 'deuceCount',
+  'server', 'servingPlayer', 'teamServers', 'status', 'winner', 'lastScorer',
+];
+const UNDOABLE = new Set([
+  'point', 'adjustPoints', 'adjustGames', 'adjustSets', 'saveSet', 'removeLastSet',
+  'setServer', 'swapServer', 'setServingPlayer', 'swapServingPlayer',
+  'startMatch', 'finishMatch', 'setStatus', 'resetMatch',
+]);
+
+/** The current state with only the score fields taken from a history snapshot. */
+function withScoreFrom(snapshot) {
+  const next = scoring.clone(state);
+  for (const k of SCORE_FIELDS) {
+    if (k in snapshot) next[k] = scoring.clone(snapshot[k]);
+  }
+  next.seq = (state.seq || 0) + 1;
+  return next;
+}
+
 // ---------------------------------------------------------------------------
 // WebSocket hub
 // ---------------------------------------------------------------------------
@@ -275,7 +298,7 @@ function handleCommand(cmd) {
     if (undoStack.length) {
       const prevStatus = state.status;
       redoStack.push(scoring.clone(state));
-      state = undoStack.pop();
+      state = withScoreFrom(undoStack.pop());
       persist();
       onStatusMaybeChanged(prevStatus);
       broadcastState();
@@ -287,7 +310,7 @@ function handleCommand(cmd) {
     if (redoStack.length) {
       const prevStatus = state.status;
       undoStack.push(scoring.clone(state));
-      state = redoStack.pop();
+      state = withScoreFrom(redoStack.pop());
       persist();
       onStatusMaybeChanged(prevStatus);
       broadcastState();
@@ -334,7 +357,12 @@ function handleCommand(cmd) {
     const next = scoring.applyCommand(state, cmd);
     if (next !== state) {
       const prevStatus = state.status;
-      pushHistory();
+      if (UNDOABLE.has(cmd.type)) {
+        pushHistory();
+      } else if (cmd.type === 'resetAll') {
+        undoStack.length = 0; // a full reset starts a fresh history
+        redoStack.length = 0;
+      }
       state = next;
       persist();
       onStatusMaybeChanged(prevStatus);
@@ -484,6 +512,7 @@ const server = http.createServer((req, res) => {
   if (pathname === '/mobile') pathname = '/mobile.html';
   if (pathname === '/teams') pathname = '/teams.html';
   if (pathname === '/tv') pathname = '/tv.html';
+  if (pathname === '/intro') pathname = '/intro.html';
 
   const filePath = safeJoin(PUBLIC_DIR, pathname);
   if (!filePath) {

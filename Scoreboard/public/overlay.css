@@ -65,7 +65,6 @@ body {
   padding: 8px 16px;
   border-radius: var(--radius) var(--radius) 0 0;
   box-shadow: var(--shadow);
-  border-left: 4px solid var(--gold);
 }
 
 .title-bar.empty {
@@ -233,7 +232,7 @@ body {
   border-left: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-/* White column: current game points (0/15/30/40, D/Ad/GP, tiebreak) */
+/* White column: current game points (0/15/30/40, D/Ad/SP, tiebreak) */
 .points {
   width: 64px;
   display: flex;
@@ -253,7 +252,7 @@ body {
   letter-spacing: 0.04em;
 }
 
-/* Golden point — make the decisive point pop. */
+/* Star point — make the decisive point pop. */
 .points.gp {
   font-size: 21px;
   letter-spacing: 0.06em;

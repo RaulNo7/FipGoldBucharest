@@ -247,6 +247,14 @@ button { touch-action: manipulation; user-select: none; -webkit-user-select: non
 }
 .btn.tool { flex: 1 1 auto; padding: 12px 10px; }
 
+/* Broadcast card (operator mode) */
+#broadcastCard .toolbar { margin-top: 0; }
+.btn.tool.active { background: var(--gold); border-color: var(--gold); color: #10202f; }
+.btn.tool.ads { background: var(--gold); border-color: var(--gold); color: #10202f; }
+.btn.tool.ads:active { background: var(--gold-light); }
+.btn.tool:disabled { opacity: .45; }
+[hidden] { display: none !important; }
+
 /* ---- manual adjust ---- */
 .adj-table { display: flex; flex-direction: column; gap: 10px; }
 .adj-row {

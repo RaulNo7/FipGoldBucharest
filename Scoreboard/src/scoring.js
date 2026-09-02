@@ -81,6 +81,7 @@ function createDefaultState() {
       showPlayers: true,
       showTitle: true,
       scoreVisible: true, // false while the stream shows commercials; the /tv page ignores it
+      introVisible: false, // pre-match players presentation (the /intro overlay page)
     },
     teams_registry: {}, // live Active/Eliminated flags per entry-list teamId ({ [id]: { active } }; missing = active)
     seq: 0, // monotonically increasing change counter (animation hint)
@@ -153,7 +154,8 @@ function pointLabel(points, idx, config) {
   const isGoldenPoint =
     config.deuceMode === 'golden' || deuceNumber >= suddenDeathDeuceNumber(config);
 
-  if (p === q) return isGoldenPoint ? 'GP' : 'D' + deuceNumber;
+  // The sudden-death point is labelled 'SP' (star point, tournament terminology).
+  if (p === q) return isGoldenPoint ? 'SP' : 'D' + deuceNumber;
   // Advantage to this side during deuce #deuceNumber.
   if (p === q + 1) return 'Ad' + deuceNumber;
   // Trailing side during an advantage shows 40.
@@ -350,8 +352,11 @@ function applyCommand(prev, cmd) {
   switch (type) {
     case 'point': {
       const t = cmd.team === 1 ? 1 : 0;
-      // The next match is underway — bring the scorebug back after a commercial break.
-      if (state.status !== 'finished' && state.display) state.display.scoreVisible = true;
+      // The next match is underway — bring the scorebug back, drop the players intro.
+      if (state.status !== 'finished' && state.display) {
+        state.display.scoreVisible = true;
+        state.display.introVisible = false;
+      }
       return awardPoint(state, t);
     }
 
@@ -477,12 +482,19 @@ function applyCommand(prev, cmd) {
     case 'setDisplay':
       if (cmd.display && typeof cmd.display === 'object') {
         Object.assign(state.display, cmd.display);
+        // The players intro and the scorebug never share the screen: showing
+        // one hides the other (hiding one leaves the screen empty).
+        if (cmd.display.scoreVisible === true) state.display.introVisible = false;
+        else if (cmd.display.introVisible === true) state.display.scoreVisible = false;
       }
       return state;
 
     case 'startMatch':
       state.status = 'live';
-      if (state.display) state.display.scoreVisible = true;
+      if (state.display) {
+        state.display.scoreVisible = true;
+        state.display.introVisible = false;
+      }
       return state;
 
     case 'setStatus':

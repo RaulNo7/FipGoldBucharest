@@ -90,7 +90,7 @@
       el.points[t].textContent = label;
       el.points[t].classList.toggle('ad', /^Ad/.test(label));
       el.points[t].classList.toggle('deuce', /^D\d/.test(label));
-      el.points[t].classList.toggle('gp', label === 'GP');
+      el.points[t].classList.toggle('gp', label === 'SP');
     }
 
     // Winner banner

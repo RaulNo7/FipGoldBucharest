@@ -125,11 +125,26 @@ function cleanupAndExit() {
   assert(up, 'scoreboard server started');
 
   await cmd({ type: 'startMatch' });
-  await cmd({ type: 'adjustGames', team: 0, delta: 6 });
-  await cmd({ type: 'saveSet' });
-  await cmd({ type: 'adjustGames', team: 0, delta: 6 });
-  await cmd({ type: 'saveSet' });
+
+  // Undo/redo are score-only: a display toggle is neither undone nor recorded.
+  await cmd({ type: 'point', team: 0 });
+  await cmd({ type: 'setDisplay', display: { scoreVisible: false, introVisible: true } });
+  await cmd({ type: 'undo' });
   let st = await api('/api/state');
+  assert(st.points[0] === 0, 'undo reverts the last point, not the display toggle');
+  assert(st.display.scoreVisible === false && st.display.introVisible === true, 'undo leaves score/players visibility untouched');
+  await cmd({ type: 'redo' });
+  st = await api('/api/state');
+  assert(st.points[0] === 1, 'redo re-applies the point');
+  assert(st.display.scoreVisible === false, 'redo also leaves the display untouched');
+  await cmd({ type: 'undo' });
+  await cmd({ type: 'setDisplay', display: { scoreVisible: true, introVisible: false } });
+
+  await cmd({ type: 'adjustGames', team: 0, delta: 6 });
+  await cmd({ type: 'saveSet' });
+  await cmd({ type: 'adjustGames', team: 0, delta: 6 });
+  await cmd({ type: 'saveSet' });
+  st = await api('/api/state');
   assert(st.status === 'finished', 'match finished');
   assert(st.display.scoreVisible !== false, 'score still visible right after the finish');
 

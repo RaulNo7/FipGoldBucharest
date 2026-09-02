@@ -13,7 +13,8 @@ The user confirmed four §10 questions after this plan was written. Where any te
 1. **Deuce rule (§10 item 1) — CONFIRMED**: `deuceMode: 'star'` — advantage is played at the first two deuces, then a single golden point decides the game.
 2. **Deciding 3rd set (§10 item 3) — CONFIRMED**: a normal set (to 6 games, tiebreak to 7 win-by-2 at 6-6), i.e. `finalSetMode: 'normal'`.
 3. **Scorebug columns (§10 item 4) — CONFIRMED, then refined by a second user screenshot (2026-09-01)**: **blue** column(s) = completed sets (the games score of each finished set, e.g. 6 / 4), **gold** = games in the current set, **white** = current point score (0/15/30/40). The blue columns replace the earlier "small boxes" idea (§6.4).
-4. **UI language (§10 item 10) — English is kept everywhere.** The Romanian translation pass is dropped; only the 13 mojibake spots in `admin.html` are repaired (§2.8). Every "translate to Romanian" instruction below is void, and implementation phase 11 becomes an encoding-verification pass only.
+4. **Point label (user, 2026-09-02)**: the sudden-death point shows **"SP"** (star point) on all score displays instead of the engine's original "GP" — renamed at the source (`pointLabel` in `scoring.js`).
+5. **UI language (§10 item 10) — English is kept everywhere.** The Romanian translation pass is dropped; only the 13 mojibake spots in `admin.html` are repaired (§2.8). Every "translate to Romanian" instruction below is void, and implementation phase 11 becomes an encoding-verification pass only.
 
 All other §10 items proceed on this plan's stated recommendations.
 
@@ -861,6 +862,17 @@ Two new features requested after the initial release. Nothing below is implement
 4. Break orchestration in `server.js` (finish-watcher countdown, `playCommercials`/`cancelCommercials`, media polling, transient `obs` status in broadcasts).
 5. Admin "Commercial break" card (status, countdown, buttons, settings form).
 6. README: OBS setup section (websocket, COMMERCIALS scene, media source checklist).
+
+### 12.5b Phase 2b additions (2026-09-02, implemented the same day)
+
+User-requested follow-ups after live OBS testing:
+
+- **Broadcast controls on the Home tab**: `/mobile` gains an operator-only **"Broadcast" card** — OBS status badge, 👥 Show/hide players, Show/hide score, ▶ Commercials, Cancel, and the live countdown/error line. It appears only when the page is opened with `?operator=1`, which is how the WPF Home tab now embeds it (`MainWindow.xaml.cs`); the referee's plain `/mobile` URL never shows it. The admin "Commercial break" card keeps the same buttons (plus its own 👥 Show players).
+- **Players intro overlay**: new `/intro` page (`intro.html/.css/.js`) — a **transparent second OBS Browser Source** (1920×1080, above the camera in the LIVE scene) showing the tournament header (`display.title` falling back to "FIP GOLD BUCHAREST 2026", plus `display.subtitle`, e.g. "Qualifications") and the four players of the selected match with big flags, matching the user's reference mock. Toggled via a new persisted `display.introVisible` flag (plain `setDisplay`), with a fade; auto-hidden by `startMatch` and by the first `point`. Its URL has a Copy/Open row in the admin "OBS overlay URL" card.
+- **Point label rename**: the sudden-death point label is **"SP"** (star point) instead of "GP" — changed at the source in `pointLabel` (see Confirmed decisions item 4).
+- **Score-only undo/redo** (user request 2026-09-03): only scoring commands (`point`, `adjust*`, `saveSet`, `removeLastSet`, serve commands, `startMatch`/`finishMatch`/`setStatus`/`resetMatch`) create history entries, and undo/redo restore only the score fields (`server.js` `SCORE_FIELDS`/`UNDOABLE`/`withScoreFrom`). Team selection, display toggles (score/players visibility, title) and the elimination registry are never undone; `resetAll` clears the history. Covered by `test/break.e2e.js`.
+- **Design tweaks** (2026-09-03): the gold left accent bar was removed from the intro header and from the scorebug/TV title bars.
+- Verified: 88/88 engine tests (introVisible transitions added), live browser checks of `/intro` (matches the mock, incl. the real M-Q-23 vs M-MD-27 pairing), the operator card's toggles, and that plain `/mobile` ships the card hidden.
 
 ### 12.5 Testing checklist (phase 2)
 

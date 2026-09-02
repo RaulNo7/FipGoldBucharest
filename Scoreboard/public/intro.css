@@ -1,0 +1,135 @@
+/* Players intro — a transparent OBS Browser Source shown over the live court
+   video before a match: tournament header + the four players with big flags.
+   Toggled from the app ("Show players"); auto-hides when the match starts. */
+
+:root {
+  --font: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+  --font-names: 'Bahnschrift SemiCondensed', 'Bahnschrift', 'Arial Narrow', 'Segoe UI', sans-serif;
+
+  --navy-deep: rgba(11, 27, 46, 0.96);
+  --navy-alt: rgba(27, 52, 84, 0.96);
+  --header-bg: rgba(8, 20, 34, 0.97);
+  --gold: #d4a017;
+  --gold-light: #e8c158;
+  --white: #ffffff;
+  --muted: #9fb1c4;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  background: transparent;
+  font-family: var(--font);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* Centered over the video. All sizes scale from this one font-size. */
+.intro {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: min(2.7vw, 4.8vh);
+  width: min(60vw, 107vh);
+  min-width: 18em;
+  filter: drop-shadow(0 0.4em 1.2em rgba(0, 0, 0, 0.55));
+  transition: opacity 0.5s ease;
+  opacity: 1;
+}
+
+.intro.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- Header ---- */
+.intro-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6em;
+  background: var(--header-bg);
+  padding: 0.45em 0.8em;
+  border-radius: 0.3em 0.3em 0 0;
+}
+
+.intro-title {
+  font-family: var(--font-names);
+  font-size: 1em;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--gold-light);
+  white-space: nowrap;
+}
+
+.intro-subtitle {
+  font-size: 0.66em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Teams ---- */
+.intro-board {
+  border-radius: 0 0 0.3em 0.3em;
+  overflow: hidden;
+}
+
+.intro-block {
+  background: var(--navy-deep);
+  padding: 0.7em 0.9em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55em;
+}
+
+.intro-block[data-block='1'] {
+  background: var(--navy-alt);
+}
+
+.intro-divider {
+  height: 0.09em;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.intro-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  min-width: 0;
+}
+
+.intro-flag {
+  width: 2.1em;
+  height: 1.55em;
+  border-radius: 0.18em;
+  flex: 0 0 auto;
+  background-color: rgba(255, 255, 255, 0.12);
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 0 0.06em rgba(255, 255, 255, 0.35);
+}
+
+.intro-name {
+  font-family: var(--font-names);
+  font-size: 1.15em;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.15;
+}

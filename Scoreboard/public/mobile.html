@@ -108,6 +108,22 @@
       </div>
       <p class="hint"><b>Save set</b> records the current games as a finished set (the side ahead wins it) so it shows on the overlay. <b>Undo set</b> removes the last one. Tap a <b>Player</b> button to mark exactly who is serving.</p>
     </section>
+
+    <!-- BROADCAST (operator only: shown when the page is opened with ?operator=1,
+         which is how the desktop app's Home tab embeds it) -->
+    <section class="card" id="broadcastCard" hidden>
+      <div class="card-head">
+        <h2>Broadcast</h2>
+        <span id="obsBadge" class="badge">OBS: …</span>
+      </div>
+      <div class="toolbar">
+        <button class="btn tool" id="introBtn">👥 Show players</button>
+        <button class="btn tool" id="toggleScoreBtn">Hide score</button>
+        <button class="btn tool ads" id="playAdsBtn">▶ Commercials</button>
+        <button class="btn tool" id="cancelAdsBtn" disabled>Cancel</button>
+      </div>
+      <p class="hint" id="breakStatus" hidden></p>
+    </section>
   </main>
 
   <script src="/scoring.js"></script>

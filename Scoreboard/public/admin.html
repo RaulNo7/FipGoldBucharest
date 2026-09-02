@@ -73,6 +73,12 @@
         <button class="btn btn-ghost" id="copyUrlBtn">Copy</button>
         <button class="btn btn-ghost" id="openOverlayBtn">Open</button>
       </div>
+      <p class="hint">Players intro (add as a <b>second</b> Browser Source above the camera, transparent, sized <b>exactly like your OBS canvas</b> — Settings → Video → Base resolution, e.g. 1920×1080 or 1280×720 — then Ctrl+R to reset its transform. Shown/hidden with the "Show players" button; add <b>?scale=0.8</b> to the URL for a smaller card):</p>
+      <div class="row gap url-row">
+        <input type="text" id="introUrl" readonly />
+        <button class="btn btn-ghost" id="copyIntroUrlBtn">Copy</button>
+        <button class="btn btn-ghost" id="openIntroBtn">Open</button>
+      </div>
       <p class="hint">In OBS: Sources → + → Browser → paste this URL. Set width 1920, height 1080, tick "transparent".
         Sizing the source as a tight crop instead? Use at least 700 × 330 at scale 1 — the scorebug sits 40px
         from the edge and the winner banner adds height, so anything smaller clips the score columns or title.</p>
@@ -94,6 +100,7 @@
         <button class="btn btn-warn" id="playAdsBtn">▶ Play commercials now</button>
         <button class="btn btn-ghost" id="cancelAdsBtn" disabled>Cancel</button>
         <button class="btn btn-ghost" id="toggleScoreBtn">Hide score</button>
+        <button class="btn btn-ghost" id="introToggleBtn">👥 Show players</button>
       </div>
       <p class="hint" id="breakStatus">…</p>
       <div class="config-grid">

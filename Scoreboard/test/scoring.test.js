@@ -40,7 +40,7 @@ console.log('\nRunning padel scoring tests…\n');
   let s = withConfig({ deuceMode: 'golden' });
   // 40-40 then team 0 wins the golden point -> wins the game.
   s = play(s, [0, 1, 0, 1, 0, 1]); // 3-3 (40-40)
-  eq(scoring.pointLabel(s.points, 0, s.config), 'GP', 'golden: 3-3 shows GP (golden point)');
+  eq(scoring.pointLabel(s.points, 0, s.config), 'SP', 'golden: 3-3 shows SP (sudden-death point)');
   s = play(s, [0]); // golden point team 0
   eq(s.games, [1, 0], 'golden: team0 wins game on sudden death');
   eq(s.points, [0, 0], 'golden: points reset after game');
@@ -69,8 +69,8 @@ console.log('\nRunning padel scoring tests…\n');
   eq(s.games, [0, 0], 'star: Ad does not win during deuce #1');
   s = play(s, [1]); // 4-4 (deuce #2 == limit) -> sudden-death golden point
   eq(s.points, [4, 4], 'star: reached 4-4');
-  eq(scoring.pointLabel(s.points, 0, s.config), 'GP', 'star: golden deuce shows GP');
-  eq(scoring.pointLabel(s.points, 1, s.config), 'GP', 'star: GP shows on both teams');
+  eq(scoring.pointLabel(s.points, 0, s.config), 'SP', 'star: golden deuce shows SP');
+  eq(scoring.pointLabel(s.points, 1, s.config), 'SP', 'star: SP shows on both teams');
   s = play(s, [1]); // sudden death, team1 wins by one
   eq(s.games, [0, 1], 'star: sudden death awards game on single point at limit');
 })();
@@ -90,7 +90,7 @@ console.log('\nRunning padel scoring tests…\n');
   s = withConfig({ deuceMode: 'silver' });
   s = play(s, [0, 1, 0, 1, 0, 1, 0, 1]); // 40-40 then Ad lost -> 4-4 (deuce #2)
   eq(s.points, [4, 4], 'silver: reached 4-4');
-  eq(scoring.pointLabel(s.points, 0, s.config), 'GP', 'silver: 4-4 is the sudden-death point');
+  eq(scoring.pointLabel(s.points, 0, s.config), 'SP', 'silver: 4-4 is the sudden-death point');
   s = play(s, [1]); // single point decides
   eq(s.games, [0, 1], 'silver: sudden death awards the game by one point');
 })();
@@ -106,7 +106,7 @@ console.log('\nRunning padel scoring tests…\n');
   eq(s.games, [0, 0], 'star default: Ad at deuce #2 does not end the game');
   s = play(s, [1]); // back to 5-5 (deuce #3) -> sudden death
   eq(s.points, [5, 5], 'star default: reached 5-5');
-  eq(scoring.pointLabel(s.points, 0, s.config), 'GP', 'star default: 5-5 is the sudden-death point');
+  eq(scoring.pointLabel(s.points, 0, s.config), 'SP', 'star default: 5-5 is the sudden-death point');
   s = play(s, [0]);
   eq(s.games, [1, 0], 'star default: sudden death awards the game by one point');
 })();
@@ -295,6 +295,30 @@ console.log('\nRunning padel scoring tests…\n');
   s = scoring.applyCommand(s, { type: 'setDisplay', display: { scoreVisible: false } });
   s = scoring.applyCommand(s, { type: 'point', team: 0 });
   eq(s.display.scoreVisible, false, 'scoreVisible: a point on a finished match stays hidden');
+})();
+
+// --- Players intro visibility ----------------------------------------------
+(function introVisibleFlag() {
+  let s = scoring.createDefaultState();
+  eq(s.display.introVisible, false, 'intro: hidden by default');
+  s = scoring.applyCommand(s, { type: 'setDisplay', display: { introVisible: true } });
+  eq(s.display.introVisible, true, 'intro: setDisplay can show it');
+  s = scoring.applyCommand(s, { type: 'startMatch' });
+  eq(s.display.introVisible, false, 'intro: startMatch hides it');
+  s = scoring.applyCommand(s, { type: 'setDisplay', display: { introVisible: true } });
+  s = scoring.applyCommand(s, { type: 'point', team: 0 });
+  eq(s.display.introVisible, false, 'intro: the first point hides it');
+})();
+
+// --- Players intro and scorebug are mutually exclusive -----------------------
+(function introAndScoreExclusive() {
+  let s = scoring.createDefaultState();
+  s = scoring.applyCommand(s, { type: 'setDisplay', display: { introVisible: true } });
+  eq([s.display.introVisible, s.display.scoreVisible], [true, false], 'exclusive: showing the players hides the score');
+  s = scoring.applyCommand(s, { type: 'setDisplay', display: { scoreVisible: true } });
+  eq([s.display.introVisible, s.display.scoreVisible], [false, true], 'exclusive: showing the score hides the players');
+  s = scoring.applyCommand(s, { type: 'setDisplay', display: { scoreVisible: false } });
+  eq([s.display.introVisible, s.display.scoreVisible], [false, false], 'exclusive: hiding one does not force the other on');
 })();
 
 console.log(`\n${passed} passed, ${failed} failed.\n`);

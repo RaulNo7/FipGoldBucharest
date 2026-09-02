@@ -155,6 +155,15 @@
   $('#openOverlayBtn').addEventListener('click', () => window.open($('#overlayUrl').value, '_blank'));
   updateOverlayUrl();
 
+  // ---- players intro URL (second Browser Source) ----
+  $('#introUrl').value = new URL('/intro', location.origin).toString();
+  $('#copyIntroUrlBtn').addEventListener('click', () => {
+    $('#introUrl').select();
+    navigator.clipboard?.writeText($('#introUrl').value);
+    flash($('#copyIntroUrlBtn'), 'Copied!');
+  });
+  $('#openIntroBtn').addEventListener('click', () => window.open($('#introUrl').value, '_blank'));
+
   // ---- court TV URL ----
   fetch('/api/info')
     .then((r) => r.json())
@@ -222,6 +231,10 @@
     const visible = !state || !state.display || state.display.scoreVisible !== false;
     send({ type: 'setDisplay', display: { scoreVisible: !visible } });
   });
+  $('#introToggleBtn').addEventListener('click', () => {
+    const visible = !!(state && state.display && state.display.introVisible);
+    send({ type: 'setDisplay', display: { introVisible: !visible } });
+  });
 
   function updateBreakUi() {
     const o = latestObs;
@@ -258,6 +271,8 @@
     }
     $('#toggleScoreBtn').textContent =
       s.display && s.display.scoreVisible === false ? 'Show score' : 'Hide score';
+    $('#introToggleBtn').textContent =
+      s.display && s.display.introVisible ? '👥 Hide players' : '👥 Show players';
 
     // Rebuild the pickers whenever an elimination flag changes anywhere.
     const rj = JSON.stringify(s.teams_registry || {});
