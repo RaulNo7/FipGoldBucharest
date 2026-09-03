@@ -138,6 +138,8 @@ function cleanupAndExit() {
     }
   }
   assert(up, 'scoreboard server started');
+  await cmd({ type: 'selectTeam', team: 0, teamId: 'M-Q-23' });
+  await cmd({ type: 'selectTeam', team: 1, teamId: 'M-MD-27' });
 
   // Public read-only port: widget pages only, commands rejected, WS is broadcast-only.
   const pub = (p, opts) => fetch(`http://127.0.0.1:${PUBLIC_PORT}${p}`, opts);
@@ -206,6 +208,18 @@ function cleanupAndExit() {
   st = await api('/api/state');
   assert(st.status === 'finished', 'match finished');
   assert(st.display.scoreVisible !== false, 'score still visible right after the finish');
+
+  // The losing pair is eliminated automatically; reverting the result reinstates it.
+  let roster = await api('/api/teams');
+  const team = (id) => roster.teams.find((t) => t.id === id);
+  assert(team('M-MD-27').active === false, 'the losing team is eliminated automatically');
+  assert(team('M-Q-23').active === true, 'the winning team stays active');
+  await cmd({ type: 'removeLastSet' }); // result reverted -> match live again
+  roster = await api('/api/teams');
+  assert(team('M-MD-27').active === true, 'reverting the result reinstates the team');
+  await cmd({ type: 'saveSet' }); // ...and finishing again eliminates it again
+  roster = await api('/api/teams');
+  assert(team('M-MD-27').active === false, 'finishing again eliminates it again');
 
   // countdown (2s) + fade (1s) + 6 spots x (load + 3 polls x 0.5s) -> done well within 16s
   await sleep(16000);

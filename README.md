@@ -7,7 +7,7 @@ Windows WPF (.NET 10) app purpose-built for streaming the **FIP Gold Bucharest 2
 - Hosts the bundled Node.js score server (`Scoreboard\server.js`) as a hidden child process.
 - **Home tab** — embeds the referee remote (`/mobile`): scoring, undo/redo, manual adjust, and per-player serve selection.
 - **Score settings tab** — server control + the control panel (`/admin`): pick the two teams of the current match from the official entry lists, overlay display options, OBS overlay URL builder, reset.
-- **Teams tab** — the full entry list (58 men's + 31 women's pairs) with an Active/Eliminated toggle per team; eliminated teams cannot be picked for a match.
+- **Teams tab** — the full entry list (58 men's + 31 women's pairs) with an Active/Eliminated toggle per team; eliminated teams cannot be picked for a match. The pair that loses a match is eliminated automatically when the match finishes (reinstated if the result is undone).
 - **OBS overlay** (`/overlay`, Browser Source 1920×1080, transparent) — 4 player rows with country flags, serving-player dot, blue completed-set columns, gold current-set games, white points.
 - **Court TV display** (`/tv`) — the same scorebug filling the whole screen on a black background, for a TV/laptop/tablet at the court (URL with the LAN address is in the admin panel). It keeps showing the final score during commercial breaks.
 - **Players intro** (`/intro`) — a transparent second OBS Browser Source showing the tournament header and the four players with big flags over the court video, toggled with the **Show players** button (Home tab or admin panel); it hides automatically when the match starts.

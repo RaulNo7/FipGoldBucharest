@@ -140,7 +140,7 @@ public partial class MainWindow : Window
     public void ShowFromTray()
     {
         Show();
-        WindowState = WindowState.Normal;
+        WindowState = WindowState.Maximized;
         Activate();
     }
 

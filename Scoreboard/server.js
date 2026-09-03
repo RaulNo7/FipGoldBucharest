@@ -244,10 +244,37 @@ function obsStatusPayload() {
   };
 }
 
-/** Auto-break trigger: called after every state change with the previous status. */
+/** Called after every state change with the previous status: match finished / reopened. */
 function onStatusMaybeChanged(prevStatus) {
-  if (state.status === 'finished' && prevStatus !== 'finished') scheduleAutoBreak();
-  else if (state.status !== 'finished' && prevStatus === 'finished') cancelBreak();
+  if (state.status === 'finished' && prevStatus !== 'finished') {
+    eliminateLoser();
+    scheduleAutoBreak();
+  } else if (state.status !== 'finished' && prevStatus === 'finished') {
+    // Back to 'live' = the result was reverted (undo / undo set): reinstate the
+    // team we eliminated. Anything else (reset for the next match) keeps it.
+    if (state.status === 'live') reinstateAutoEliminated();
+    else autoEliminatedTeamId = null;
+    cancelBreak();
+  }
+}
+
+// The pair that lost the match is marked Eliminated automatically (Teams tab /
+// match pickers). Remembered so an undone result can reinstate exactly that team.
+let autoEliminatedTeamId = null;
+
+function eliminateLoser() {
+  if (state.winner !== 0 && state.winner !== 1) return;
+  const loser = state.teams[1 - state.winner];
+  if (!loser || !loser.teamId) return;
+  autoEliminatedTeamId = loser.teamId;
+  handleCommand({ type: 'setTeamActive', teamId: loser.teamId, active: false });
+}
+
+function reinstateAutoEliminated() {
+  if (!autoEliminatedTeamId) return;
+  const teamId = autoEliminatedTeamId;
+  autoEliminatedTeamId = null;
+  handleCommand({ type: 'setTeamActive', teamId, active: true });
 }
 
 function scheduleAutoBreak() {

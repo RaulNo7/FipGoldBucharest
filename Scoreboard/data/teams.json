@@ -176,15 +176,15 @@
     { "id": "W-MD-26", "category": "women", "section": "main_draw", "position": 26, "wildcard": false, "active": true, "teamPoints": 82,
       "players": [ { "name": "Alina Yeroshenko", "country": "UKR", "ranking": 328, "rankingPoints": 61 }, { "name": "Yuliya Hoske", "country": "UKR", "ranking": 601, "rankingPoints": 21 } ] },
 
-    { "id": "W-Q-01", "category": "women", "section": "qualifying", "position": 1, "wildcard": false, "active": true, "teamPoints": 61,
+    { "id": "W-MD-27", "category": "women", "section": "main_draw", "position": 27, "wildcard": false, "active": true, "teamPoints": 61,
       "players": [ { "name": "Elisa Sararu", "country": "ROU", "ranking": 468, "rankingPoints": 32 }, { "name": "Cristina Aiello", "country": "ROU", "ranking": 496, "rankingPoints": 29 } ] },
-    { "id": "W-Q-02", "category": "women", "section": "qualifying", "position": 2, "wildcard": false, "active": true, "teamPoints": 45,
+    { "id": "W-MD-28", "category": "women", "section": "main_draw", "position": 28, "wildcard": false, "active": true, "teamPoints": 45,
       "players": [ { "name": "Naicu Giulia Roberta Maria", "country": "ROU", "ranking": 601, "rankingPoints": 21 }, { "name": "Nereida Quero Jiménez", "country": "ESP", "ranking": 555, "rankingPoints": 24 } ] },
-    { "id": "W-Q-03", "category": "women", "section": "qualifying", "position": 3, "wildcard": false, "active": true, "teamPoints": 18,
+    { "id": "W-MD-29", "category": "women", "section": "main_draw", "position": 29, "wildcard": false, "active": true, "teamPoints": 18,
       "players": [ { "name": "Roxana Jianu", "country": "ROU", "ranking": 939, "rankingPoints": 10 }, { "name": "Ilinca Irimia", "country": "ROU", "ranking": 1000, "rankingPoints": 8 } ] },
-    { "id": "W-Q-04", "category": "women", "section": "qualifying", "position": 4, "wildcard": false, "active": true, "teamPoints": 5,
+    { "id": "W-MD-30", "category": "women", "section": "main_draw", "position": 30, "wildcard": false, "active": true, "teamPoints": 5,
       "players": [ { "name": "Alice Tartaglia", "country": "ITA", "ranking": 1228, "rankingPoints": 5 }, { "name": "Raluca Elena Ciufrila", "country": "ROU", "ranking": null, "rankingPoints": 0 } ] },
-    { "id": "W-Q-05", "category": "women", "section": "qualifying", "position": 5, "wildcard": false, "active": true, "teamPoints": 0,
+    { "id": "W-MD-31", "category": "women", "section": "main_draw", "position": 31, "wildcard": false, "active": true, "teamPoints": 0,
       "players": [ { "name": "Vlada Caraulnaia", "country": "MDA", "ranking": null, "rankingPoints": 0 }, { "name": "Daniela Garstea", "country": "MDA", "ranking": null, "rankingPoints": 0 } ] }
   ],
   "unfilled_reserved_slots": {

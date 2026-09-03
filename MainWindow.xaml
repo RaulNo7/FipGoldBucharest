@@ -9,6 +9,7 @@
         MinWidth="960"
         MinHeight="720"
         WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
         Background="{StaticResource BgBrush}">
     <Grid Margin="18,12,18,18" Background="{StaticResource BgBrush}">
         <TabControl x:Name="MainTabs">
