@@ -174,6 +174,7 @@ public partial class MainWindow : Window
                 TxtScoreboardPlaceholder.Text = _scoreboard.LastError ?? "Scoreboard server could not start.";
                 TxtHomePlaceholder.Text = TxtScoreboardPlaceholder.Text;
                 TxtTeamsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
+                TxtMediaPlaceholder.Text = TxtScoreboardPlaceholder.Text;
                 HideScoreboardViews();
                 BtnScoreboardStartStop.Content = "Start";
                 return;
@@ -203,6 +204,7 @@ public partial class MainWindow : Window
         TxtScoreboardPlaceholder.Text = "Scoreboard server is not running.";
         TxtHomePlaceholder.Text = "Score server is not running. Start it from the Score settings tab.";
         TxtTeamsPlaceholder.Text = "Teams list loads when the score server is running.";
+        TxtMediaPlaceholder.Text = "Media controls load when the score server is running.";
         HideScoreboardViews();
     }
 
@@ -214,6 +216,8 @@ public partial class MainWindow : Window
         HomePlaceholder.Visibility = Visibility.Visible;
         TeamsWebView.Visibility = Visibility.Collapsed;
         TeamsPlaceholder.Visibility = Visibility.Visible;
+        MediaWebView.Visibility = Visibility.Collapsed;
+        MediaPlaceholder.Visibility = Visibility.Visible;
     }
 
     /// <summary>
@@ -224,12 +228,12 @@ public partial class MainWindow : Window
     /// </summary>
     private void ShowScoreboardViews()
     {
-        // operator=1 unlocks the Broadcast card (players intro / commercials / score
-        // visibility) that the referee's plain /mobile page does not show.
         _ = InitWebViewAsync(HomeWebView, HomePlaceholder, TxtHomePlaceholder,
-            $"http://127.0.0.1:{_scoreboard.Port}/mobile?operator=1");
+            $"http://127.0.0.1:{_scoreboard.Port}/mobile");
         _ = InitWebViewAsync(ScoreboardWebView, ScoreboardPlaceholder, TxtScoreboardPlaceholder,
             _scoreboard.AdminUrl);
+        _ = InitWebViewAsync(MediaWebView, MediaPlaceholder, TxtMediaPlaceholder,
+            $"http://127.0.0.1:{_scoreboard.Port}/media");
         _ = InitWebViewAsync(TeamsWebView, TeamsPlaceholder, TxtTeamsPlaceholder,
             _scoreboard.TeamsUrl);
     }
@@ -337,6 +341,7 @@ public partial class MainWindow : Window
             TxtScoreboardPlaceholder.Text = _scoreboard.LastError ?? "Scoreboard server stopped unexpectedly.";
             TxtHomePlaceholder.Text = TxtScoreboardPlaceholder.Text;
             TxtTeamsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
+            TxtMediaPlaceholder.Text = TxtScoreboardPlaceholder.Text;
             HideScoreboardViews();
         }
         else

@@ -187,6 +187,7 @@
     .then((cfg) => {
       $('#obsEnabled').checked = cfg.enabled !== false;
       $('#obsDelay').value = cfg.autoDelaySeconds;
+      $('#obsBreakMode').value = cfg.breakMode === 'file' ? 'file' : 'playlist';
       $('#obsUrl').value = cfg.url || '';
       $('#obsPassword').value = cfg.password || '';
       $('#obsLiveScene').value = cfg.liveScene || '';
@@ -202,6 +203,7 @@
     const body = {
       enabled: $('#obsEnabled').checked,
       autoDelaySeconds: +$('#obsDelay').value,
+      breakMode: $('#obsBreakMode').value,
       url: $('#obsUrl').value.trim(),
       password: $('#obsPassword').value,
       liveScene: $('#obsLiveScene').value.trim(),

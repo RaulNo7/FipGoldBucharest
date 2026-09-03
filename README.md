@@ -11,8 +11,8 @@ Windows WPF (.NET 10) app purpose-built for streaming the **FIP Gold Bucharest 2
 - **OBS overlay** (`/overlay`, Browser Source 1920×1080, transparent) — 4 player rows with country flags, serving-player dot, blue completed-set columns, gold current-set games, white points.
 - **Court TV display** (`/tv`) — the same scorebug filling the whole screen on a black background, for a TV/laptop/tablet at the court (URL with the LAN address is in the admin panel). It keeps showing the final score during commercial breaks.
 - **Players intro** (`/intro`) — a transparent second OBS Browser Source showing the tournament header and the four players with big flags over the court video, toggled with the **Show players** button (Home tab or admin panel); it hides automatically when the match starts.
-- **Broadcast card on the Home tab** — OBS status, Show/hide players, Show/hide score, Play commercials and Cancel, right next to the referee controls (the referee's phone page does not show it).
-- **Commercial breaks** — a configurable delay (default 60s) after a match ends: the scorebug fades off the stream, OBS switches to a commercials scene, plays the merged commercials video, and returns to the live scene when it ends. The score stays hidden while the next match is set up and reappears when it starts. A "Play commercials now" button runs the same break manually; countdown + Cancel are shown in the admin panel.
+- **Media tab** — the broadcast controls (OBS status, Show/hide players, Show/hide score, Play commercials, Cancel) plus one button per commercial spot (`Commercials\01_FIP_INTRO.mp4` … `06_MONDO.mov`, configurable in `obs-settings.json`). A spot temporarily swaps the file of the OBS media source, plays through the same break routine and restores the merged break video afterwards; the last spot played stays highlighted. After a single spot the score always comes back (spots are for during the game); after "Play all" / the automatic break it comes back only if a live match was interrupted, and stays hidden after a finished match.
+- **Commercial breaks** — a configurable delay (default 60s) after a match ends: the scorebug fades off the stream, OBS switches to the commercials scene, the six spots are loaded into its media source **one after another** (no merged file needed; a "single merged file" mode remains available in the settings), and OBS returns to the live scene when the last one ends. The score stays hidden while the next match is set up and reappears when it starts. A "Play commercials now" button runs the same break manually; countdown + Cancel are shown in the admin panel.
 
 ## Fixed match format (whole tournament)
 
@@ -29,7 +29,7 @@ Windows WPF (.NET 10) app purpose-built for streaming the **FIP Gold Bucharest 2
 ## OBS setup for the commercial break
 
 1. **Tools → WebSocket Server Settings** → Enable, note the port (default 4455) and password.
-2. Create a scene named `COMMERCIALS` containing one **Media Source** named `Commercials` pointing at the merged commercials mp4, with **"Restart playback when source becomes active"** ticked.
+2. Create a scene named `COMMERCIALS` containing one **Media Source** named `Commercials` (any video file — the app loads each spot into it), with **"Restart playback when source becomes active"** ticked. The app also fits the source to the canvas before every break, so spots of any resolution display correctly.
 3. In the app's Score settings tab → **Commercial break** card: enter the WebSocket URL/password and the scene/source names, press **Test connection**, then **Save settings**.
 4. For the players intro: add `/intro` (URL in the "OBS overlay URL" card) as a **second Browser Source** in the LIVE scene, above the camera, sized **exactly like the OBS canvas** (Settings → Video → Base resolution, e.g. 1920×1080 or 1280×720), then reset its transform (Ctrl+R). The card centers itself and scales with the source; `?scale=0.8` makes it smaller.
 

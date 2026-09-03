@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIP Gold Bucharest 2026 — Media</title>
+  <link rel="stylesheet" href="admin.css" />
+  <link rel="stylesheet" href="media.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🎾 FIP Gold Bucharest 2026 <span class="brand-sub">Media</span></div>
+    <div class="topbar-right">
+      <span id="connDot" class="conn-dot" title="connection"></span>
+      <span id="connText" class="conn-text">connecting…</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <div class="card">
+      <div class="card-head"><h2>Broadcast</h2><span id="obsBadge" class="badge">OBS: …</span></div>
+      <div class="row gap wrap">
+        <button class="btn btn-ghost" id="introBtn">👥 Show players</button>
+        <button class="btn btn-ghost" id="toggleScoreBtn">Hide score</button>
+      </div>
+      <p class="hint" id="breakStatus">…</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Commercials</h2><span id="lastPlayed" class="badge"></span></div>
+      <div class="spots spots-controls">
+        <button class="btn spot spot-break" id="playAdsBtn">
+          <span class="spot-num">ALL</span>
+          <span class="spot-label">▶ Play all commercials</span>
+          <span class="spot-file">01 → 06, one after another</span>
+        </button>
+        <button class="btn spot spot-cancel" id="cancelAdsBtn" disabled>
+          <span class="spot-num">STOP</span>
+          <span class="spot-label">Cancel</span>
+          <span class="spot-file">back to the live scene</span>
+        </button>
+      </div>
+      <div id="spots" class="spots"></div>
+      <p class="hint"><b>Play all commercials</b> (and the automatic break after a match) runs these spots one after another, in this order — no merged file needed. Each button below plays just that spot. Either way: the scorebug hides, OBS switches to the commercials scene, the files are loaded into the media source one by one, and OBS returns to the live scene when the last one ends. After a <b>single spot</b> the score always comes back (they are meant for during the game). After <b>Play all</b> or the automatic break, the score comes back only if it interrupted a live match; after a finished match it stays hidden until the next match starts. The last spot played stays highlighted. Files are listed in <b>obs-settings.json</b> (Commercials folder).</p>
+    </div>
+  </main>
+
+  <script src="client.js"></script>
+  <script src="media.js"></script>
+</body>
+</html>

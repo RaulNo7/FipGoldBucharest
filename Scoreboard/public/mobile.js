@@ -5,11 +5,6 @@
   const S = window.PadelScoring;
   const C = window.PadelCountries;
   let state = null;
-  let latestObs = null; // transient OBS/break status from the state broadcasts
-
-  // The desktop app's Home tab embeds this page with ?operator=1 to unlock
-  // the Broadcast card; the referee's phone uses the plain /mobile URL.
-  const operatorMode = new URLSearchParams(location.search).has('operator');
 
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -21,9 +16,8 @@
 
   // ---- connection ----
   const client = PadelClient.connect({
-    onState: (s, msg) => {
+    onState: (s) => {
       state = s;
-      if (msg && msg.obs) latestObs = msg.obs;
       render(s);
     },
     onStatus: (status) => {
@@ -57,57 +51,6 @@
   $('#saveSetBtn').addEventListener('click', () => send({ type: 'saveSet' }));
   $('#undoSetBtn').addEventListener('click', () => send({ type: 'removeLastSet' }));
 
-  // ---- broadcast controls (operator mode only) ----
-  if (operatorMode) {
-    $('#broadcastCard').hidden = false;
-
-    $('#introBtn').addEventListener('click', () => {
-      const visible = !!(state && state.display && state.display.introVisible);
-      send({ type: 'setDisplay', display: { introVisible: !visible } });
-    });
-    $('#toggleScoreBtn').addEventListener('click', () => {
-      const visible = !state || !state.display || state.display.scoreVisible !== false;
-      send({ type: 'setDisplay', display: { scoreVisible: !visible } });
-    });
-    $('#playAdsBtn').addEventListener('click', () => {
-      if (confirm('Switch the stream to the commercials now?')) send({ type: 'playCommercials' });
-    });
-    $('#cancelAdsBtn').addEventListener('click', () => send({ type: 'cancelCommercials' }));
-
-    // Live countdown tick between state broadcasts.
-    setInterval(() => {
-      if (state) renderBroadcast(state);
-    }, 500);
-  }
-
-  function renderBroadcast(s) {
-    const introOn = !!(s.display && s.display.introVisible);
-    const introBtn = $('#introBtn');
-    introBtn.textContent = introOn ? '👥 Hide players' : '👥 Show players';
-    introBtn.classList.toggle('active', introOn);
-
-    $('#toggleScoreBtn').textContent =
-      s.display && s.display.scoreVisible === false ? 'Show score' : 'Hide score';
-
-    const o = latestObs;
-    if (!o) return;
-    const badge = $('#obsBadge');
-    badge.textContent = o.connected ? 'OBS: connected' : 'OBS: offline';
-    badge.className = 'badge ' + (o.connected ? 'live' : '');
-    $('#cancelAdsBtn').disabled = o.phase === 'idle';
-
-    let text = '';
-    if (o.phase === 'countdown') {
-      text = `Commercials start in ${Math.max(0, Math.ceil((o.countdownEndsAt - Date.now()) / 1000))}s — Cancel to abort.`;
-    } else if (o.phase === 'running') {
-      text = 'Commercials are playing on the stream…';
-    }
-    if (o.lastError) text += (text ? ' — ' : '') + 'error: ' + o.lastError;
-    const status = $('#breakStatus');
-    status.textContent = text;
-    status.hidden = !text;
-  }
-
   // ---- serving player (which partner of which team) ----
   $$('[data-serve-player]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -140,7 +83,6 @@
       }
     }
 
-    if (operatorMode) renderBroadcast(s);
     renderPreview(s);
   }
 

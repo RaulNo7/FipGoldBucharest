@@ -39,7 +39,11 @@ fs.writeFileSync(
 
 // ---- mock obs-websocket v5 server -----------------------------------------
 const sceneSwitches = [];
-let mediaPolls = 0;
+let mediaPolls = 0; // polls since the current file was loaded (drives PLAYING -> ENDED)
+let totalPolls = 0; // never reset
+const inputSettingsCalls = []; // files set on the media source, in order
+const transformCalls = []; // scene-item transforms applied to the media source
+let mediaFile = 'C:\\merged-break.mp4';
 
 const hub = createWsHub();
 hub.onConnect((sock) => hub.sendText(sock, JSON.stringify({ op: 0, d: { rpcVersion: 1 } })));
@@ -58,8 +62,18 @@ hub.onMessage((sock, text) => {
     const { requestType, requestId, requestData } = msg.d;
     let responseData = {};
     if (requestType === 'SetCurrentProgramScene') sceneSwitches.push(requestData.sceneName);
+    if (requestType === 'GetInputSettings') responseData = { inputSettings: { local_file: mediaFile } };
+    if (requestType === 'GetVideoSettings') responseData = { baseWidth: 1280, baseHeight: 720 };
+    if (requestType === 'GetSceneItemId') responseData = { sceneItemId: 7 };
+    if (requestType === 'SetSceneItemTransform') transformCalls.push(requestData.sceneItemTransform);
+    if (requestType === 'SetInputSettings') {
+      mediaFile = requestData.inputSettings.local_file;
+      inputSettingsCalls.push(mediaFile);
+      mediaPolls = 0; // a newly loaded file plays from the start
+    }
     if (requestType === 'GetMediaInputStatus') {
       mediaPolls++;
+      totalPolls++;
       responseData = { mediaState: mediaPolls <= 2 ? 'OBS_MEDIA_STATE_PLAYING' : 'OBS_MEDIA_STATE_ENDED' };
     }
     hub.sendText(
@@ -140,6 +154,27 @@ function cleanupAndExit() {
   await cmd({ type: 'undo' });
   await cmd({ type: 'setDisplay', display: { scoreVisible: true, introVisible: false } });
 
+  // A single spot: file swapped in, played, restored; the score always comes back
+  // afterwards (spots are played during the game) - even if it was hidden before.
+  sceneSwitches.length = 0;
+  mediaPolls = 0;
+  inputSettingsCalls.length = 0;
+  await cmd({ type: 'setDisplay', display: { scoreVisible: false } });
+  await cmd({ type: 'playCommercial', id: 'FIP_INTRO' });
+  await sleep(6000);
+  st = await api('/api/state');
+  assert(
+    inputSettingsCalls.length === 2 && /01_FIP_INTRO\.mp4$/.test(inputSettingsCalls[0]) && inputSettingsCalls[1] === 'C:\\merged-break.mp4',
+    'spot: media file swapped to the spot and restored to the break video (got: ' + inputSettingsCalls.join(' | ') + ')'
+  );
+  assert(JSON.stringify(sceneSwitches) === JSON.stringify(['COMMERCIALS', 'LIVE']), 'spot: scenes switched to COMMERCIALS and back');
+  const tf = transformCalls[transformCalls.length - 1];
+  assert(tf && tf.boundsType === 'OBS_BOUNDS_SCALE_INNER' && tf.boundsWidth === 1280 && tf.boundsHeight === 720, 'spot: media source fitted to the canvas (scale to inner bounds 1280x720)');
+  assert(st.display.scoreVisible === true, 'single spot: score is shown afterwards even though it was hidden before');
+  sceneSwitches.length = 0;
+  mediaPolls = 0;
+  inputSettingsCalls.length = 0;
+
   await cmd({ type: 'adjustGames', team: 0, delta: 6 });
   await cmd({ type: 'saveSet' });
   await cmd({ type: 'adjustGames', team: 0, delta: 6 });
@@ -148,14 +183,18 @@ function cleanupAndExit() {
   assert(st.status === 'finished', 'match finished');
   assert(st.display.scoreVisible !== false, 'score still visible right after the finish');
 
-  // countdown (2s) + fade (1s) + media polls (3 x 0.5s) -> done well within 8s
-  await sleep(8000);
+  // countdown (2s) + fade (1s) + 6 spots x (load + 3 polls x 0.5s) -> done well within 16s
+  await sleep(16000);
   st = await api('/api/state');
   assert(
     JSON.stringify(sceneSwitches) === JSON.stringify(['COMMERCIALS', 'LIVE']),
     'OBS switched to COMMERCIALS then back to LIVE (got: ' + sceneSwitches.join(', ') + ')'
   );
-  assert(mediaPolls >= 3, 'media status polled until it reported ended');
+  assert(totalPolls >= 3, 'media status polled until it reported ended');
+  assert(
+    inputSettingsCalls.length === 7 && /01_FIP_INTRO\.mp4$/.test(inputSettingsCalls[0]) && /06_MONDO\.mov$/.test(inputSettingsCalls[5]) && inputSettingsCalls[6] === 'C:\\merged-break.mp4',
+    'auto break: all 6 spots loaded in order, then the original file restored (got: ' + inputSettingsCalls.join(' | ') + ')'
+  );
   assert(st.display.scoreVisible === false, 'score hidden after the break');
 
   await cmd({ type: 'resetMatch' });
@@ -168,14 +207,16 @@ function cleanupAndExit() {
   // manual break, mid-match
   sceneSwitches.length = 0;
   mediaPolls = 0;
+  inputSettingsCalls.length = 0;
   await cmd({ type: 'playCommercials' });
-  await sleep(5000);
+  await sleep(14000);
   st = await api('/api/state');
   assert(
     JSON.stringify(sceneSwitches) === JSON.stringify(['COMMERCIALS', 'LIVE']),
     'manual break switched scenes (got: ' + sceneSwitches.join(', ') + ')'
   );
-  assert(st.display.scoreVisible === false, 'manual break hid the score');
+  assert(inputSettingsCalls.length === 7, 'manual break: playlist of 6 spots + restore (got ' + inputSettingsCalls.length + ' loads)');
+  assert(st.display.scoreVisible === true, 'manual break during a live match: score restored afterwards');
 
   cleanupAndExit();
 })().catch((err) => {

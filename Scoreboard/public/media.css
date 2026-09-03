@@ -1,0 +1,125 @@
+/* Media tab — broadcast controls and commercial spot buttons (on top of admin.css). */
+
+.layout {
+  max-width: 880px;
+}
+
+/* 3-column grid: first row = Play all / Cancel, then the spots. */
+.spots {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.spots-controls {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 640px) {
+  .spots {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.btn.spot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  min-height: 88px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.spot-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.spot-label {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.spot-file {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: Consolas, monospace;
+}
+
+/* "Play all commercials" — orange like the admin panel's break button. */
+.btn.spot.spot-break {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: #2a1500;
+}
+
+.btn.spot.spot-break .spot-num,
+.btn.spot.spot-break .spot-file {
+  color: rgba(42, 21, 0, 0.7);
+}
+
+.btn.spot.spot-break.is-last {
+  outline: 2px solid var(--accent-light);
+  outline-offset: 2px;
+}
+
+/* "Cancel" — red-tinted when a break can be cancelled, dimmed otherwise. */
+.btn.spot.spot-cancel {
+  border-color: rgba(231, 76, 60, 0.55);
+}
+
+.btn.spot.spot-cancel:not(:disabled) {
+  background: rgba(231, 76, 60, 0.16);
+  color: #ff8d80;
+}
+
+.btn.spot.spot-cancel:not(:disabled) .spot-num,
+.btn.spot.spot-cancel:not(:disabled) .spot-file {
+  color: rgba(255, 141, 128, 0.75);
+}
+
+/* The spot that was played last stays gold. */
+.btn.spot.is-last {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+.btn.spot.is-last .spot-num,
+.btn.spot.is-last .spot-file {
+  color: rgba(16, 32, 47, 0.75);
+}
+
+/* Whatever is on air right now pulses green (a spot, or the play-all run). */
+.btn.spot.is-playing {
+  background: rgba(34, 197, 94, 0.22);
+  border-color: var(--green);
+  color: var(--fg);
+  animation: playingPulse 1.4s ease-in-out infinite;
+}
+
+.btn.spot.is-playing .spot-num,
+.btn.spot.is-playing .spot-file {
+  color: var(--muted);
+}
+
+.btn.is-on {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+@keyframes playingPulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.3); }
+}

@@ -151,6 +151,18 @@ const DEFAULT_OBS_SETTINGS = {
   mediaSource: 'Commercials', // the media source inside the commercials scene
   autoDelaySeconds: 60,
   maxBreakSeconds: 300, // safety cap if the media never reports "ended"
+  breakMode: 'playlist', // 'playlist' = play every spot below in order | 'file' = play the media source's own file
+  // Individual spots for the Media tab: each temporarily swaps the media
+  // source's file, plays through the same break routine, then restores the
+  // merged break video configured in OBS.
+  commercials: [
+    { id: 'FIP_INTRO', label: 'FIP INTRO', file: 'C:\\Padel\\FipGoldBucharest\\Commercials\\01_FIP_INTRO.mp4' },
+    { id: 'INVERSORES', label: 'INVERSORES', file: 'C:\\Padel\\FipGoldBucharest\\Commercials\\02_INVERSORES.mp4' },
+    { id: 'BULLPADEL', label: 'BULLPADEL', file: 'C:\\Padel\\FipGoldBucharest\\Commercials\\03_BULLPADEL.mp4' },
+    { id: 'CUPRA', label: 'CUPRA', file: 'C:\\Padel\\FipGoldBucharest\\Commercials\\04_CUPRA.mp4' },
+    { id: 'FIP_BEYOND', label: 'FIP BEYOND', file: 'C:\\Padel\\FipGoldBucharest\\Commercials\\05_FIP_BEYOND.mp4' },
+    { id: 'MONDO', label: 'MONDO', file: 'C:\\Padel\\FipGoldBucharest\\Commercials\\06_MONDO.mov' },
+  ],
 };
 
 let obsSettings = loadObsSettings();
@@ -158,7 +170,10 @@ let obsSettings = loadObsSettings();
 function loadObsSettings() {
   try {
     if (fs.existsSync(OBS_SETTINGS_FILE)) {
-      return { ...DEFAULT_OBS_SETTINGS, ...JSON.parse(fs.readFileSync(OBS_SETTINGS_FILE, 'utf8')) };
+      const saved = JSON.parse(fs.readFileSync(OBS_SETTINGS_FILE, 'utf8'));
+      const merged = { ...DEFAULT_OBS_SETTINGS, ...saved };
+      merged.commercials = sanitizeCommercials(saved.commercials) || DEFAULT_OBS_SETTINGS.commercials;
+      return merged;
     }
   } catch (err) {
     console.error('Could not load obs-settings.json:', err.message);
@@ -174,8 +189,25 @@ function saveObsSettings() {
   }
 }
 
+/** Valid spot list ({id, label, file} entries) or null. */
+function sanitizeCommercials(list) {
+  if (!Array.isArray(list)) return null;
+  const clean = list
+    .filter((c) => c && typeof c.id === 'string' && c.id && typeof c.file === 'string' && c.file)
+    .map((c) => ({ id: c.id, label: typeof c.label === 'string' && c.label ? c.label : c.id, file: c.file }));
+  return clean.length ? clean : null;
+}
+
 const obs = new ObsClient();
-const breakState = { phase: 'idle', countdownEndsAt: null, timer: null, abort: false, lastError: null };
+const breakState = {
+  phase: 'idle', countdownEndsAt: null, timer: null, abort: false, lastError: null,
+  currentCommercial: null, // spot id (or 'BREAK') while running
+  lastCommercial: null, // spot id (or 'BREAK') that played last - highlighted on the Media tab
+  origFile: null, // the file that was on the media source, restored after a break
+  playlist: false, // true while the full spot list is being played
+  playlistIndex: 0,
+  playlistTotal: 0,
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function obsStatusPayload() {
@@ -184,6 +216,11 @@ function obsStatusPayload() {
     connected: obs.connected,
     phase: breakState.phase, // 'idle' | 'countdown' | 'running'
     countdownEndsAt: breakState.countdownEndsAt,
+    currentCommercial: breakState.currentCommercial,
+    lastCommercial: breakState.lastCommercial,
+    playlist: breakState.playlist,
+    playlistIndex: breakState.playlistIndex,
+    playlistTotal: breakState.playlistTotal,
     lastError: breakState.lastError || obs.lastError || null,
   };
 }
@@ -218,22 +255,80 @@ function cancelBreak() {
   }
 }
 
-async function runBreak() {
+/**
+ * Run a break on the stream. With { id, file } it plays that single spot;
+ * otherwise, in 'playlist' mode, it plays every configured spot in order (no
+ * merged file needed), or in 'file' mode whatever the media source holds.
+ * Spots are loaded one by one into the OBS media source; the file that was on
+ * the source before is put back afterwards.
+ */
+async function runBreak(opts = {}) {
   if (breakState.phase === 'running') return;
+  const spots = obsSettings.commercials || [];
+  let queue;
+  if (opts.file) queue = [{ id: opts.id, file: opts.file }];
+  else if (obsSettings.breakMode !== 'file' && spots.length) queue = spots.map((c) => ({ id: c.id, file: c.file }));
+  else queue = [null]; // play the source's own file, no swap
+
   breakState.phase = 'running';
   breakState.countdownEndsAt = null;
   breakState.abort = false;
   breakState.lastError = null;
+  breakState.playlist = !opts.file && queue[0] !== null;
+  breakState.playlistTotal = breakState.playlist ? queue.length : 0;
+  breakState.playlistIndex = 0;
+  breakState.currentCommercial = queue[0] ? queue[0].id : 'BREAK';
+  // A single spot is meant for use during a game: the score always comes back
+  // afterwards. A full break (play-all / automatic) gives the score back only
+  // when it interrupted a live match with the score on; after a finished match
+  // the score stays hidden until the next match starts.
+  const single = !!opts.file;
+  const restoreScore = single || (state.status === 'live' && state.display && state.display.scoreVisible !== false);
   broadcastState();
 
   // 1. Hide the on-stream scorebug (the /tv court page keeps the final score).
   handleCommand({ type: 'setDisplay', display: { scoreVisible: false } });
   await sleep(1000); // let the overlay fade out before the scene switch
 
+  let swapped = false;
   try {
     if (!obs.connected) await obs.connect(obsSettings.url, obsSettings.password);
-    await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.commercialsScene });
-    await waitForCommercialsEnd();
+    await fitMediaSourceToCanvas();
+    if (queue[0]) {
+      // Remember the file that was on the source so it can be put back afterwards.
+      const current = await obs.request('GetInputSettings', { inputName: obsSettings.mediaSource });
+      const orig = current.inputSettings && current.inputSettings.local_file;
+      const isSpot = spots.some((c) => c.file === orig);
+      if (orig && !isSpot) breakState.origFile = orig;
+    }
+    for (let i = 0; i < queue.length; i++) {
+      if (breakState.abort) break;
+      const spot = queue[i];
+      if (spot) {
+        breakState.currentCommercial = spot.id;
+        breakState.playlistIndex = i + 1;
+        broadcastState();
+        await obs.request('SetInputSettings', {
+          inputName: obsSettings.mediaSource,
+          inputSettings: { is_local_file: true, local_file: spot.file },
+          overlay: true,
+        });
+        swapped = true;
+      }
+      if (i === 0) {
+        await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.commercialsScene });
+      } else {
+        // The source is already on air: make sure the new file starts from the top.
+        try {
+          await obs.request('TriggerMediaInputAction', {
+            inputName: obsSettings.mediaSource,
+            mediaAction: 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART',
+          });
+        } catch (_) { /* the settings change alone restarts playback on most builds */ }
+      }
+      await waitForCommercialsEnd();
+      if (spot) breakState.lastCommercial = spot.id;
+    }
     await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.liveScene });
   } catch (err) {
     breakState.lastError = err.message;
@@ -244,9 +339,62 @@ async function runBreak() {
     } catch (_) { /* reported above */ }
   }
 
-  // The score stays hidden; it comes back on startMatch / the first point.
+  if (swapped && breakState.origFile) {
+    try {
+      await obs.request('SetInputSettings', {
+        inputName: obsSettings.mediaSource,
+        inputSettings: { is_local_file: true, local_file: breakState.origFile },
+        overlay: true,
+      });
+    } catch (err) {
+      breakState.lastError = 'Could not restore the media source file: ' + err.message;
+    }
+  }
+
+  if (!queue[0]) breakState.lastCommercial = 'BREAK';
+  breakState.currentCommercial = null;
+  breakState.playlist = false;
+  breakState.playlistIndex = 0;
+  breakState.playlistTotal = 0;
+  if (restoreScore && (single || state.status === 'live')) {
+    handleCommand({ type: 'setDisplay', display: { scoreVisible: true } });
+  }
   breakState.phase = 'idle';
   broadcastState();
+}
+
+/**
+ * Best effort: make the commercials media source fill the canvas whatever the
+ * video's resolution is (spots differ) - the same as OBS's "Fit to screen".
+ * The scene item keeps its old scale otherwise, so a larger file looks cropped.
+ */
+async function fitMediaSourceToCanvas() {
+  try {
+    const video = await obs.request('GetVideoSettings');
+    const item = await obs.request('GetSceneItemId', {
+      sceneName: obsSettings.commercialsScene,
+      sourceName: obsSettings.mediaSource,
+    });
+    await obs.request('SetSceneItemTransform', {
+      sceneName: obsSettings.commercialsScene,
+      sceneItemId: item.sceneItemId,
+      sceneItemTransform: {
+        positionX: 0,
+        positionY: 0,
+        alignment: 5, // top-left
+        boundsType: 'OBS_BOUNDS_SCALE_INNER',
+        boundsAlignment: 0, // centered inside the bounds (letterboxed if needed)
+        boundsWidth: video.baseWidth,
+        boundsHeight: video.baseHeight,
+        cropLeft: 0,
+        cropRight: 0,
+        cropTop: 0,
+        cropBottom: 0,
+      },
+    });
+  } catch (err) {
+    console.error('Could not fit the media source to the canvas:', err.message);
+  }
 }
 
 async function waitForCommercialsEnd() {
@@ -330,6 +478,19 @@ function handleCommand(cmd) {
       breakState.countdownEndsAt = null;
     }
     if (breakState.phase !== 'running') runBreak();
+    return;
+  }
+
+  if (cmd.type === 'playCommercial') {
+    const spot = (obsSettings.commercials || []).find((c) => c.id === cmd.id);
+    if (!spot) return;
+    if (breakState.phase === 'countdown') {
+      clearTimeout(breakState.timer);
+      breakState.timer = null;
+      breakState.phase = 'idle';
+      breakState.countdownEndsAt = null;
+    }
+    if (breakState.phase !== 'running') runBreak({ id: spot.id, file: spot.file });
     return;
   }
 
@@ -458,6 +619,15 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Commercial spots for the Media tab (no secrets: ids, labels, file names only).
+  if (pathname === '/api/commercials') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      commercials: (obsSettings.commercials || []).map((c) => ({ id: c.id, label: c.label, file: c.file })),
+    }));
+    return;
+  }
+
   // OBS / commercial-break settings. Server-side only — deliberately NOT part
   // of the broadcast state, so the OBS password never reaches referee phones.
   if (pathname === '/api/obs-settings') {
@@ -484,6 +654,9 @@ const server = http.createServer((req, res) => {
             const n = Number(incoming[k]);
             if (Number.isFinite(n) && n >= 0) clean[k] = Math.round(n);
           }
+          const spots = sanitizeCommercials(incoming.commercials);
+          if (spots) clean.commercials = spots;
+          if (incoming.breakMode === 'playlist' || incoming.breakMode === 'file') clean.breakMode = incoming.breakMode;
           obsSettings = clean;
           saveObsSettings();
           obs.close(); // reconnect with the new url/password on next use
@@ -513,6 +686,7 @@ const server = http.createServer((req, res) => {
   if (pathname === '/teams') pathname = '/teams.html';
   if (pathname === '/tv') pathname = '/tv.html';
   if (pathname === '/intro') pathname = '/intro.html';
+  if (pathname === '/media') pathname = '/media.html';
 
   const filePath = safeJoin(PUBLIC_DIR, pathname);
   if (!filePath) {
