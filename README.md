@@ -30,10 +30,19 @@ Windows WPF (.NET 10) app purpose-built for streaming the **FIP Gold Bucharest 2
 
 1. **Tools → WebSocket Server Settings** → Enable, note the port (default 4455) and password.
 2. Create a scene named `COMMERCIALS` containing one **Media Source** named `Commercials` (any video file — the app loads each spot into it), with **"Restart playback when source becomes active"** ticked. The app also fits the source to the canvas before every break, so spots of any resolution display correctly.
-3. In the app's Score settings tab → **Commercial break** card: enter the WebSocket URL/password and the scene/source names, press **Test connection**, then **Save settings**.
+3. In the app's **Media** tab → **Commercial break settings** card (at the bottom): enter the WebSocket URL/password and the scene/source names, press **Test connection** (the result shows in the Broadcast card), then **Save settings**.
 4. For the players intro: add `/intro` (URL in the "OBS overlay URL" card) as a **second Browser Source** in the LIVE scene, above the camera, sized **exactly like the OBS canvas** (Settings → Video → Base resolution, e.g. 1920×1080 or 1280×720), then reset its transform (Ctrl+R). The card centers itself and scales with the source; `?scale=0.8` makes it smaller.
 
 Settings are stored server-side in `%AppData%\FipGoldBucharest\obs-settings.json` (never broadcast to referee phones). If OBS is unreachable, scoring keeps working and the error is shown in the card.
+
+## Public HTTPS URL for FIP (fixed for the whole tournament)
+
+The score server also listens on a **read-only port** (main port + 1, i.e. **8081** by default; `PUBLIC_PORT` env to change, `0` to disable). It serves only `/overlay`, `/tv`, `/intro`, their assets, `GET /api/state` and a broadcast-only WebSocket — no control pages, no commands, no settings. Expose **only this port** to the internet through a tunnel with a fixed hostname:
+
+- **Cloudflare Tunnel** (recommended; needs a domain on a free Cloudflare account): Zero Trust → Networks → Tunnels → *Create a tunnel* → install `cloudflared` on the streaming PC as a Windows service (the one-line command shown with the tunnel token) → *Public Hostname*: `scorebug.yourdomain.com` → Service `http://localhost:8081`.
+- **Tailscale Funnel** (no domain needed): install Tailscale on the streaming PC, enable Funnel for the tailnet, then `tailscale funnel 8081` → public `https://<pc>.<tailnet>.ts.net`.
+
+The URL to give FIP is then `https://<hostname>/overlay?pos=top-left` (top-left is also the default without `?pos=`; add `&scale=` if they need it). It works over HTTPS/WSS as-is and stays the same all week regardless of the venue LAN IP. Keep the PC on a wired connection, the app on auto-start, and the tunnel installed as a service so it survives reboots; test the public URL from a phone on mobile data before the first match.
 
 ## Running
 

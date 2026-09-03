@@ -37,8 +37,9 @@
     return document.querySelector(sel);
   }
 
-  // Optional position override via query string, e.g. ?pos=bottom-right
-  applyPositionFromQuery();
+  // Optional position/scale override via query string, e.g. ?pos=bottom-right&scale=1.2
+  // (the /tv page has its own full-screen layout and ignores it).
+  if (!tvMode) applyPositionFromQuery();
 
   let lastSeq = -1;
 
@@ -145,8 +146,7 @@
 
   function applyPositionFromQuery() {
     const params = new URLSearchParams(location.search);
-    const pos = params.get('pos');
-    if (!pos) return;
+    const pos = params.get('pos') || 'top-left'; // default position
     const map = {
       'bottom-left': { left: '40px', bottom: '40px', right: 'auto', top: 'auto' },
       'bottom-right': { right: '40px', bottom: '40px', left: 'auto', top: 'auto' },
@@ -160,7 +160,9 @@
 
     const scale = params.get('scale');
     if (scale) {
-      root.style.transformOrigin = pos.includes('right') ? 'bottom right' : 'bottom left';
+      const vertical = pos.includes('top') ? 'top' : 'bottom';
+      const horizontal = pos.includes('right') ? 'right' : pos.includes('center') ? 'center' : 'left';
+      root.style.transformOrigin = `${vertical} ${horizontal}`;
       root.style.transform = `${style && style.transform ? style.transform + ' ' : ''}scale(${scale})`;
     }
   }

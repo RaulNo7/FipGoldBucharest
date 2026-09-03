@@ -36,11 +36,11 @@ body {
   user-select: none;
 }
 
-/* Position: bottom-left by default. Override via OBS or ?pos= query. */
+/* Position: top-left by default. Override via OBS or ?pos= query. */
 .scoreboard {
   position: fixed;
   left: 40px;
-  bottom: 40px;
+  top: 40px;
   /* Hug the content so the score columns sit right next to the names. */
   width: fit-content;
   min-width: 400px;

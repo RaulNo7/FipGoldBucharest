@@ -77,6 +77,56 @@
   });
   $('#cancelAdsBtn').addEventListener('click', () => send({ type: 'cancelCommercials' }));
 
+  // ---- commercial break settings (stored server-side, never broadcast) ----
+  fetch('/api/obs-settings')
+    .then((r) => r.json())
+    .then((cfg) => {
+      $('#obsEnabled').checked = cfg.enabled !== false;
+      $('#obsDelay').value = cfg.autoDelaySeconds;
+      $('#obsBreakMode').value = cfg.breakMode === 'file' ? 'file' : 'playlist';
+      $('#obsUrl').value = cfg.url || '';
+      $('#obsPassword').value = cfg.password || '';
+      $('#obsLiveScene').value = cfg.liveScene || '';
+      $('#obsAdsScene').value = cfg.commercialsScene || '';
+      $('#obsMediaSource').value = cfg.mediaSource || '';
+      $('#obsMaxBreak').value = cfg.maxBreakSeconds;
+    })
+    .catch(() => {
+      $('#breakStatus').textContent = 'Could not load the OBS settings.';
+    });
+
+  $('#saveObsBtn').addEventListener('click', () => {
+    const body = {
+      enabled: $('#obsEnabled').checked,
+      autoDelaySeconds: +$('#obsDelay').value,
+      breakMode: $('#obsBreakMode').value,
+      url: $('#obsUrl').value.trim(),
+      password: $('#obsPassword').value,
+      liveScene: $('#obsLiveScene').value.trim(),
+      commercialsScene: $('#obsAdsScene').value.trim(),
+      mediaSource: $('#obsMediaSource').value.trim(),
+      maxBreakSeconds: +$('#obsMaxBreak').value,
+    };
+    fetch('/api/obs-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then((r) => flash($('#saveObsBtn'), r.ok ? 'Saved!' : 'Failed'))
+      .catch(() => flash($('#saveObsBtn'), 'Failed'));
+  });
+
+  $('#testObsBtn').addEventListener('click', () => {
+    send({ type: 'obsTest' });
+    flash($('#testObsBtn'), 'Testing…');
+  });
+
+  function flash(btn, text) {
+    const old = btn.textContent;
+    btn.textContent = text;
+    setTimeout(() => (btn.textContent = old), 1200);
+  }
+
   // ---- render ----
   function render() {
     if (state) {

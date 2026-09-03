@@ -20,6 +20,7 @@ const { createWsHub } = require('../src/wsserver');
 
 const SB_PORT = 8231;
 const OBS_PORT = 8232;
+const PUBLIC_PORT = 8233;
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fipgold-e2e-'));
 const stateFile = path.join(tmp, 'state.json');
@@ -92,7 +93,7 @@ obsSrv.listen(OBS_PORT);
 // ---- scoreboard server under test -----------------------------------------
 const child = spawn(process.execPath, ['server.js'], {
   cwd: path.join(__dirname, '..'),
-  env: { ...process.env, PORT: String(SB_PORT), STATE_FILE: stateFile },
+  env: { ...process.env, PORT: String(SB_PORT), PUBLIC_PORT: String(PUBLIC_PORT), STATE_FILE: stateFile },
   stdio: 'ignore',
 });
 
@@ -137,6 +138,29 @@ function cleanupAndExit() {
     }
   }
   assert(up, 'scoreboard server started');
+
+  // Public read-only port: widget pages only, commands rejected, WS is broadcast-only.
+  const pub = (p, opts) => fetch(`http://127.0.0.1:${PUBLIC_PORT}${p}`, opts);
+  assert((await pub('/overlay')).status === 200, 'public port serves /overlay');
+  assert((await pub('/overlay.js')).status === 200 && (await pub('/flags/ro.svg')).status === 200, 'public port serves the widget assets');
+  assert((await pub('/api/state')).status === 200, 'public port serves read-only state');
+  assert((await pub('/admin')).status === 404 && (await pub('/media')).status === 404, 'public port hides the control pages');
+  assert((await pub('/api/obs-settings')).status === 404 && (await pub('/api/teams')).status === 404, 'public port hides settings and other APIs');
+  const post = await pub('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'point', team: 0 }) });
+  assert(post.status === 405, 'public port rejects POSTed commands');
+  await new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${PUBLIC_PORT}/ws`);
+    const timer = setTimeout(() => reject(new Error('no state on public ws')), 4000);
+    ws.addEventListener('message', (ev) => {
+      const m = JSON.parse(ev.data);
+      assert(m.type === 'state' && m.state && m.obs === undefined, 'public ws pushes the state (without the OBS status)');
+      ws.send(JSON.stringify({ type: 'point', team: 0 }));
+      setTimeout(() => { clearTimeout(timer); ws.close(); resolve(); }, 600);
+    });
+    ws.addEventListener('error', () => { clearTimeout(timer); reject(new Error('public ws error')); });
+  });
+  let st0 = await api('/api/state');
+  assert(st0.points[0] === 0, 'a command sent through the public ws is ignored');
 
   await cmd({ type: 'startMatch' });
 

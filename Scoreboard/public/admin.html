@@ -56,12 +56,12 @@
       <div class="row gap wrap">
         <label class="grow">Position
           <select id="ovPos">
-            <option value="bottom-left">Bottom left</option>
-            <option value="bottom-right">Bottom right</option>
-            <option value="bottom-center">Bottom center</option>
             <option value="top-left">Top left</option>
             <option value="top-right">Top right</option>
             <option value="top-center">Top center</option>
+            <option value="bottom-left">Bottom left</option>
+            <option value="bottom-right">Bottom right</option>
+            <option value="bottom-center">Bottom center</option>
           </select>
         </label>
         <label>Scale
@@ -79,6 +79,7 @@
         <button class="btn btn-ghost" id="copyIntroUrlBtn">Copy</button>
         <button class="btn btn-ghost" id="openIntroBtn">Open</button>
       </div>
+      <p class="hint">Internet / FIP: the scorebug is also served <b>read-only</b> on port <b id="publicPort">…</b> (overlay, TV and intro pages only — no controls, no settings). Point your Cloudflare Tunnel or Tailscale Funnel at <b id="publicLocal">http://localhost:…</b> and hand out <b>https://&lt;your-hostname&gt;/overlay?pos=top-left</b>; that URL stays fixed for the whole tournament.</p>
       <p class="hint">In OBS: Sources → + → Browser → paste this URL. Set width 1920, height 1080, tick "transparent".
         Sizing the source as a tight crop instead? Use at least 700 × 330 at scale 1 — the scorebug sits 40px
         from the edge and the winner banner adds height, so anything smaller clips the score columns or title.</p>
@@ -92,52 +93,6 @@
         <button class="btn btn-ghost" id="openTvBtn">Open</button>
       </div>
       <p class="hint">Full-screen score on a black background — open this on a TV / laptop / tablet on the same Wi-Fi. It keeps showing the final score even while the stream plays commercials.</p>
-    </div>
-
-    <div class="card">
-      <div class="card-head"><h2>Commercial break</h2><span id="obsBadge" class="badge">OBS: …</span></div>
-      <div class="row gap wrap">
-        <button class="btn btn-warn" id="playAdsBtn">▶ Play commercials now</button>
-        <button class="btn btn-ghost" id="cancelAdsBtn" disabled>Cancel</button>
-        <button class="btn btn-ghost" id="toggleScoreBtn">Hide score</button>
-        <button class="btn btn-ghost" id="introToggleBtn">👥 Show players</button>
-      </div>
-      <p class="hint" id="breakStatus">…</p>
-      <div class="config-grid">
-        <label class="check"><input type="checkbox" id="obsEnabled" /> Auto break after a match ends</label>
-        <label>Delay after match end (seconds)
-          <input type="number" id="obsDelay" min="0" max="600" step="5" />
-        </label>
-        <label>Break content
-          <select id="obsBreakMode">
-            <option value="playlist">All commercial spots, one after another</option>
-            <option value="file">The media source's own file (one merged video)</option>
-          </select>
-        </label>
-        <label>OBS WebSocket URL
-          <input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455" />
-        </label>
-        <label>OBS WebSocket password
-          <input type="password" id="obsPassword" />
-        </label>
-        <label>Live scene
-          <input type="text" id="obsLiveScene" />
-        </label>
-        <label>Commercials scene
-          <input type="text" id="obsAdsScene" />
-        </label>
-        <label>Commercials media source
-          <input type="text" id="obsMediaSource" />
-        </label>
-        <label>Max break length (seconds)
-          <input type="number" id="obsMaxBreak" min="5" max="3600" step="5" />
-        </label>
-      </div>
-      <div class="row gap wrap actions">
-        <button class="btn btn-ghost" id="saveObsBtn">Save settings</button>
-        <button class="btn btn-ghost" id="testObsBtn">Test connection</button>
-      </div>
-      <p class="hint">In OBS: enable <b>Tools → WebSocket Server Settings</b>, and create the commercials scene containing one Media Source (any video file — the app loads the spots into it one by one) with "Restart playback when source becomes active" ticked. The break: scorebug fades out → OBS switches to the commercials scene → back to the live scene when the video ends. The score stays hidden until the next match starts (Start button or first point), or use "Show score".</p>
     </div>
 
     <div class="card danger-card">

@@ -10,6 +10,10 @@ const { ObsClient } = require('./src/obsclient');
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
+// Read-only widget port for the internet tunnel (0 disables it). Serves only
+// the overlay/TV/intro pages + assets, GET /api/state and a broadcast-only
+// WebSocket - never the control pages, commands or settings.
+const PUBLIC_PORT = process.env.PUBLIC_PORT !== undefined ? Number(process.env.PUBLIC_PORT) || 0 : PORT + 1;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const STATE_FILE = process.env.STATE_FILE || path.join(__dirname, 'state.json');
 const MAX_HISTORY = 100;
@@ -113,6 +117,20 @@ function withScoreFrom(snapshot) {
 
 const hub = createWsHub();
 
+// Hub for the public read-only port: gets every state broadcast, ignores
+// anything a client sends.
+const publicHub = createWsHub();
+publicHub.onConnect((socket) => {
+  publicHub.sendText(socket, publicStateMessage());
+});
+publicHub.onMessage(() => {
+  /* read-only: commands from the public port are dropped */
+});
+
+function publicStateMessage() {
+  return JSON.stringify({ type: 'state', state });
+}
+
 function stateMessage() {
   // `obs` is transient status for the admin UI — never persisted, never secret.
   return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload() });
@@ -120,6 +138,7 @@ function stateMessage() {
 
 function broadcastState() {
   hub.broadcast(stateMessage());
+  if (PUBLIC_PORT) publicHub.broadcast(publicStateMessage());
 }
 
 hub.onConnect((socket) => {
@@ -615,7 +634,7 @@ const server = http.createServer((req, res) => {
   // via 127.0.0.1 inside the desktop app's WebView).
   if (pathname === '/api/info') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ port: PORT, lanHost: firstLanAddress() }));
+    res.end(JSON.stringify({ port: PORT, publicPort: PUBLIC_PORT, lanHost: firstLanAddress() }));
     return;
   }
 
@@ -724,6 +743,70 @@ server.listen(PORT, HOST, () => {
   console.log('  Press Ctrl+C to stop.');
   console.log('');
 });
+
+// ---------------------------------------------------------------------------
+// Public read-only port (what the internet tunnel exposes to FIP)
+// ---------------------------------------------------------------------------
+
+const PUBLIC_PAGES = { '/': 'overlay.html', '/overlay': 'overlay.html', '/tv': 'tv.html', '/intro': 'intro.html' };
+const PUBLIC_ASSET = /^\/(overlay|tv|intro)\.(html|css|js)$|^\/(client|countries)\.js$|^\/flags\/[a-z]{2}\.svg$/;
+
+if (PUBLIC_PORT) {
+  const publicServer = http.createServer((req, res) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { 'Content-Type': 'text/plain' });
+      res.end('Read-only');
+      return;
+    }
+
+    let pathname;
+    try {
+      pathname = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname);
+    } catch (_) {
+      res.writeHead(400);
+      res.end('Bad request');
+      return;
+    }
+
+    if (pathname === '/api/state') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+      res.end(JSON.stringify(state));
+      return;
+    }
+    if (pathname === '/scoring.js') {
+      serveFile(res, path.join(__dirname, 'src', 'scoring.js'));
+      return;
+    }
+    const page = PUBLIC_PAGES[pathname];
+    if (page) {
+      serveFile(res, path.join(PUBLIC_DIR, page));
+      return;
+    }
+    if (PUBLIC_ASSET.test(pathname)) {
+      const filePath = safeJoin(PUBLIC_DIR, pathname);
+      if (filePath) {
+        serveFile(res, filePath);
+        return;
+      }
+    }
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('Not found');
+  });
+
+  publicServer.on('upgrade', (req, socket) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    if (url.pathname === '/ws') publicHub.handleUpgrade(req, socket);
+    else socket.destroy();
+  });
+
+  publicServer.on('error', (err) => {
+    console.error(`Public read-only port ${PUBLIC_PORT} unavailable:`, err.message);
+  });
+
+  publicServer.listen(PUBLIC_PORT, HOST, () => {
+    console.log(`  Read-only widget port (tunnel this): http://localhost:${PUBLIC_PORT}/overlay`);
+  });
+}
 
 function firstLanAddress() {
   try {
