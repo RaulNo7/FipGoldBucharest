@@ -193,6 +193,23 @@ a {
   letter-spacing: 0.04em;
 }
 
+/* Official website tile: gold, links to fipgoldbucharest.ro */
+.fact-site {
+  background: var(--gold-bright);
+  color: var(--black);
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fact-site small {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.fact-site:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(231, 195, 90, 0.4);
+}
+
 /* FIP event tile: court blue, links to the federation's official event page */
 .fact-fip {
   background: var(--court);
@@ -740,10 +757,10 @@ main .lead.small b {
     font-size: clamp(40px, 12.5vw, 56px);
   }
 
-  /* tiles: 2 columns; the FIP and YouTube link tiles take a full row */
+  /* tiles stack on phones */
   .facts {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 10px;
     margin-top: 26px;
   }
@@ -760,15 +777,6 @@ main .lead.small b {
 
   .fact b {
     font-size: 24px;
-  }
-
-  .fact-fip,
-  .fact-yt {
-    grid-column: 1 / -1;
-  }
-
-  .facts:has(.fact-yt[hidden]) .fact-production {
-    grid-column: 1 / -1;
   }
 
   /* live score: smaller cells so the names keep their room */

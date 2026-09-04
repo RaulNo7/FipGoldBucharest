@@ -110,9 +110,6 @@
   }
 
   function renderScore(s) {
-    const status = $('#liveStatus');
-    status.textContent = s.status === 'live' ? 'MATCH LIVE' : s.status === 'finished' ? 'MATCH OVER' : 'STANDBY';
-
     const box = $('#score');
     box.innerHTML = '';
     const hasTeams = (s.teams || []).some((t) => t && t.teamId);
