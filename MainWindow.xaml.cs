@@ -175,6 +175,7 @@ public partial class MainWindow : Window
                 TxtHomePlaceholder.Text = TxtScoreboardPlaceholder.Text;
                 TxtTeamsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
                 TxtMediaPlaceholder.Text = TxtScoreboardPlaceholder.Text;
+                TxtSettingsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
                 HideScoreboardViews();
                 BtnScoreboardStartStop.Content = "Start";
                 return;
@@ -205,6 +206,7 @@ public partial class MainWindow : Window
         TxtHomePlaceholder.Text = "Score server is not running. Start it from the Score settings tab.";
         TxtTeamsPlaceholder.Text = "Teams list loads when the score server is running.";
         TxtMediaPlaceholder.Text = "Media controls load when the score server is running.";
+        TxtSettingsPlaceholder.Text = "Admin settings load when the score server is running.";
         HideScoreboardViews();
     }
 
@@ -218,6 +220,8 @@ public partial class MainWindow : Window
         TeamsPlaceholder.Visibility = Visibility.Visible;
         MediaWebView.Visibility = Visibility.Collapsed;
         MediaPlaceholder.Visibility = Visibility.Visible;
+        SettingsWebView.Visibility = Visibility.Collapsed;
+        SettingsPlaceholder.Visibility = Visibility.Visible;
     }
 
     /// <summary>
@@ -236,6 +240,8 @@ public partial class MainWindow : Window
             $"http://127.0.0.1:{_scoreboard.Port}/media");
         _ = InitWebViewAsync(TeamsWebView, TeamsPlaceholder, TxtTeamsPlaceholder,
             _scoreboard.TeamsUrl);
+        _ = InitWebViewAsync(SettingsWebView, SettingsPlaceholder, TxtSettingsPlaceholder,
+            $"http://127.0.0.1:{_scoreboard.Port}/settings");
     }
 
     private Task<CoreWebView2Environment> GetWebViewEnvironmentAsync()
@@ -342,6 +348,7 @@ public partial class MainWindow : Window
             TxtHomePlaceholder.Text = TxtScoreboardPlaceholder.Text;
             TxtTeamsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
             TxtMediaPlaceholder.Text = TxtScoreboardPlaceholder.Text;
+            TxtSettingsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
             HideScoreboardViews();
         }
         else

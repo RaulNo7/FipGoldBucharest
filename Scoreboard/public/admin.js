@@ -1,4 +1,4 @@
-/* Score-settings panel: entry-list team pickers, overlay display, URL builder, reset. */
+/* Score-settings panel: entry-list team pickers, overlay display, reset. */
 (function () {
   'use strict';
 
@@ -135,114 +135,6 @@
   );
   bindEditable('#dspTitle, #dspSubtitle', sendDisplay);
 
-  // ---- overlay URL ----
-  function updateOverlayUrl() {
-    const pos = $('#ovPos').value;
-    const scale = $('#ovScale').value;
-    const url = new URL('/overlay', location.origin);
-    url.searchParams.set('pos', pos);
-    if (scale && scale !== '1') url.searchParams.set('scale', scale);
-    $('#overlayUrl').value = url.toString();
-  }
-  $('#ovPos').addEventListener('change', updateOverlayUrl);
-  $('#ovScale').addEventListener('input', updateOverlayUrl);
-  $('#copyUrlBtn').addEventListener('click', () => {
-    $('#overlayUrl').select();
-    navigator.clipboard?.writeText($('#overlayUrl').value);
-    flash($('#copyUrlBtn'), 'Copied!');
-  });
-  $('#openOverlayBtn').addEventListener('click', () => window.open($('#overlayUrl').value, '_blank'));
-  updateOverlayUrl();
-
-  // ---- players intro URL (second Browser Source) ----
-  $('#introUrl').value = new URL('/intro', location.origin).toString();
-  $('#copyIntroUrlBtn').addEventListener('click', () => {
-    $('#introUrl').select();
-    navigator.clipboard?.writeText($('#introUrl').value);
-    flash($('#copyIntroUrlBtn'), 'Copied!');
-  });
-  $('#openIntroBtn').addEventListener('click', () => window.open($('#introUrl').value, '_blank'));
-
-  // ---- court TV URL ----
-  fetch('/api/info')
-    .then((r) => r.json())
-    .then((info) => {
-      const host = info.lanHost || location.hostname;
-      $('#tvUrl').value = `http://${host}:${info.port}/tv`;
-      if (info.publicPort) {
-        $('#publicPort').textContent = info.publicPort;
-        $('#publicLocal').textContent = `http://localhost:${info.publicPort}`;
-        $('#publicPort2').textContent = info.publicPort;
-      } else {
-        $('#publicPort').textContent = 'disabled';
-        $('#publicLocal').textContent = '(set PUBLIC_PORT)';
-        $('#publicPort2').textContent = 'disabled';
-      }
-      publicPort = info.publicPort || 0;
-      updatePublicUrls();
-    })
-    .catch(() => {
-      $('#tvUrl').value = new URL('/tv', location.origin).toString();
-    });
-  $('#copyTvUrlBtn').addEventListener('click', () => {
-    $('#tvUrl').select();
-    navigator.clipboard?.writeText($('#tvUrl').value);
-    flash($('#copyTvUrlBtn'), 'Copied!');
-  });
-  $('#openTvBtn').addEventListener('click', () => window.open($('#tvUrl').value, '_blank'));
-
-  // ---- internet access (tunnel hostname + referee key) ----
-  let publicPort = 0;
-
-  function publicBase() {
-    const host = ($('#publicHostname').value || '').trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
-    if (host) return `https://${host}`;
-    return publicPort ? `http://${location.hostname}:${publicPort}` : '';
-  }
-
-  function updatePublicUrls() {
-    const base = publicBase();
-    const key = ($('#refereeKey').value || '').trim();
-    $('#pubOverlayUrl').value = base ? `${base}/overlay?pos=top-left` : '';
-    $('#pubTvUrl').value = base ? `${base}/tv` : '';
-    $('#pubRefereeUrl').value = !base ? '' : key ? `${base}/mobile?key=${encodeURIComponent(key)}` : '(set a referee key first)';
-  }
-
-  $('#publicHostname').addEventListener('input', updatePublicUrls);
-  $('#refereeKey').addEventListener('input', updatePublicUrls);
-  $('#genKeyBtn').addEventListener('click', () => {
-    const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789'; // no look-alike characters
-    const rnd = new Uint32Array(12);
-    crypto.getRandomValues(rnd);
-    $('#refereeKey').value = Array.from(rnd, (n) => alphabet[n % alphabet.length]).join('');
-    updatePublicUrls();
-  });
-  $('#saveInternetBtn').addEventListener('click', () => {
-    fetch('/api/obs-settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ publicHostname: $('#publicHostname').value.trim(), refereeKey: $('#refereeKey').value.trim() }),
-    })
-      .then((r) => flash($('#saveInternetBtn'), r.ok ? 'Saved!' : 'Failed'))
-      .catch(() => flash($('#saveInternetBtn'), 'Failed'));
-  });
-  $$('[data-copy]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const el = $('#' + b.dataset.copy);
-      el.select();
-      navigator.clipboard?.writeText(el.value);
-      flash(b, 'Copied!');
-    })
-  );
-  fetch('/api/obs-settings')
-    .then((r) => r.json())
-    .then((cfg) => {
-      $('#publicHostname').value = cfg.publicHostname || '';
-      $('#refereeKey').value = cfg.refereeKey || '';
-      updatePublicUrls();
-    })
-    .catch(() => {});
-
   // ---- render ----
   function render(s, msg) {
     if (msg && typeof msg.clients === 'number') {
@@ -318,11 +210,5 @@
     const el = $(sel);
     if (!el || document.activeElement === el) return;
     el.checked = !!val;
-  }
-
-  function flash(btn, text) {
-    const old = btn.textContent;
-    btn.textContent = text;
-    setTimeout(() => (btn.textContent = old), 1200);
   }
 })();

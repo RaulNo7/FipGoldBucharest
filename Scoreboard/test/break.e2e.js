@@ -145,10 +145,23 @@ function cleanupAndExit() {
   // Public read-only port: widget pages only, commands rejected, WS is broadcast-only.
   const pub = (p, opts) => fetch(`http://127.0.0.1:${PUBLIC_PORT}${p}`, opts);
   assert((await pub('/overlay')).status === 200, 'public port serves /overlay');
+  const home = await pub('/');
+  assert(home.status === 200 && /Control Center/.test(await home.text()) && (await pub('/home.css')).status === 200, 'public port serves the main page');
+  assert((await pub('/settings')).status === 404 && (await pub('/settings.js')).status === 404, 'public port never serves the app-only Admin page');
+  assert((await fetch(`http://127.0.0.1:${SB_PORT}/settings`)).status === 200 && /Control Center/.test(await (await fetch(`http://127.0.0.1:${SB_PORT}/`)).text()), 'LAN port serves the Admin page and the main page');
+  const keyedHome = await pub('/?key=testkey');
+  assert(keyedHome.status === 200 && /^key=testkey/.test(keyedHome.headers.get('set-cookie') || ''), 'main page opened with the key sets the key cookie');
   assert((await pub('/overlay.js')).status === 200 && (await pub('/flags/ro.svg')).status === 200, 'public port serves the widget assets');
   assert((await pub('/api/state')).status === 200, 'public port serves read-only state');
-  assert((await pub('/admin')).status === 404 && (await pub('/media')).status === 404, 'public port hides the control pages');
-  assert((await pub('/api/obs-settings')).status === 404 && (await pub('/api/teams')).status === 404, 'public port hides settings and other APIs');
+  assert((await pub('/admin')).status === 403 && (await pub('/teams')).status === 403 && (await pub('/media')).status === 403, 'public port: admin/teams/media need the key');
+  assert((await pub('/media?key=testkey')).status === 200 && (await pub('/api/commercials', { headers: { cookie: 'key=testkey' } })).status === 200, 'public port: media page + its spot list with the key');
+  assert((await pub('/api/obs-settings')).status === 403 && (await pub('/api/teams')).status === 403, 'public port: settings and roster APIs need the key');
+  const adminRes = await pub('/admin?key=testkey');
+  const cookie = adminRes.headers.get('set-cookie') || '';
+  assert(adminRes.status === 200 && /^key=testkey/.test(cookie), 'public port: admin page opens with the key and sets the key cookie');
+  assert((await pub('/teams?key=testkey')).status === 200 && (await pub('/admin.js')).status === 200, 'public port: teams page + admin assets with the key');
+  const withCookie = await pub('/api/obs-settings', { headers: { cookie: 'key=testkey' } });
+  assert(withCookie.status === 200, 'public port: the cookie alone unlocks the APIs the pages use');
   const post = await pub('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'point', team: 0 }) });
   assert(post.status === 403, 'public port rejects POSTed commands without the referee key');
   await new Promise((resolve, reject) => {
@@ -156,7 +169,7 @@ function cleanupAndExit() {
     const timer = setTimeout(() => reject(new Error('no state on public ws')), 4000);
     ws.addEventListener('message', (ev) => {
       const m = JSON.parse(ev.data);
-      assert(m.type === 'state' && m.state && m.obs === undefined, 'public ws pushes the state (without the OBS status)');
+      assert(m.type === 'state' && m.state, 'public ws pushes the state');
       ws.send(JSON.stringify({ type: 'point', team: 0 }));
       setTimeout(() => { clearTimeout(timer); ws.close(); resolve(); }, 600);
     });

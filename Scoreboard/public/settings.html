@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIP Gold Bucharest 2026 — Admin</title>
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🎾 FIP Gold Bucharest 2026 <span class="brand-sub">Admin</span></div>
+    <div class="topbar-right"><span class="conn-text">this page is available only inside the app / venue network</span></div>
+  </header>
+
+  <main class="layout">
+    <div class="card">
+      <div class="card-head"><h2>OBS overlay URL</h2></div>
+      <div class="row gap wrap">
+        <label class="grow">Position
+          <select id="ovPos">
+            <option value="top-left">Top left</option>
+            <option value="top-right">Top right</option>
+            <option value="top-center">Top center</option>
+            <option value="bottom-left">Bottom left</option>
+            <option value="bottom-right">Bottom right</option>
+            <option value="bottom-center">Bottom center</option>
+          </select>
+        </label>
+        <label>Scale
+          <input type="number" id="ovScale" min="0.3" max="3" step="0.05" value="1" />
+        </label>
+      </div>
+      <div class="row gap url-row">
+        <input type="text" id="overlayUrl" readonly />
+        <button class="btn btn-ghost" id="copyUrlBtn">Copy</button>
+        <button class="btn btn-ghost" id="openOverlayBtn">Open</button>
+      </div>
+      <p class="hint">In OBS: Sources → + → Browser → paste this URL, width 1920, height 1080 (or your canvas size). Sizing the source as a tight crop instead? Use at least 700 × 330 at scale 1 — the scorebug sits 40px from the corner and the winner banner adds height.</p>
+      <p class="hint">Players intro — add as a <b>second</b> Browser Source above the camera, sized <b>exactly like your OBS canvas</b> (Settings → Video → Base resolution), then Ctrl+R to reset its transform. Shown/hidden with "Show players"; add <b>?scale=0.8</b> for a smaller card:</p>
+      <div class="row gap url-row">
+        <input type="text" id="introUrl" readonly />
+        <button class="btn btn-ghost" id="copyIntroUrlBtn">Copy</button>
+        <button class="btn btn-ghost" id="openIntroBtn">Open</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Court TV display</h2></div>
+      <div class="row gap url-row">
+        <input type="text" id="tvUrl" readonly />
+        <button class="btn btn-ghost" id="copyTvUrlBtn">Copy</button>
+        <button class="btn btn-ghost" id="openTvBtn">Open</button>
+      </div>
+      <p class="hint">Full-screen score on a black background — open this on a TV / laptop / tablet on the same Wi-Fi (or use the public Court TV link below from anywhere). It keeps showing the final score while the stream plays commercials.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Internet access (tunnel)</h2></div>
+      <div class="config-grid">
+        <label>Public hostname (Cloudflare / Tailscale)
+          <input type="text" id="publicHostname" placeholder="scorebug.example.com" />
+        </label>
+        <label>Access key (empty = referee / score settings / teams / media pages on the LAN only)
+          <span class="row gap">
+            <input type="text" id="refereeKey" placeholder="secret" />
+            <button class="btn btn-ghost" id="genKeyBtn" type="button">Generate</button>
+          </span>
+        </label>
+      </div>
+      <div class="row gap wrap actions">
+        <button class="btn btn-ghost" id="saveInternetBtn">Save</button>
+      </div>
+      <div class="row gap url-row"><span class="url-label">Main page</span><input type="text" id="pubHomeUrl" readonly /><button class="btn btn-ghost" data-copy="pubHomeUrl">Copy</button></div>
+      <div class="row gap url-row"><span class="url-label">Scorebug (FIP)</span><input type="text" id="pubOverlayUrl" readonly /><button class="btn btn-ghost" data-copy="pubOverlayUrl">Copy</button></div>
+      <div class="row gap url-row"><span class="url-label">Court TV</span><input type="text" id="pubTvUrl" readonly /><button class="btn btn-ghost" data-copy="pubTvUrl">Copy</button></div>
+      <div class="row gap url-row"><span class="url-label">Referee</span><input type="text" id="pubRefereeUrl" readonly /><button class="btn btn-ghost" data-copy="pubRefereeUrl">Copy</button></div>
+      <div class="row gap url-row"><span class="url-label">Score settings</span><input type="text" id="pubAdminUrl" readonly /><button class="btn btn-ghost" data-copy="pubAdminUrl">Copy</button></div>
+      <div class="row gap url-row"><span class="url-label">Teams</span><input type="text" id="pubTeamsUrl" readonly /><button class="btn btn-ghost" data-copy="pubTeamsUrl">Copy</button></div>
+      <div class="row gap url-row"><span class="url-label">Media</span><input type="text" id="pubMediaUrl" readonly /><button class="btn btn-ghost" data-copy="pubMediaUrl">Copy</button></div>
+      <p class="hint">Everything above goes through the read-only port <b id="publicPort">…</b> behind your tunnel (point Cloudflare / Tailscale at <b id="publicLocal">http://localhost:…</b>). The main page, scorebug and court TV are public; the referee, score settings, teams and media pages (and every score command) work only with the access key — open a page once with <b>?key=…</b> and the browser remembers it for 30 days. Treat the key like a password (Generate makes a random one; Save; hand the Referee link to the umpire). This Admin page itself is never served on the public port.</p>
+    </div>
+  </main>
+
+  <script src="settings.js"></script>
+</body>
+</html>

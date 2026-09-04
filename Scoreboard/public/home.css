@@ -1,0 +1,303 @@
+/* Control Center — styled after fipgoldbucharest.ro: Bebas Neue display type,
+   Archivo/DM Sans text, dark court-navy hero, gold pill buttons, paper background. */
+
+:root {
+  --black: #0a0a0a;
+  --ink: #141414;
+  --court: #1b4d89;
+  --court-deep: #0e2d54;
+  --gold: #c9a227;
+  --gold-bright: #e7c35a;
+  --gold-soft: #f3e6be;
+  --grey: #8a8a8a;
+  --line: #e4e2dd;
+  --paper: #f4f3f0;
+  --white: #ffffff;
+  --display: 'Bebas Neue', Impact, 'Arial Narrow Bold', 'Arial Narrow', sans-serif;
+  --head: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+  --body: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+  --r: 22px;
+  --r-lg: 30px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ---- Top bar ---- */
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(10, 10, 10, 0.92);
+  backdrop-filter: blur(8px);
+  color: var(--white);
+}
+
+.top-inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 64px;
+}
+
+.brand {
+  font-family: var(--display);
+  font-size: 26px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.brand span {
+  color: var(--gold-bright);
+}
+
+.menu {
+  display: flex;
+  gap: 20px;
+  margin-left: auto;
+  font-family: var(--head);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.menu a {
+  opacity: 0.85;
+}
+
+.menu a:hover {
+  opacity: 1;
+  color: var(--gold-bright);
+}
+
+.cta {
+  background: var(--gold-bright);
+  color: var(--black);
+  font-weight: 700;
+  font-size: 14px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ---- Hero ---- */
+.hero {
+  position: relative;
+  overflow: hidden;
+  color: var(--white);
+  padding: 72px 0 56px;
+  background:
+    radial-gradient(900px 420px at 85% 10%, rgba(27, 77, 137, 0.65), transparent 65%),
+    linear-gradient(180deg, var(--court-deep) 0%, var(--black) 100%);
+}
+
+.hero::after {
+  /* faint court lines */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px) 0 0 / 160px 100%,
+    linear-gradient(0deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 100% 160px;
+  pointer-events: none;
+}
+
+.hero .wrap {
+  position: relative;
+  z-index: 1;
+}
+
+.tag {
+  display: inline-block;
+  background: var(--gold-bright);
+  color: var(--black);
+  font-family: var(--head);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  padding: 7px 14px;
+  border-radius: 999px;
+  margin-bottom: 22px;
+}
+
+.hero h1 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(56px, 9vw, 112px);
+  line-height: 0.92;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 34px;
+}
+
+.fact {
+  background: var(--white);
+  color: var(--ink);
+  border-radius: var(--r);
+  padding: 14px 22px;
+  min-width: 150px;
+}
+
+.fact small {
+  display: block;
+  font-family: var(--head);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--grey);
+}
+
+.fact b {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 30px;
+  letter-spacing: 0.04em;
+}
+
+/* ---- Menu cards ---- */
+main {
+  padding: 36px 24px 64px;
+}
+
+main h2 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 46px;
+  letter-spacing: 0.04em;
+  margin-top: 28px;
+}
+
+.lead {
+  color: var(--grey);
+  font-size: 16px;
+  margin: 2px 0 18px;
+}
+
+.lead code {
+  font-family: Consolas, monospace;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  color: var(--ink);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.08);
+}
+
+.card-kicker {
+  font-family: var(--head);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.card-title {
+  font-family: var(--display);
+  font-size: 38px;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.card-text {
+  color: var(--grey);
+  font-size: 14px;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.pill {
+  align-self: flex-start;
+  background: var(--black);
+  color: var(--white);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  margin-top: 6px;
+}
+
+.card.locked .pill {
+  background: var(--gold-bright);
+  color: var(--black);
+}
+
+/* ---- Footer ---- */
+.foot {
+  background: var(--black);
+  color: #bbbbbb;
+  padding: 26px 0;
+}
+
+.foot-inner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 13px;
+}
+
+.foot img {
+  height: 40px;
+}
+
+@media (max-width: 720px) {
+  .menu {
+    display: none;
+  }
+  .top-inner {
+    gap: 12px;
+  }
+  .cta {
+    margin-left: auto;
+  }
+  .hero {
+    padding: 48px 0 40px;
+  }
+}

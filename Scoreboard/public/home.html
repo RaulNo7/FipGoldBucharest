@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIP Gold Bucharest 2026 — Control Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo:wght@500;600&family=DM+Sans:wght@400;500;700&display=swap" />
+  <link rel="stylesheet" href="home.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="/">FIP GOLD <span>BUCHAREST 2026</span></a>
+      <nav class="menu">
+        <a href="/overlay?pos=top-left" target="_blank" rel="noopener">Scorebug</a>
+        <a href="/tv" target="_blank" rel="noopener">Court TV</a>
+        <a href="/mobile" data-keyed>Referee</a>
+        <a href="/admin" data-keyed>Score settings</a>
+        <a href="/teams" data-keyed>Teams</a>
+        <a href="/media" data-keyed>Media</a>
+      </nav>
+      <a class="cta" href="/mobile" data-keyed>Referee ↗</a>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <span class="tag">● FIP GOLD · BUCUREȘTI 2026</span>
+      <h1>The best padel<br />in the world<br />plays in Bucharest</h1>
+      <div class="facts">
+        <div class="fact"><small>DATE</small><b>7–13 SEPT</b></div>
+        <div class="fact"><small>LOCATION</small><b>BUCHAREST</b></div>
+        <div class="fact"><small>PRODUCTION</small><b id="liveStatus">…</b></div>
+      </div>
+    </div>
+  </section>
+
+  <main class="wrap">
+    <h2>On air</h2>
+    <p class="lead">Public pages — safe to share with FIP, the venue or anyone watching.</p>
+    <div class="grid">
+      <a class="card" href="/overlay?pos=top-left" target="_blank" rel="noopener">
+        <span class="card-kicker">OBS · FIP widget</span>
+        <span class="card-title">Scorebug</span>
+        <span class="card-text">Transparent overlay with the live score, country flags and the serving player — the fixed HTTPS widget for the broadcast.</span>
+        <span class="pill">Open ↗</span>
+      </a>
+      <a class="card" href="/tv" target="_blank" rel="noopener">
+        <span class="card-kicker">Court display</span>
+        <span class="card-title">Court TV</span>
+        <span class="card-text">Full-screen score on black for a TV, tablet or laptop at the court. Keeps the final result during commercial breaks.</span>
+        <span class="pill">Open ↗</span>
+      </a>
+    </div>
+
+    <h2>Control</h2>
+    <p class="lead" id="keyNote">These pages need the access key.</p>
+    <div class="grid">
+      <a class="card locked" href="/mobile" data-keyed>
+        <span class="card-kicker">Umpire's phone</span>
+        <span class="card-title">Referee</span>
+        <span class="card-text">Points, undo/redo, sets and who is serving — the live remote used during the match.</span>
+        <span class="pill">Open</span>
+      </a>
+      <a class="card locked" href="/admin" data-keyed>
+        <span class="card-kicker">Match setup</span>
+        <span class="card-title">Score settings</span>
+        <span class="card-text">Pick the two pairs for the next match, set the overlay title and reset the score.</span>
+        <span class="pill">Open</span>
+      </a>
+      <a class="card locked" href="/teams" data-keyed>
+        <span class="card-kicker">Entry list</span>
+        <span class="card-title">Teams</span>
+        <span class="card-text">All pairs of the draw with their Active / Eliminated status — losers drop out automatically.</span>
+        <span class="pill">Open</span>
+      </a>
+      <a class="card locked" href="/media" data-keyed>
+        <span class="card-kicker">Broadcast</span>
+        <span class="card-title">Media</span>
+        <span class="card-text">Players intro, score on/off, commercial spots and the automatic break — everything that goes on the stream.</span>
+        <span class="pill">Open</span>
+      </a>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <img src="fip-logo.png" alt="International Padel Federation" />
+      <span>FIP Gold Bucharest 2026 · live production</span>
+    </div>
+  </footer>
+
+  <script src="home.js"></script>
+</body>
+</html>

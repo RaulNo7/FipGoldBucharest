@@ -138,7 +138,9 @@ publicHub.onMessage((socket, text) => {
 });
 
 function publicStateMessage() {
-  return JSON.stringify({ type: 'state', state });
+  // Same as the LAN message minus the client count. The OBS/break status is
+  // needed by the (key-protected) Media page and contains nothing sensitive.
+  return JSON.stringify({ type: 'state', state, obs: obsStatusPayload() });
 }
 
 function stateMessage() {
@@ -627,7 +629,7 @@ function serveFile(res, filePath) {
   });
 }
 
-const server = http.createServer((req, res) => {
+function handleMainRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   let pathname = decodeURIComponent(url.pathname);
 
@@ -737,7 +739,8 @@ const server = http.createServer((req, res) => {
   }
 
   // Friendly routes.
-  if (pathname === '/') pathname = '/admin.html';
+  if (pathname === '/' || pathname === '/home') pathname = '/home.html';
+  if (pathname === '/settings') pathname = '/settings.html'; // app-only Admin page (never public)
   if (pathname === '/overlay') pathname = '/overlay.html';
   if (pathname === '/admin') pathname = '/admin.html';
   if (pathname === '/mobile') pathname = '/mobile.html';
@@ -753,7 +756,9 @@ const server = http.createServer((req, res) => {
     return;
   }
   serveFile(res, filePath);
-});
+}
+
+const server = http.createServer(handleMainRequest);
 
 server.on('upgrade', (req, socket) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -787,13 +792,37 @@ server.listen(PORT, HOST, () => {
 // Public read-only port (what the internet tunnel exposes to FIP)
 // ---------------------------------------------------------------------------
 
-const PUBLIC_PAGES = { '/': 'overlay.html', '/overlay': 'overlay.html', '/tv': 'tv.html', '/intro': 'intro.html' };
-const PUBLIC_ASSET = /^\/(overlay|tv|intro)\.(html|css|js)$|^\/mobile\.(css|js)$|^\/(client|countries)\.js$|^\/flags\/[a-z]{2}\.svg$/;
+const PUBLIC_PAGES = {
+  '/': 'home.html', '/home': 'home.html', '/overlay': 'overlay.html', '/tv': 'tv.html', '/intro': 'intro.html',
+};
+const PUBLIC_ASSET = /^\/(home|overlay|tv|intro)\.(html|css|js)$|^\/(mobile|admin|teams|media)\.(css|js)$|^\/(client|countries)\.js$|^\/fip-logo\.png$|^\/flags\/[a-z]{2}\.svg$/;
 
-/** True when the request carries the configured referee key (?key=...). */
-function hasRefereeKey(url) {
+// Operator pages (referee, admin, teams, media) and the APIs they use: only
+// with the access key, given as ?key=... or as the cookie set when a page was
+// opened with the key. They are then handled by the main server's own routing.
+const KEYED_PAGES = new Set([
+  '/mobile', '/mobile.html', '/admin', '/admin.html', '/teams', '/teams.html', '/media', '/media.html',
+]);
+const KEYED_PATHS = new Set([
+  ...KEYED_PAGES, '/api/command', '/api/teams', '/api/info', '/api/obs-settings', '/api/commercials',
+]);
+
+/** True when the request carries the configured access key (?key=... or cookie). */
+function hasRefereeKey(url, req) {
   const key = obsSettings.refereeKey;
-  return !!key && url.searchParams.get('key') === key;
+  if (!key) return false;
+  if (url.searchParams.get('key') === key) return true;
+  const cookie = req && req.headers && req.headers.cookie;
+  if (!cookie) return false;
+  return cookie.split(';').some((part) => {
+    const [name, ...rest] = part.trim().split('=');
+    if (name !== 'key') return false;
+    try {
+      return decodeURIComponent(rest.join('=')) === key;
+    } catch (_) {
+      return false;
+    }
+  });
 }
 
 if (PUBLIC_PORT) {
@@ -808,47 +837,26 @@ if (PUBLIC_PORT) {
       res.end('Bad request');
       return;
     }
-    const referee = hasRefereeKey(url);
+    // Any page opened with a valid ?key= (the main page included) stores the key
+    // in a cookie so the operator pages and their requests pass afterwards.
+    if (url.searchParams.get('key') && hasRefereeKey(url, req)) {
+      res.setHeader('Set-Cookie',
+        `key=${encodeURIComponent(obsSettings.refereeKey)}; Path=/; Max-Age=2592000; SameSite=Lax`);
+    }
 
-    // Score commands (the referee page's REST fallback): only with the key.
-    if (req.method === 'POST' && pathname === '/api/command') {
-      if (!referee) {
+    if (KEYED_PATHS.has(pathname)) {
+      if (!hasRefereeKey(url, req)) {
         res.writeHead(403, { 'Content-Type': 'text/plain' });
-        res.end('Referee key required');
+        res.end('Access key required');
         return;
       }
-      let body = '';
-      req.on('data', (c) => {
-        body += c;
-        if (body.length > 1e6) req.destroy();
-      });
-      req.on('end', () => {
-        try {
-          handleCommand(JSON.parse(body));
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: true }));
-        } catch (_) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false }));
-        }
-      });
+      handleMainRequest(req, res);
       return;
     }
 
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405, { 'Content-Type': 'text/plain' });
       res.end('Read-only');
-      return;
-    }
-
-    // Referee page: only with the key (its assets are harmless and served freely).
-    if (pathname === '/mobile' || pathname === '/mobile.html') {
-      if (!referee) {
-        res.writeHead(403, { 'Content-Type': 'text/plain' });
-        res.end('Referee key required');
-        return;
-      }
-      serveFile(res, path.join(PUBLIC_DIR, 'mobile.html'));
       return;
     }
 
@@ -883,7 +891,7 @@ if (PUBLIC_PORT) {
       socket.destroy();
       return;
     }
-    if (hasRefereeKey(url)) refereeSockets.add(socket); // referee page: may send commands
+    if (hasRefereeKey(url, req)) refereeSockets.add(socket); // operator pages: may send commands
     publicHub.handleUpgrade(req, socket);
   });
 

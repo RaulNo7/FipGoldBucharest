@@ -33,7 +33,7 @@
           <div class="side-preview" data-side-preview="1"></div>
         </div>
       </div>
-      <p class="hint">Teams come from the official entry lists (89 pairs). Eliminated teams are greyed out — manage them on the <b>Teams</b> tab. The match format is fixed for the whole tournament: best of 3 sets · star point (two advantages, then golden point) · tiebreak to 7, win by 2.</p>
+      <p class="hint">Teams come from the official entry lists (89 pairs). Eliminated teams are greyed out — the pair that loses a match is eliminated automatically; manage exceptions on the <b>Teams</b> page. The match format is fixed for the whole tournament: best of 3 sets · star point (two advantages, then golden point) · tiebreak to 7, win by 2.</p>
     </div>
 
     <div class="card">
@@ -49,72 +49,6 @@
         <label class="check"><input type="checkbox" id="dspShowSets" checked /> Show completed sets</label>
         <label class="check"><input type="checkbox" id="dspShowServe" checked /> Show serve indicator</label>
       </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head"><h2>OBS overlay URL</h2></div>
-      <div class="row gap wrap">
-        <label class="grow">Position
-          <select id="ovPos">
-            <option value="top-left">Top left</option>
-            <option value="top-right">Top right</option>
-            <option value="top-center">Top center</option>
-            <option value="bottom-left">Bottom left</option>
-            <option value="bottom-right">Bottom right</option>
-            <option value="bottom-center">Bottom center</option>
-          </select>
-        </label>
-        <label>Scale
-          <input type="number" id="ovScale" min="0.3" max="3" step="0.05" value="1" />
-        </label>
-      </div>
-      <div class="row gap url-row">
-        <input type="text" id="overlayUrl" readonly />
-        <button class="btn btn-ghost" id="copyUrlBtn">Copy</button>
-        <button class="btn btn-ghost" id="openOverlayBtn">Open</button>
-      </div>
-      <p class="hint">Players intro (add as a <b>second</b> Browser Source above the camera, transparent, sized <b>exactly like your OBS canvas</b> — Settings → Video → Base resolution, e.g. 1920×1080 or 1280×720 — then Ctrl+R to reset its transform. Shown/hidden with the "Show players" button; add <b>?scale=0.8</b> to the URL for a smaller card):</p>
-      <div class="row gap url-row">
-        <input type="text" id="introUrl" readonly />
-        <button class="btn btn-ghost" id="copyIntroUrlBtn">Copy</button>
-        <button class="btn btn-ghost" id="openIntroBtn">Open</button>
-      </div>
-      <p class="hint">Internet / FIP: the scorebug is also served <b>read-only</b> on port <b id="publicPort">…</b> (overlay, TV and intro pages only — no controls, no settings). Point your Cloudflare Tunnel or Tailscale Funnel at <b id="publicLocal">http://localhost:…</b> and hand out <b>https://&lt;your-hostname&gt;/overlay?pos=top-left</b>; that URL stays fixed for the whole tournament.</p>
-      <p class="hint">In OBS: Sources → + → Browser → paste this URL. Set width 1920, height 1080, tick "transparent".
-        Sizing the source as a tight crop instead? Use at least 700 × 330 at scale 1 — the scorebug sits 40px
-        from the edge and the winner banner adds height, so anything smaller clips the score columns or title.</p>
-    </div>
-
-    <div class="card">
-      <div class="card-head"><h2>Court TV display</h2></div>
-      <div class="row gap url-row">
-        <input type="text" id="tvUrl" readonly />
-        <button class="btn btn-ghost" id="copyTvUrlBtn">Copy</button>
-        <button class="btn btn-ghost" id="openTvBtn">Open</button>
-      </div>
-      <p class="hint">Full-screen score on a black background — open this on a TV / laptop / tablet on the same Wi-Fi. It keeps showing the final score even while the stream plays commercials.</p>
-    </div>
-
-    <div class="card">
-      <div class="card-head"><h2>Internet access (tunnel)</h2></div>
-      <div class="config-grid">
-        <label>Public hostname (Cloudflare / Tailscale)
-          <input type="text" id="publicHostname" placeholder="scorebug.example.com" />
-        </label>
-        <label>Referee key (empty = referee page on the LAN only)
-          <span class="row gap">
-            <input type="text" id="refereeKey" placeholder="secret" />
-            <button class="btn btn-ghost" id="genKeyBtn" type="button">Generate</button>
-          </span>
-        </label>
-      </div>
-      <div class="row gap wrap actions">
-        <button class="btn btn-ghost" id="saveInternetBtn">Save</button>
-      </div>
-      <div class="row gap url-row"><span class="url-label">Scorebug (FIP)</span><input type="text" id="pubOverlayUrl" readonly /><button class="btn btn-ghost" data-copy="pubOverlayUrl">Copy</button></div>
-      <div class="row gap url-row"><span class="url-label">Court TV</span><input type="text" id="pubTvUrl" readonly /><button class="btn btn-ghost" data-copy="pubTvUrl">Copy</button></div>
-      <div class="row gap url-row"><span class="url-label">Referee</span><input type="text" id="pubRefereeUrl" readonly /><button class="btn btn-ghost" data-copy="pubRefereeUrl">Copy</button></div>
-      <p class="hint">All three go through the read-only port <b id="publicPort2">…</b> behind your tunnel. The scorebug and court TV are public; the referee page and its score commands work only with the key in the URL — treat it like a password (Generate makes a random one; Save, then hand the Referee link to the umpire). Without a key the referee page stays LAN-only.</p>
     </div>
 
     <div class="card danger-card">
