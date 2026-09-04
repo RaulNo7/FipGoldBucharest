@@ -628,6 +628,24 @@ function safeJoin(base, target) {
   return resolved;
 }
 
+/**
+ * Appends ?v=<file mtime> to every local .css/.js reference in an HTML page.
+ * CDNs in front of the tunnel (Cloudflare) cache static assets for hours and
+ * ignore our no-cache; a changed query string is a new URL for them and for
+ * the phones, so every deploy is picked up immediately.
+ */
+function versionAssets(html) {
+  return html.replace(/((?:src|href)=")([^"?#:]+\.(?:css|js))(")/g, (m, pre, ref, post) => {
+    const rel = ref.replace(/^\//, '');
+    const file = rel === 'scoring.js' ? path.join(__dirname, 'src', 'scoring.js') : safeJoin(PUBLIC_DIR, '/' + rel);
+    try {
+      return `${pre}${ref}?v=${Math.floor(fs.statSync(file).mtimeMs)}${post}`;
+    } catch (_) {
+      return m;
+    }
+  });
+}
+
 function serveFile(res, filePath) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
@@ -640,7 +658,7 @@ function serveFile(res, filePath) {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': 'no-cache',
     });
-    res.end(data);
+    res.end(ext === '.html' ? versionAssets(data.toString('utf8')) : data);
   });
 }
 

@@ -6,6 +6,18 @@
 
   const $ = (sel) => document.querySelector(sel);
 
+  // ---- mobile menu (☰) ------------------------------------------------------
+  const top = $('.top');
+  const menuBtn = $('#menuBtn');
+  menuBtn.addEventListener('click', () => {
+    const open = top.classList.toggle('open');
+    menuBtn.setAttribute('aria-expanded', String(open));
+    menuBtn.textContent = open ? '✕' : '☰';
+  });
+  document.addEventListener('click', (e) => {
+    if (top.classList.contains('open') && !top.contains(e.target)) menuBtn.click();
+  });
+
   function overlayUrl() {
     const url = new URL('/overlay', location.origin);
     url.searchParams.set('pos', $('#embedPos').value);

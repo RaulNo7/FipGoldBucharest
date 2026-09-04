@@ -12,6 +12,18 @@
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
+  // ---- mobile menu (☰) ------------------------------------------------------
+  const top = $('.top');
+  const menuBtn = $('#menuBtn');
+  menuBtn.addEventListener('click', () => {
+    const open = top.classList.toggle('open');
+    menuBtn.setAttribute('aria-expanded', String(open));
+    menuBtn.textContent = open ? '✕' : '☰';
+  });
+  document.addEventListener('click', (e) => {
+    if (top.classList.contains('open') && !top.contains(e.target)) menuBtn.click();
+  });
+
   // ---- access key -----------------------------------------------------------
   const params = new URLSearchParams(location.search);
   const cookieEntry = document.cookie.split(';').map((c) => c.trim()).find((c) => c.startsWith('key='));
