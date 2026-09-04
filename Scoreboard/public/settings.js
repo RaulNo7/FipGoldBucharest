@@ -87,14 +87,67 @@
       .catch(() => flash($('#saveInternetBtn'), 'Failed'));
   });
   $$('[data-copy]').forEach((b) => b.addEventListener('click', () => copyField($('#' + b.dataset.copy), b)));
+
+  // ---- YouTube live stream link (website menu entry) ----
+  $('#saveYoutubeBtn').addEventListener('click', () => {
+    fetch('/api/obs-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ youtubeUrl: $('#youtubeUrl').value.trim() }),
+    })
+      .then((r) => (r.ok ? fetch('/api/obs-settings').then((x) => x.json()) : Promise.reject()))
+      .then((cfg) => {
+        $('#youtubeUrl').value = cfg.youtubeUrl || ''; // show the normalized link (https:// added, etc.)
+        flash($('#saveYoutubeBtn'), 'Saved!');
+      })
+      .catch(() => flash($('#saveYoutubeBtn'), 'Failed'));
+  });
+  $('#openYoutubeBtn').addEventListener('click', () => {
+    const url = $('#youtubeUrl').value.trim();
+    if (url) window.open(/^https?:\/\//i.test(url) ? url : 'https://' + url, '_blank');
+  });
+
   fetch('/api/obs-settings')
     .then((r) => r.json())
     .then((cfg) => {
       $('#publicHostname').value = cfg.publicHostname || '';
       $('#refereeKey').value = cfg.refereeKey || '';
+      $('#youtubeUrl').value = cfg.youtubeUrl || '';
       updatePublicUrls();
     })
     .catch(() => {});
+
+  // ---- score server (desktop app only, via the WebView2 message bridge) ----
+  const host = window.chrome && window.chrome.webview;
+  if (host) {
+    const card = $('#hostCard');
+    card.hidden = false;
+    const send = (msg) => host.postMessage(msg);
+
+    host.addEventListener('message', (ev) => {
+      const m = ev.data;
+      if (!m || m.type !== 'host') return;
+      $('#hostStatus').textContent = m.status || '';
+      $('#hostDot').className = 'conn-dot' + (m.kind === 'ok' ? ' connected' : '');
+      $('#hostStartStop').textContent = m.running ? 'Stop' : 'Start';
+      if (document.activeElement !== $('#hostPort')) $('#hostPort').value = m.port;
+      $('#hostAutoStart').checked = !!m.autoStart;
+      $('#hostTray').checked = !!m.minimizeToTray;
+      $('#hostOverlayUrl').value = m.overlayUrl || '';
+      $('#hostMobileUrl').value = m.mobileUrl || '';
+    });
+
+    $('#hostStartStop').addEventListener('click', () => send({ type: 'startStop' }));
+    $('#hostPort').addEventListener('change', () => {
+      const port = parseInt($('#hostPort').value, 10);
+      if (port > 0 && port < 65536) send({ type: 'setPort', port });
+    });
+    $('#hostAutoStart').addEventListener('change', () => send({ type: 'setAutoStart', value: $('#hostAutoStart').checked }));
+    $('#hostTray').addEventListener('change', () => send({ type: 'setMinimizeToTray', value: $('#hostTray').checked }));
+    $('#hostOpenBtn').addEventListener('click', () => send({ type: 'openInBrowser' }));
+    $('#hostReloadBtn').addEventListener('click', () => send({ type: 'reload' }));
+    send({ type: 'ready' });
+  }
 
   // ---- helpers ----
   function copyField(input, btn) {

@@ -6,13 +6,14 @@ Windows WPF (.NET 10) app purpose-built for streaming the **FIP Gold Bucharest 2
 
 - Hosts the bundled Node.js score server (`Scoreboard\server.js`) as a hidden child process.
 - **Home tab** — embeds the referee remote (`/mobile`): scoring, undo/redo, manual adjust, and per-player serve selection.
-- **Score settings tab** — server control + the control panel (`/admin`): pick the two teams of the current match from the official entry lists, overlay display options, OBS overlay URL builder, reset.
+- **Score settings tab** — the control panel (`/admin`): pick the two teams of the current match from the official entry lists, overlay display options, reset.
 - **Teams tab** — the full entry list (58 men's + 31 women's pairs) with an Active/Eliminated toggle per team; eliminated teams cannot be picked for a match. The pair that loses a match is eliminated automatically when the match finishes (reinstated if the result is undone).
 - **OBS overlay** (`/overlay`, Browser Source 1920×1080, transparent) — 4 player rows with country flags, serving-player dot, blue completed-set columns, gold current-set games, white points.
 - **Court TV display** (`/tv`) — the same scorebug filling the whole screen on a black background, for a TV/laptop/tablet at the court (URL with the LAN address is in the admin panel). It keeps showing the final score during commercial breaks.
 - **Players intro** (`/intro`) — a transparent second OBS Browser Source showing the tournament header and the four players with big flags over the court video, toggled with the **Show players** button (Home tab or admin panel); it hides automatically when the match starts.
-- **Admin tab** (app-only page `/settings`, never served on the public port) — OBS overlay/intro URLs, court TV URL, the tunnel hostname, the access key and all public links.
-- **Main page** (`/`, public) — a Control Center styled after fipgoldbucharest.ro with a menu to all six pages: Scorebug, Court TV (public) and Referee, Score settings, Teams, Media (access key); opening it with `?key=…` stores the key for the control links.
+- **Admin tab** (app-only page `/settings`, never served on the public port) — OBS overlay/intro URLs, court TV URL, the YouTube live-stream link, the tunnel hostname, the access key and all public links, plus a **Score server** card (status, Start/Stop, port, auto start, minimize to tray, LAN overlay/referee URLs) that drives the desktop app through the WebView2 message bridge — it appears only inside the app. While the server is stopped the tab shows a placeholder with a Start button and the port.
+- **Home page** (`/`, public) — styled after fipgoldbucharest.ro with a menu to all pages: **FIP event** (the federation's official event page on padelfip.com), Scorebug, Court TV, **YouTube Live** (appears only while a stream link is saved on the Admin tab) and Referee, Score settings, Teams, Media (access key); the hero shows FIP event / Date / Location / Production tiles, the YouTube tile and the live score. Opening the page with `?key=…` stores the key for the control links.
+- **Scorebug page** (`/scorebug`, public) — preview of the live widget, the fixed HTTPS link and an HTML `<iframe>` snippet (position / scale / size) to embed the scorebug on any website; the Scorebug menu entry and card open this page (the raw overlay stays at `/overlay`).
 - **Media tab** — the broadcast controls (OBS status, Show/hide players, Show/hide score, Play commercials, Cancel) plus one button per commercial spot (`Commercials\01_FIP_INTRO.mp4` … `06_MONDO.mov`, configurable in `obs-settings.json`). A spot temporarily swaps the file of the OBS media source, plays through the same break routine and restores the merged break video afterwards; the last spot played stays highlighted. After a single spot the score always comes back (spots are for during the game); after "Play all" / the automatic break it comes back only if a live match was interrupted, and stays hidden after a finished match.
 - **Commercial breaks** — a configurable delay (default 60s) after a match ends: the scorebug fades off the stream, OBS switches to the commercials scene, the six spots are loaded into its media source **one after another** (no merged file needed; a "single merged file" mode remains available in the settings), and OBS returns to the live scene when the last one ends. The score stays hidden while the next match is set up and reappears when it starts. A "Play commercials now" button runs the same break manually; countdown + Cancel are shown in the admin panel.
 
@@ -54,6 +55,6 @@ Requires Node.js on PATH (or set its path in settings). Build & run:
 dotnet run --project FipGoldBucharest.csproj
 ```
 
-The referee opens the phone URL shown on the Home tab (same Wi-Fi network). Add the overlay URL from the Score settings tab as an OBS Browser Source.
+The referee opens the phone URL shown at the bottom of the Admin tab (same Wi-Fi network). Add the overlay URL from the Admin tab as an OBS Browser Source.
 
 Scoring-engine tests: `cd Scoreboard && npm test`.

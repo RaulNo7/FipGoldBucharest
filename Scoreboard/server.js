@@ -185,6 +185,7 @@ const DEFAULT_OBS_SETTINGS = {
   breakMode: 'playlist', // 'playlist' = play every spot below in order | 'file' = play the media source's own file
   publicHostname: '', // e.g. scorebug.example.com (the tunnel hostname) - only used to build URLs in the admin panel
   refereeKey: '', // secret that unlocks the referee page + score commands on the public port (empty = LAN only)
+  youtubeUrl: '', // live-stream link; when set, the website menu shows a "YouTube Live" entry (public, not secret)
   // Individual spots for the Media tab: each temporarily swaps the media
   // source's file, plays through the same break routine, then restores the
   // merged break video configured in OBS.
@@ -255,7 +256,21 @@ function obsStatusPayload() {
     playlistIndex: breakState.playlistIndex,
     playlistTotal: breakState.playlistTotal,
     lastError: breakState.lastError || obs.lastError || null,
+    youtubeUrl: obsSettings.youtubeUrl || '', // for the website menu ("YouTube Live"); updates live on save
   };
+}
+
+/** Normalizes a user-typed stream link: trims, adds https:// when missing, allows only http(s) (or empty). */
+function sanitizeLink(value) {
+  let s = String(value || '').trim();
+  if (!s) return '';
+  if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+  try {
+    const u = new URL(s);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.toString() : '';
+  } catch (_) {
+    return '';
+  }
 }
 
 /** Called after every state change with the previous status: match finished / reopened. */
@@ -710,6 +725,7 @@ function handleMainRequest(req, res) {
           for (const k of ['url', 'password', 'liveScene', 'commercialsScene', 'mediaSource', 'publicHostname', 'refereeKey']) {
             if (typeof incoming[k] === 'string') clean[k] = incoming[k];
           }
+          if (typeof incoming.youtubeUrl === 'string') clean.youtubeUrl = sanitizeLink(incoming.youtubeUrl);
           for (const k of ['autoDelaySeconds', 'maxBreakSeconds']) {
             const n = Number(incoming[k]);
             if (Number.isFinite(n) && n >= 0) clean[k] = Math.round(n);
@@ -740,6 +756,7 @@ function handleMainRequest(req, res) {
 
   // Friendly routes.
   if (pathname === '/' || pathname === '/home') pathname = '/home.html';
+  if (pathname === '/scorebug') pathname = '/scorebug.html';
   if (pathname === '/settings') pathname = '/settings.html'; // app-only Admin page (never public)
   if (pathname === '/overlay') pathname = '/overlay.html';
   if (pathname === '/admin') pathname = '/admin.html';
@@ -793,9 +810,10 @@ server.listen(PORT, HOST, () => {
 // ---------------------------------------------------------------------------
 
 const PUBLIC_PAGES = {
-  '/': 'home.html', '/home': 'home.html', '/overlay': 'overlay.html', '/tv': 'tv.html', '/intro': 'intro.html',
+  '/': 'home.html', '/home': 'home.html', '/scorebug': 'scorebug.html',
+  '/overlay': 'overlay.html', '/tv': 'tv.html', '/intro': 'intro.html',
 };
-const PUBLIC_ASSET = /^\/(home|overlay|tv|intro)\.(html|css|js)$|^\/(mobile|admin|teams|media)\.(css|js)$|^\/(client|countries)\.js$|^\/fip-logo\.png$|^\/flags\/[a-z]{2}\.svg$/;
+const PUBLIC_ASSET = /^\/(home|scorebug|overlay|tv|intro)\.(html|css|js)$|^\/(mobile|admin|teams|media)\.(css|js)$|^\/(client|countries)\.js$|^\/fip-logo\.png$|^\/flags\/[a-z]{2}\.svg$/;
 
 // Operator pages (referee, admin, teams, media) and the APIs they use: only
 // with the access key, given as ?key=... or as the cookie set when a page was

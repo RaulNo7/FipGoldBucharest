@@ -55,6 +55,20 @@
     </div>
 
     <div class="card">
+      <div class="card-head"><h2>YouTube live stream</h2></div>
+      <div class="config-grid">
+        <label class="full">Stream link (the website menu shows "YouTube Live" while this is filled in)
+          <input type="url" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=…" />
+        </label>
+      </div>
+      <div class="row gap wrap actions">
+        <button class="btn btn-ghost" id="saveYoutubeBtn">Save</button>
+        <button class="btn btn-ghost" id="openYoutubeBtn">Open</button>
+      </div>
+      <p class="hint">Paste the public link of the live stream (or the channel's /live page). The main page and the Scorebug page pick it up immediately and open it in a new tab. Leave it empty to hide the menu entry.</p>
+    </div>
+
+    <div class="card">
       <div class="card-head"><h2>Internet access (tunnel)</h2></div>
       <div class="config-grid">
         <label>Public hostname (Cloudflare / Tailscale)
@@ -78,6 +92,26 @@
       <div class="row gap url-row"><span class="url-label">Teams</span><input type="text" id="pubTeamsUrl" readonly /><button class="btn btn-ghost" data-copy="pubTeamsUrl">Copy</button></div>
       <div class="row gap url-row"><span class="url-label">Media</span><input type="text" id="pubMediaUrl" readonly /><button class="btn btn-ghost" data-copy="pubMediaUrl">Copy</button></div>
       <p class="hint">Everything above goes through the read-only port <b id="publicPort">…</b> behind your tunnel (point Cloudflare / Tailscale at <b id="publicLocal">http://localhost:…</b>). The main page, scorebug and court TV are public; the referee, score settings, teams and media pages (and every score command) work only with the access key — open a page once with <b>?key=…</b> and the browser remembers it for 30 days. Treat the key like a password (Generate makes a random one; Save; hand the Referee link to the umpire). This Admin page itself is never served on the public port.</p>
+    </div>
+
+    <!-- Score server: talks to the desktop app through the WebView2 bridge; hidden when this page is opened in a plain browser. -->
+    <div class="card" id="hostCard" hidden>
+      <div class="card-head">
+        <h2>Score server</h2>
+        <span class="conn"><span class="conn-dot" id="hostDot"></span><span id="hostStatus">…</span></span>
+      </div>
+      <div class="row gap wrap actions host-row">
+        <button class="btn btn-ghost" id="hostStartStop">Stop</button>
+        <label class="host-port">Port <input type="number" id="hostPort" min="1" max="65535" step="1" /></label>
+        <label class="check"><input type="checkbox" id="hostAutoStart" /> Auto start</label>
+        <label class="check"><input type="checkbox" id="hostTray" /> Minimize to tray</label>
+        <span class="grow"></span>
+        <button class="btn btn-ghost" id="hostOpenBtn">Open in browser</button>
+        <button class="btn btn-ghost" id="hostReloadBtn" title="Reload the embedded pages">⟳</button>
+      </div>
+      <div class="row gap url-row"><span class="url-label">OBS overlay (LAN)</span><input type="text" id="hostOverlayUrl" readonly /><button class="btn btn-ghost" data-copy="hostOverlayUrl">Copy</button></div>
+      <div class="row gap url-row"><span class="url-label">Referee (LAN)</span><input type="text" id="hostMobileUrl" readonly /><button class="btn btn-ghost" data-copy="hostMobileUrl">Copy</button></div>
+      <p class="hint">The referee opens the LAN link on the phone (same Wi-Fi network). A new port applies the next time the server starts; Auto start launches the server with the app.</p>
     </div>
   </main>
 

@@ -146,9 +146,10 @@ function cleanupAndExit() {
   const pub = (p, opts) => fetch(`http://127.0.0.1:${PUBLIC_PORT}${p}`, opts);
   assert((await pub('/overlay')).status === 200, 'public port serves /overlay');
   const home = await pub('/');
-  assert(home.status === 200 && /Control Center/.test(await home.text()) && (await pub('/home.css')).status === 200, 'public port serves the main page');
+  assert(home.status === 200 && /id="youtubeLink"/.test(await home.text()) && (await pub('/home.css')).status === 200, 'public port serves the main page');
+  assert((await pub('/scorebug')).status === 200 && (await pub('/scorebug.js')).status === 200, 'public port serves the scorebug page (embed code)');
   assert((await pub('/settings')).status === 404 && (await pub('/settings.js')).status === 404, 'public port never serves the app-only Admin page');
-  assert((await fetch(`http://127.0.0.1:${SB_PORT}/settings`)).status === 200 && /Control Center/.test(await (await fetch(`http://127.0.0.1:${SB_PORT}/`)).text()), 'LAN port serves the Admin page and the main page');
+  assert((await fetch(`http://127.0.0.1:${SB_PORT}/settings`)).status === 200 && /Bucharest 2026 — Home/.test(await (await fetch(`http://127.0.0.1:${SB_PORT}/`)).text()), 'LAN port serves the Admin page and the main page');
   const keyedHome = await pub('/?key=testkey');
   assert(keyedHome.status === 200 && /^key=testkey/.test(keyedHome.headers.get('set-cookie') || ''), 'main page opened with the key sets the key cookie');
   assert((await pub('/overlay.js')).status === 200 && (await pub('/flags/ro.svg')).status === 200, 'public port serves the widget assets');
@@ -177,6 +178,28 @@ function cleanupAndExit() {
   });
   let st0 = await api('/api/state');
   assert(st0.points[0] === 0, 'a command sent through the public ws is ignored');
+
+  // YouTube live link (Admin tab): normalized on save, published to the website menu via the status payload.
+  const ytSave = await fetch(`http://127.0.0.1:${SB_PORT}/api/obs-settings`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ youtubeUrl: ' youtube.com/live/abc123 ' }),
+  });
+  const ytCfg = await (await fetch(`http://127.0.0.1:${SB_PORT}/api/obs-settings`)).json();
+  assert(ytSave.status === 200 && ytCfg.youtubeUrl === 'https://youtube.com/live/abc123', 'YouTube link is saved and normalized (https:// added)');
+  const ytOnPublic = await new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${PUBLIC_PORT}/ws`);
+    const timer = setTimeout(() => reject(new Error('no state on public ws')), 4000);
+    ws.addEventListener('message', (ev) => {
+      clearTimeout(timer);
+      ws.close();
+      resolve(JSON.parse(ev.data).obs?.youtubeUrl);
+    }, { once: true });
+    ws.addEventListener('error', () => { clearTimeout(timer); reject(new Error('public ws error')); });
+  });
+  assert(ytOnPublic === 'https://youtube.com/live/abc123', 'public ws state carries the YouTube link for the website menu');
+  await fetch(`http://127.0.0.1:${SB_PORT}/api/obs-settings`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ youtubeUrl: 'javascript:alert(1)' }),
+  });
+  assert((await (await fetch(`http://127.0.0.1:${SB_PORT}/api/obs-settings`)).json()).youtubeUrl === '', 'a non-http(s) YouTube link is rejected (cleared)');
 
   // Referee key: unlocks the referee page and commands on the public port.
   assert((await pub('/mobile')).status === 403, 'public port: referee page needs the key');

@@ -309,6 +309,7 @@ label.check {
 }
 
 input[type='text'],
+input[type='url'],
 input[type='number'],
 select {
   background: var(--panel-2);
@@ -381,4 +382,44 @@ input[type='checkbox'] {
     min-height: 48px;
     font-size: 16px;
   }
+}
+
+/* a field that takes the whole row of a .config-grid */
+.config-grid .full {
+  grid-column: 1 / -1;
+}
+
+/* Score server card (desktop app only) */
+.host-row {
+  align-items: center;
+}
+
+.host-row .grow {
+  flex: 1;
+}
+
+label.host-port {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+label.host-port input {
+  width: 92px;
+}
+
+.card-head .conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.card-head .conn .conn-dot {
+  display: inline-block;
+  flex: 0 0 10px;
 }

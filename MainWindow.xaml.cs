@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using FipGoldBucharest.Models;
@@ -18,6 +19,9 @@ public partial class MainWindow : Window
     private readonly ScoreboardServerService _scoreboard = new();
     private bool _scoreboardStarted;
     private Task<CoreWebView2Environment>? _webViewEnvironmentTask;
+    private bool _settingsBridgeAttached;
+    private string _statusText = "Stopped";
+    private string _statusKind = "warn"; // ok | warn | danger — mirrored by the Score server card on the Admin page
 
     public MainWindow()
     {
@@ -59,33 +63,15 @@ public partial class MainWindow : Window
     private void LoadSettingsToUi()
     {
         _loading = true;
-
-        ChkMinimizeToTray.IsChecked = _settings.MinimizeToTray;
         TxtScoreboardPort.Text = _settings.ScoreboardPort.ToString();
-        ChkScoreboardAutoStart.IsChecked = _settings.ScoreboardAutoStart;
-        UpdateScoreboardUrls(_settings.ScoreboardPort);
-
         _loading = false;
     }
 
+    /// <summary>The port box in the Admin placeholder (the only native setting left; the rest lives on the Admin page).</summary>
     private void SaveSettingsFromUi()
     {
-        _settings.MinimizeToTray = ChkMinimizeToTray.IsChecked == true;
-
         if (int.TryParse(TxtScoreboardPort.Text.Trim(), out var sbPort) && sbPort is > 0 and < 65536)
             _settings.ScoreboardPort = sbPort;
-        _settings.ScoreboardAutoStart = ChkScoreboardAutoStart.IsChecked == true;
-
-        if (!_scoreboardStarted)
-            UpdateScoreboardUrls(_settings.ScoreboardPort);
-    }
-
-    private void UpdateScoreboardUrls(int port)
-    {
-        var host = ScoreboardServerService.GetLanAddress() ?? "127.0.0.1";
-        TxtOverlayUrl.Text = $"http://{host}:{port}/overlay";
-        TxtMobileUrl.Text = $"http://{host}:{port}/mobile";
-        TxtMobileUrlHome.Text = TxtMobileUrl.Text;
     }
 
     private void Settings_Changed(object sender, RoutedEventArgs e)
@@ -177,16 +163,11 @@ public partial class MainWindow : Window
                 TxtMediaPlaceholder.Text = TxtScoreboardPlaceholder.Text;
                 TxtSettingsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
                 HideScoreboardViews();
-                BtnScoreboardStartStop.Content = "Start";
                 return;
             }
 
             _scoreboardStarted = true;
             SetScoreboardStatus($"Running on :{_scoreboard.Port}", "AccentBrush");
-            TxtOverlayUrl.Text = _scoreboard.LanOverlayUrl;
-            TxtMobileUrl.Text = _scoreboard.MobileUrl;
-            TxtMobileUrlHome.Text = _scoreboard.MobileUrl;
-            BtnScoreboardStartStop.Content = "Stop";
 
             ShowScoreboardViews();
         }
@@ -201,9 +182,8 @@ public partial class MainWindow : Window
         _scoreboard.Stop();
         _scoreboardStarted = false;
         SetScoreboardStatus("Stopped", "WarningBrush");
-        BtnScoreboardStartStop.Content = "Start";
         TxtScoreboardPlaceholder.Text = "Scoreboard server is not running.";
-        TxtHomePlaceholder.Text = "Score server is not running. Start it from the Score settings tab.";
+        TxtHomePlaceholder.Text = "Score server is not running. Start it from the Admin tab.";
         TxtTeamsPlaceholder.Text = "Teams list loads when the score server is running.";
         TxtMediaPlaceholder.Text = "Media controls load when the score server is running.";
         TxtSettingsPlaceholder.Text = "Admin settings load when the score server is running.";
@@ -267,6 +247,9 @@ public partial class MainWindow : Window
                 await view.EnsureCoreWebView2Async(environment);
             }
 
+            if (ReferenceEquals(view, SettingsWebView))
+                AttachSettingsBridge();
+
             view.CoreWebView2!.Navigate(url);
             view.Visibility = Visibility.Visible;
             placeholder.Visibility = Visibility.Collapsed;
@@ -281,50 +264,114 @@ public partial class MainWindow : Window
         }
     }
 
-    private void BtnScoreboardReload_Click(object sender, RoutedEventArgs e)
+    // -----------------------------------------------------------------------
+    // Score server card on the Admin page (settings.html) <-> this window.
+    // The page posts {type: ready|startStop|setPort|setAutoStart|setMinimizeToTray|openInBrowser|reload}
+    // and receives {type:'host', running, status, kind, port, autoStart, minimizeToTray, overlayUrl, mobileUrl}.
+    // -----------------------------------------------------------------------
+
+    private void AttachSettingsBridge()
     {
-        if (_scoreboardStarted)
-            ShowScoreboardViews();
+        if (_settingsBridgeAttached || SettingsWebView.CoreWebView2 is null)
+            return;
+        _settingsBridgeAttached = true;
+        SettingsWebView.CoreWebView2.WebMessageReceived += OnSettingsWebMessage;
     }
 
-    private void BtnOpenAdminBrowser_Click(object sender, RoutedEventArgs e)
+    private async void OnSettingsWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
-        Process.Start(new ProcessStartInfo { FileName = _scoreboard.AdminUrl, UseShellExecute = true });
-    }
-
-    private void BtnCopyOverlayUrl_Click(object sender, RoutedEventArgs e)
-    {
+        JsonDocument doc;
         try
         {
-            System.Windows.Clipboard.SetText(TxtOverlayUrl.Text);
+            doc = JsonDocument.Parse(e.WebMessageAsJson);
         }
         catch
         {
-            // Clipboard can be locked by another process; ignore.
+            return;
+        }
+
+        using (doc)
+        {
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("type", out var typeProp))
+                return;
+
+            switch (typeProp.GetString())
+            {
+                case "ready":
+                    PushHostState();
+                    break;
+
+                case "startStop":
+                    if (_scoreboardStarted)
+                        StopScoreboard();
+                    else
+                        await StartScoreboardAsync();
+                    break;
+
+                case "setPort":
+                    if (root.TryGetProperty("port", out var portProp) && portProp.TryGetInt32(out var port) && port is > 0 and < 65536)
+                    {
+                        _settings.ScoreboardPort = port;
+                        _loading = true;
+                        TxtScoreboardPort.Text = port.ToString();
+                        _loading = false;
+                        SettingsService.Save(_settings);
+                    }
+                    PushHostState();
+                    break;
+
+                case "setAutoStart":
+                    _settings.ScoreboardAutoStart = root.TryGetProperty("value", out var autoProp) && autoProp.ValueKind == JsonValueKind.True;
+                    SettingsService.Save(_settings);
+                    PushHostState();
+                    break;
+
+                case "setMinimizeToTray":
+                    _settings.MinimizeToTray = root.TryGetProperty("value", out var trayProp) && trayProp.ValueKind == JsonValueKind.True;
+                    SettingsService.Save(_settings);
+                    PushHostState();
+                    break;
+
+                case "openInBrowser":
+                    Process.Start(new ProcessStartInfo { FileName = _scoreboard.AdminUrl, UseShellExecute = true });
+                    break;
+
+                case "reload":
+                    if (_scoreboardStarted)
+                        ShowScoreboardViews();
+                    break;
+            }
         }
     }
 
-    private void BtnCopyMobileUrl_Click(object sender, RoutedEventArgs e)
+    private void PushHostState()
     {
-        try
-        {
-            System.Windows.Clipboard.SetText(TxtMobileUrl.Text);
-        }
-        catch
-        {
-            // Clipboard can be locked by another process; ignore.
-        }
-    }
+        if (SettingsWebView.CoreWebView2 is null)
+            return;
 
-    private void BtnCopyMobileUrlHome_Click(object sender, RoutedEventArgs e)
-    {
+        var host = ScoreboardServerService.GetLanAddress() ?? "127.0.0.1";
+        var port = _scoreboardStarted ? _scoreboard.Port : _settings.ScoreboardPort;
+        var json = JsonSerializer.Serialize(new
+        {
+            type = "host",
+            running = _scoreboardStarted,
+            status = _statusText,
+            kind = _statusKind,
+            port = _settings.ScoreboardPort,
+            autoStart = _settings.ScoreboardAutoStart,
+            minimizeToTray = _settings.MinimizeToTray,
+            overlayUrl = $"http://{host}:{port}/overlay",
+            mobileUrl = $"http://{host}:{port}/mobile",
+        });
+
         try
         {
-            System.Windows.Clipboard.SetText(TxtMobileUrlHome.Text);
+            SettingsWebView.CoreWebView2.PostWebMessageAsJson(json);
         }
         catch
         {
-            // Clipboard can be locked by another process; ignore.
+            // The view may be mid-navigation; the page asks again with "ready" when it loads.
         }
     }
 
@@ -343,7 +390,6 @@ public partial class MainWindow : Window
         {
             _scoreboardStarted = false;
             SetScoreboardStatus("Crashed", "DangerBrush");
-            BtnScoreboardStartStop.Content = "Start";
             TxtScoreboardPlaceholder.Text = _scoreboard.LastError ?? "Scoreboard server stopped unexpectedly.";
             TxtHomePlaceholder.Text = TxtScoreboardPlaceholder.Text;
             TxtTeamsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
@@ -362,7 +408,8 @@ public partial class MainWindow : Window
         var brush = (System.Windows.Media.Brush)FindResource(brushKey);
         DotScoreboard.Fill = brush;
         TxtScoreboardStatus.Text = text;
-        DotScoreboardHome.Fill = brush;
-        TxtScoreboardStatusHome.Text = text;
+        _statusText = text;
+        _statusKind = brushKey switch { "AccentBrush" => "ok", "DangerBrush" => "danger", _ => "warn" };
+        PushHostState();
     }
 }

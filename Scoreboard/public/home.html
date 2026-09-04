@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FIP Gold Bucharest 2026 — Control Center</title>
+  <title>FIP Gold Bucharest 2026 — Home</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo:wght@500;600&family=DM+Sans:wght@400;500;700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap" />
   <link rel="stylesheet" href="home.css" />
 </head>
 <body>
@@ -13,14 +13,16 @@
     <div class="wrap top-inner">
       <a class="brand" href="/">FIP GOLD <span>BUCHAREST 2026</span></a>
       <nav class="menu">
-        <a href="/overlay?pos=top-left" target="_blank" rel="noopener">Scorebug</a>
+        <a href="https://www.padelfip.com/events/fip-gold-bucharest/" target="_blank" rel="noopener" title="International Padel Federation — official event page">FIP event</a>
+        <a href="/scorebug" target="_blank" rel="noopener">Scorebug</a>
         <a href="/tv" target="_blank" rel="noopener">Court TV</a>
-        <a href="/mobile" data-keyed>Referee</a>
-        <a href="/admin" data-keyed>Score settings</a>
-        <a href="/teams" data-keyed>Teams</a>
-        <a href="/media" data-keyed>Media</a>
+        <a class="yt" id="youtubeLink" hidden href="#" target="_blank" rel="noopener">YouTube Live</a>
+        <a class="needs-key" hidden href="/mobile" data-keyed target="_blank" rel="noopener">Referee</a>
+        <a class="needs-key" hidden href="/admin" data-keyed target="_blank" rel="noopener">Score settings</a>
+        <a class="needs-key" hidden href="/teams" data-keyed target="_blank" rel="noopener">Teams</a>
+        <a class="needs-key" hidden href="/media" data-keyed target="_blank" rel="noopener">Media</a>
       </nav>
-      <a class="cta" href="/mobile" data-keyed>Referee ↗</a>
+      <a class="cta needs-key" hidden href="/mobile" data-keyed target="_blank" rel="noopener">Referee ↗</a>
     </div>
   </header>
 
@@ -29,10 +31,13 @@
       <span class="tag">● FIP GOLD · BUCUREȘTI 2026</span>
       <h1>The best padel<br />in the world<br />plays in Bucharest</h1>
       <div class="facts">
+        <a class="fact fact-fip" href="https://www.padelfip.com/events/fip-gold-bucharest/" target="_blank" rel="noopener"><small>INTERNATIONAL PADEL FEDERATION</small><b>FIP EVENT ↗</b></a>
         <div class="fact"><small>DATE</small><b>7–13 SEPT</b></div>
         <div class="fact"><small>LOCATION</small><b>BUCHAREST</b></div>
         <div class="fact"><small>PRODUCTION</small><b id="liveStatus">…</b></div>
+        <a class="fact fact-yt" id="youtubeFact" hidden href="#" target="_blank" rel="noopener"><small>WATCH</small><b>▶ YOUTUBE LIVE</b></a>
       </div>
+      <div class="score" id="score"><div class="score-empty">Connecting to the score server…</div></div>
     </div>
   </section>
 
@@ -40,10 +45,10 @@
     <h2>On air</h2>
     <p class="lead">Public pages — safe to share with FIP, the venue or anyone watching.</p>
     <div class="grid">
-      <a class="card" href="/overlay?pos=top-left" target="_blank" rel="noopener">
+      <a class="card" href="/scorebug" target="_blank" rel="noopener">
         <span class="card-kicker">OBS · FIP widget</span>
         <span class="card-title">Scorebug</span>
-        <span class="card-text">Transparent overlay with the live score, country flags and the serving player — the fixed HTTPS widget for the broadcast.</span>
+        <span class="card-text">The transparent live-score widget for the broadcast — with a preview, the fixed HTTPS link and the HTML code to embed it anywhere.</span>
         <span class="pill">Open ↗</span>
       </a>
       <a class="card" href="/tv" target="_blank" rel="noopener">
@@ -54,34 +59,45 @@
       </a>
     </div>
 
-    <h2>Control</h2>
-    <p class="lead" id="keyNote">These pages need the access key.</p>
-    <div class="grid">
-      <a class="card locked" href="/mobile" data-keyed>
-        <span class="card-kicker">Umpire's phone</span>
-        <span class="card-title">Referee</span>
-        <span class="card-text">Points, undo/redo, sets and who is serving — the live remote used during the match.</span>
-        <span class="pill">Open</span>
-      </a>
-      <a class="card locked" href="/admin" data-keyed>
-        <span class="card-kicker">Match setup</span>
-        <span class="card-title">Score settings</span>
-        <span class="card-text">Pick the two pairs for the next match, set the overlay title and reset the score.</span>
-        <span class="pill">Open</span>
-      </a>
-      <a class="card locked" href="/teams" data-keyed>
-        <span class="card-kicker">Entry list</span>
-        <span class="card-title">Teams</span>
-        <span class="card-text">All pairs of the draw with their Active / Eliminated status — losers drop out automatically.</span>
-        <span class="pill">Open</span>
-      </a>
-      <a class="card locked" href="/media" data-keyed>
-        <span class="card-kicker">Broadcast</span>
-        <span class="card-title">Media</span>
-        <span class="card-text">Players intro, score on/off, commercial spots and the automatic break — everything that goes on the stream.</span>
-        <span class="pill">Open</span>
-      </a>
-    </div>
+    <section id="controlSection" class="needs-key" hidden>
+      <h2>Control</h2>
+      <p class="lead">Operator pages — the access key is active on this device.</p>
+      <div class="grid">
+        <a class="card locked" href="/mobile" data-keyed target="_blank" rel="noopener">
+          <span class="card-kicker">Umpire's phone</span>
+          <span class="card-title">Referee</span>
+          <span class="card-text">Points, undo/redo, sets and who is serving — the live remote used during the match.</span>
+          <span class="pill">Open ↗</span>
+        </a>
+        <a class="card locked" href="/admin" data-keyed target="_blank" rel="noopener">
+          <span class="card-kicker">Match setup</span>
+          <span class="card-title">Score settings</span>
+          <span class="card-text">Pick the two pairs for the next match, set the overlay title and reset the score.</span>
+          <span class="pill">Open ↗</span>
+        </a>
+        <a class="card locked" href="/teams" data-keyed target="_blank" rel="noopener">
+          <span class="card-kicker">Entry list</span>
+          <span class="card-title">Teams</span>
+          <span class="card-text">All pairs of the draw with their Active / Eliminated status — losers drop out automatically.</span>
+          <span class="pill">Open ↗</span>
+        </a>
+        <a class="card locked" href="/media" data-keyed target="_blank" rel="noopener">
+          <span class="card-kicker">Broadcast</span>
+          <span class="card-title">Media</span>
+          <span class="card-text">Players intro, score on/off, commercial spots and the automatic break — everything that goes on the stream.</span>
+          <span class="pill">Open ↗</span>
+        </a>
+      </div>
+    </section>
+
+    <section id="unlockSection" hidden>
+      <p class="lead small"><a href="#" id="unlockLink">Operator access ›</a></p>
+      <form class="keyform" id="keyForm" hidden autocomplete="off">
+        <input type="password" id="keyInput" placeholder="access key" autocomplete="off" />
+        <button class="pill" type="submit">Unlock</button>
+      </form>
+      <p class="lead small" id="keyNote" hidden></p>
+    </section>
   </main>
 
   <footer class="foot">
@@ -91,6 +107,9 @@
     </div>
   </footer>
 
+  <script src="scoring.js"></script>
+  <script src="countries.js"></script>
+  <script src="client.js"></script>
   <script src="home.js"></script>
 </body>
 </html>
