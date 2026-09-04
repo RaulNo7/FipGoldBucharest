@@ -123,8 +123,18 @@ const publicHub = createWsHub();
 publicHub.onConnect((socket) => {
   publicHub.sendText(socket, publicStateMessage());
 });
-publicHub.onMessage(() => {
-  /* read-only: commands from the public port are dropped */
+// Sockets that connected with the referee key (/ws?key=...) may send commands;
+// every other public socket is a read-only viewer.
+const refereeSockets = new WeakSet();
+publicHub.onMessage((socket, text) => {
+  if (!refereeSockets.has(socket)) return;
+  let msg;
+  try {
+    msg = JSON.parse(text);
+  } catch (_) {
+    return;
+  }
+  handleCommand(msg);
 });
 
 function publicStateMessage() {
@@ -171,6 +181,8 @@ const DEFAULT_OBS_SETTINGS = {
   autoDelaySeconds: 60,
   maxBreakSeconds: 300, // safety cap if the media never reports "ended"
   breakMode: 'playlist', // 'playlist' = play every spot below in order | 'file' = play the media source's own file
+  publicHostname: '', // e.g. scorebug.example.com (the tunnel hostname) - only used to build URLs in the admin panel
+  refereeKey: '', // secret that unlocks the referee page + score commands on the public port (empty = LAN only)
   // Individual spots for the Media tab: each temporarily swaps the media
   // source's file, plays through the same break routine, then restores the
   // merged break video configured in OBS.
@@ -693,7 +705,7 @@ const server = http.createServer((req, res) => {
           const incoming = JSON.parse(body);
           const clean = { ...obsSettings };
           if (typeof incoming.enabled === 'boolean') clean.enabled = incoming.enabled;
-          for (const k of ['url', 'password', 'liveScene', 'commercialsScene', 'mediaSource']) {
+          for (const k of ['url', 'password', 'liveScene', 'commercialsScene', 'mediaSource', 'publicHostname', 'refereeKey']) {
             if (typeof incoming[k] === 'string') clean[k] = incoming[k];
           }
           for (const k of ['autoDelaySeconds', 'maxBreakSeconds']) {
@@ -776,22 +788,67 @@ server.listen(PORT, HOST, () => {
 // ---------------------------------------------------------------------------
 
 const PUBLIC_PAGES = { '/': 'overlay.html', '/overlay': 'overlay.html', '/tv': 'tv.html', '/intro': 'intro.html' };
-const PUBLIC_ASSET = /^\/(overlay|tv|intro)\.(html|css|js)$|^\/(client|countries)\.js$|^\/flags\/[a-z]{2}\.svg$/;
+const PUBLIC_ASSET = /^\/(overlay|tv|intro)\.(html|css|js)$|^\/mobile\.(css|js)$|^\/(client|countries)\.js$|^\/flags\/[a-z]{2}\.svg$/;
+
+/** True when the request carries the configured referee key (?key=...). */
+function hasRefereeKey(url) {
+  const key = obsSettings.refereeKey;
+  return !!key && url.searchParams.get('key') === key;
+}
 
 if (PUBLIC_PORT) {
   const publicServer = http.createServer((req, res) => {
+    let url;
+    let pathname;
+    try {
+      url = new URL(req.url, `http://${req.headers.host}`);
+      pathname = decodeURIComponent(url.pathname);
+    } catch (_) {
+      res.writeHead(400);
+      res.end('Bad request');
+      return;
+    }
+    const referee = hasRefereeKey(url);
+
+    // Score commands (the referee page's REST fallback): only with the key.
+    if (req.method === 'POST' && pathname === '/api/command') {
+      if (!referee) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        res.end('Referee key required');
+        return;
+      }
+      let body = '';
+      req.on('data', (c) => {
+        body += c;
+        if (body.length > 1e6) req.destroy();
+      });
+      req.on('end', () => {
+        try {
+          handleCommand(JSON.parse(body));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (_) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false }));
+        }
+      });
+      return;
+    }
+
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405, { 'Content-Type': 'text/plain' });
       res.end('Read-only');
       return;
     }
 
-    let pathname;
-    try {
-      pathname = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname);
-    } catch (_) {
-      res.writeHead(400);
-      res.end('Bad request');
+    // Referee page: only with the key (its assets are harmless and served freely).
+    if (pathname === '/mobile' || pathname === '/mobile.html') {
+      if (!referee) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        res.end('Referee key required');
+        return;
+      }
+      serveFile(res, path.join(PUBLIC_DIR, 'mobile.html'));
       return;
     }
 
@@ -822,8 +879,12 @@ if (PUBLIC_PORT) {
 
   publicServer.on('upgrade', (req, socket) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
-    if (url.pathname === '/ws') publicHub.handleUpgrade(req, socket);
-    else socket.destroy();
+    if (url.pathname !== '/ws') {
+      socket.destroy();
+      return;
+    }
+    if (hasRefereeKey(url)) refereeSockets.add(socket); // referee page: may send commands
+    publicHub.handleUpgrade(req, socket);
   });
 
   publicServer.on('error', (err) => {

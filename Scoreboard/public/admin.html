@@ -95,6 +95,28 @@
       <p class="hint">Full-screen score on a black background — open this on a TV / laptop / tablet on the same Wi-Fi. It keeps showing the final score even while the stream plays commercials.</p>
     </div>
 
+    <div class="card">
+      <div class="card-head"><h2>Internet access (tunnel)</h2></div>
+      <div class="config-grid">
+        <label>Public hostname (Cloudflare / Tailscale)
+          <input type="text" id="publicHostname" placeholder="scorebug.example.com" />
+        </label>
+        <label>Referee key (empty = referee page on the LAN only)
+          <span class="row gap">
+            <input type="text" id="refereeKey" placeholder="secret" />
+            <button class="btn btn-ghost" id="genKeyBtn" type="button">Generate</button>
+          </span>
+        </label>
+      </div>
+      <div class="row gap wrap actions">
+        <button class="btn btn-ghost" id="saveInternetBtn">Save</button>
+      </div>
+      <div class="row gap url-row"><span class="url-label">Scorebug (FIP)</span><input type="text" id="pubOverlayUrl" readonly /><button class="btn btn-ghost" data-copy="pubOverlayUrl">Copy</button></div>
+      <div class="row gap url-row"><span class="url-label">Court TV</span><input type="text" id="pubTvUrl" readonly /><button class="btn btn-ghost" data-copy="pubTvUrl">Copy</button></div>
+      <div class="row gap url-row"><span class="url-label">Referee</span><input type="text" id="pubRefereeUrl" readonly /><button class="btn btn-ghost" data-copy="pubRefereeUrl">Copy</button></div>
+      <p class="hint">All three go through the read-only port <b id="publicPort2">…</b> behind your tunnel. The scorebug and court TV are public; the referee page and its score commands work only with the key in the URL — treat it like a password (Generate makes a random one; Save, then hand the Referee link to the umpire). Without a key the referee page stays LAN-only.</p>
+    </div>
+
     <div class="card danger-card">
       <div class="card-head"><h2>Reset</h2></div>
       <div class="row gap wrap">

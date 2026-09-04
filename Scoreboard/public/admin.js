@@ -172,10 +172,14 @@
       if (info.publicPort) {
         $('#publicPort').textContent = info.publicPort;
         $('#publicLocal').textContent = `http://localhost:${info.publicPort}`;
+        $('#publicPort2').textContent = info.publicPort;
       } else {
         $('#publicPort').textContent = 'disabled';
         $('#publicLocal').textContent = '(set PUBLIC_PORT)';
+        $('#publicPort2').textContent = 'disabled';
       }
+      publicPort = info.publicPort || 0;
+      updatePublicUrls();
     })
     .catch(() => {
       $('#tvUrl').value = new URL('/tv', location.origin).toString();
@@ -186,6 +190,58 @@
     flash($('#copyTvUrlBtn'), 'Copied!');
   });
   $('#openTvBtn').addEventListener('click', () => window.open($('#tvUrl').value, '_blank'));
+
+  // ---- internet access (tunnel hostname + referee key) ----
+  let publicPort = 0;
+
+  function publicBase() {
+    const host = ($('#publicHostname').value || '').trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    if (host) return `https://${host}`;
+    return publicPort ? `http://${location.hostname}:${publicPort}` : '';
+  }
+
+  function updatePublicUrls() {
+    const base = publicBase();
+    const key = ($('#refereeKey').value || '').trim();
+    $('#pubOverlayUrl').value = base ? `${base}/overlay?pos=top-left` : '';
+    $('#pubTvUrl').value = base ? `${base}/tv` : '';
+    $('#pubRefereeUrl').value = !base ? '' : key ? `${base}/mobile?key=${encodeURIComponent(key)}` : '(set a referee key first)';
+  }
+
+  $('#publicHostname').addEventListener('input', updatePublicUrls);
+  $('#refereeKey').addEventListener('input', updatePublicUrls);
+  $('#genKeyBtn').addEventListener('click', () => {
+    const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789'; // no look-alike characters
+    const rnd = new Uint32Array(12);
+    crypto.getRandomValues(rnd);
+    $('#refereeKey').value = Array.from(rnd, (n) => alphabet[n % alphabet.length]).join('');
+    updatePublicUrls();
+  });
+  $('#saveInternetBtn').addEventListener('click', () => {
+    fetch('/api/obs-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publicHostname: $('#publicHostname').value.trim(), refereeKey: $('#refereeKey').value.trim() }),
+    })
+      .then((r) => flash($('#saveInternetBtn'), r.ok ? 'Saved!' : 'Failed'))
+      .catch(() => flash($('#saveInternetBtn'), 'Failed'));
+  });
+  $$('[data-copy]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const el = $('#' + b.dataset.copy);
+      el.select();
+      navigator.clipboard?.writeText(el.value);
+      flash(b, 'Copied!');
+    })
+  );
+  fetch('/api/obs-settings')
+    .then((r) => r.json())
+    .then((cfg) => {
+      $('#publicHostname').value = cfg.publicHostname || '';
+      $('#refereeKey').value = cfg.refereeKey || '';
+      updatePublicUrls();
+    })
+    .catch(() => {});
 
   // ---- render ----
   function render(s, msg) {

@@ -7,9 +7,15 @@
     let reconnectTimer = null;
     let closed = false;
 
+    // Through the public (internet) port a referee key in the page URL
+    // (?key=...) unlocks commands; it is forwarded to the socket and the REST
+    // fallback. On the LAN port there is no key and none is needed.
+    const key = new URLSearchParams(location.search).get('key');
+    const keyQuery = key ? '?key=' + encodeURIComponent(key) : '';
+
     const wsUrl = () => {
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      return `${proto}//${location.host}/ws`;
+      return `${proto}//${location.host}/ws${keyQuery}`;
     };
 
     function open() {
@@ -57,7 +63,7 @@
         return true;
       }
       // Fallback to REST so commands still land if the socket is mid-reconnect.
-      fetch('/api/command', {
+      fetch('/api/command' + keyQuery, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(obj),

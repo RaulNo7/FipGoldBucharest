@@ -35,6 +35,7 @@ fs.writeFileSync(
     mediaSource: 'Commercials',
     autoDelaySeconds: 2,
     maxBreakSeconds: 60,
+    refereeKey: 'testkey',
   })
 );
 
@@ -149,7 +150,7 @@ function cleanupAndExit() {
   assert((await pub('/admin')).status === 404 && (await pub('/media')).status === 404, 'public port hides the control pages');
   assert((await pub('/api/obs-settings')).status === 404 && (await pub('/api/teams')).status === 404, 'public port hides settings and other APIs');
   const post = await pub('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'point', team: 0 }) });
-  assert(post.status === 405, 'public port rejects POSTed commands');
+  assert(post.status === 403, 'public port rejects POSTed commands without the referee key');
   await new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://127.0.0.1:${PUBLIC_PORT}/ws`);
     const timer = setTimeout(() => reject(new Error('no state on public ws')), 4000);
@@ -163,6 +164,26 @@ function cleanupAndExit() {
   });
   let st0 = await api('/api/state');
   assert(st0.points[0] === 0, 'a command sent through the public ws is ignored');
+
+  // Referee key: unlocks the referee page and commands on the public port.
+  assert((await pub('/mobile')).status === 403, 'public port: referee page needs the key');
+  assert((await pub('/mobile?key=testkey')).status === 200 && (await pub('/mobile.js')).status === 200, 'public port: referee page + assets with the key');
+  const keyed = await pub('/api/command?key=testkey', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'point', team: 0 }) });
+  st0 = await api('/api/state');
+  assert(keyed.status === 200 && st0.points[0] === 1, 'public port: a command with the key is applied (REST)');
+  await cmd({ type: 'adjustPoints', team: 0, delta: -1 });
+  await new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${PUBLIC_PORT}/ws?key=testkey`);
+    const timer = setTimeout(() => reject(new Error('no state on referee ws')), 4000);
+    ws.addEventListener('message', () => {
+      ws.send(JSON.stringify({ type: 'point', team: 0 }));
+      setTimeout(() => { clearTimeout(timer); ws.close(); resolve(); }, 600);
+    }, { once: true });
+    ws.addEventListener('error', () => { clearTimeout(timer); reject(new Error('referee ws error')); });
+  });
+  st0 = await api('/api/state');
+  assert(st0.points[0] === 1, 'public port: a command over the keyed websocket is applied');
+  await cmd({ type: 'adjustPoints', team: 0, delta: -1 });
 
   await cmd({ type: 'startMatch' });
 

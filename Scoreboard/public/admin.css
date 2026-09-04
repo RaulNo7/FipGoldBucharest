@@ -348,6 +348,13 @@ input[type='checkbox'] {
   font-family: 'Consolas', monospace;
 }
 
+.url-label {
+  flex: 0 0 110px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 .danger-card {
   border-color: rgba(231, 76, 60, 0.35);
 }
