@@ -25,7 +25,7 @@ Windows WPF (.NET 10) app purpose-built for streaming the **FIP Gold Bucharest 2
 
 ## Data
 
-- `Scoreboard\data\teams.json` — the 89 pairs extracted from the official FIP entry lists (names, countries, rankings). Edit it and restart to add late entries.
+- `Scoreboard\data\teams.json` — the 87 pairs extracted from the official FIP entry lists (men V5 + women v2, 4 Sept 2026) (names, countries, rankings). Edit it and restart to add late entries.
 - `Scoreboard\public\flags\*.svg` — bundled country flags (from the MIT-licensed [flag-icons](https://github.com/lipis/flag-icons) set), so the overlay works offline.
 - Settings: `%AppData%\FipGoldBucharest\settings.json` · live match state: `%AppData%\FipGoldBucharest\scoreboard-state.json`.
 
