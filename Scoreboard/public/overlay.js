@@ -158,12 +158,14 @@
     const style = map[pos];
     if (style) Object.assign(root.style, style);
 
-    const scale = params.get('scale');
-    if (scale) {
-      const vertical = pos.includes('top') ? 'top' : 'bottom';
-      const horizontal = pos.includes('right') ? 'right' : pos.includes('center') ? 'center' : 'left';
-      root.style.transformOrigin = `${vertical} ${horizontal}`;
-      root.style.transform = `${style && style.transform ? style.transform + ' ' : ''}scale(${scale})`;
-    }
+    // The scorebug renders at 90% of its design size (operator's choice for the
+    // broadcast picture); ?scale= multiplies that, so scale=1 is the default look.
+    const BASE_SCALE = 0.9;
+    const param = parseFloat(params.get('scale'));
+    const scale = BASE_SCALE * (Number.isFinite(param) && param > 0 ? param : 1);
+    const vertical = pos.includes('top') ? 'top' : 'bottom';
+    const horizontal = pos.includes('right') ? 'right' : pos.includes('center') ? 'center' : 'left';
+    root.style.transformOrigin = `${vertical} ${horizontal}`;
+    root.style.transform = `${style && style.transform ? style.transform + ' ' : ''}scale(${scale})`;
   }
 })();

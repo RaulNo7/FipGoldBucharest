@@ -41,9 +41,9 @@ body {
   position: fixed;
   left: 40px;
   top: 40px;
-  /* Hug the content so the score columns sit right next to the names. */
+  /* Hug the content so the score columns sit right next to the names —
+     no minimum width, so short names and no completed sets give a compact board. */
   width: fit-content;
-  min-width: 400px;
   max-width: 660px;
   transition: opacity 0.4s ease, transform 0.4s ease;
   opacity: 1;

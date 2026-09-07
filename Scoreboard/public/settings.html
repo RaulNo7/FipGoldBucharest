@@ -35,7 +35,7 @@
         <button class="btn btn-ghost" id="copyUrlBtn">Copy</button>
         <button class="btn btn-ghost" id="openOverlayBtn">Open</button>
       </div>
-      <p class="hint">In OBS: Sources → + → Browser → paste this URL, width 1920, height 1080 (or your canvas size). Sizing the source as a tight crop instead? Use at least 700 × 330 at scale 1 — the scorebug sits 40px from the corner and the winner banner adds height.</p>
+      <p class="hint">In OBS: Sources → + → Browser → paste this URL, width 1920, height 1080 (or your canvas size). The scorebug renders at 90% of its design size by default (Scale multiplies that). Sizing the source as a tight crop instead? Use at least 700 × 330 at scale 1 — the scorebug sits 40px from the corner and the winner banner adds height.</p>
       <p class="hint">Players intro — add as a <b>second</b> Browser Source above the camera, sized <b>exactly like your OBS canvas</b> (Settings → Video → Base resolution), then Ctrl+R to reset its transform. Shown/hidden with "Show players"; add <b>?scale=0.8</b> for a smaller card:</p>
       <div class="row gap url-row">
         <input type="text" id="introUrl" readonly />
