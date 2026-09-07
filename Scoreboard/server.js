@@ -31,6 +31,12 @@ try {
 }
 const teamById = new Map((teamsData.teams || []).map((t) => [t.id, t]));
 
+/** The pair's players with any name corrections from the live registry applied (originalName = entry list). */
+function rosterPlayers(rec) {
+  const names = (((state && state.teams_registry) || {})[rec.id] || {}).names || [];
+  return (rec.players || []).map((p, i) => ({ ...p, name: names[i] || p.name, originalName: p.name }));
+}
+
 // ---------------------------------------------------------------------------
 // State + history
 // ---------------------------------------------------------------------------
@@ -585,8 +591,18 @@ function handleCommand(cmd) {
     if (!rec) return;
     cmd = {
       ...cmd,
-      teamData: { id: rec.id, players: (rec.players || []).map((p) => ({ name: p.name, country: p.country })) },
+      teamData: { id: rec.id, players: rosterPlayers(rec).map((p) => ({ name: p.name, country: p.country })) },
     };
+  }
+
+  if (cmd.type === 'setPlayerName') {
+    // Only entry-list teams can be renamed; tell the reducer which name is now
+    // in force (the new override, or the entry-list name when clearing it).
+    const rec = teamById.get(cmd.teamId);
+    if (!rec) return;
+    const idx = cmd.player === 1 ? 1 : 0;
+    const name = String(cmd.name || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    cmd = { ...cmd, resolvedName: name || ((rec.players || [])[idx] || {}).name || '' };
   }
 
   if (scoring.isMutating(cmd.type)) {
@@ -692,12 +708,13 @@ function handleMainRequest(req, res) {
     return;
   }
 
-  // Entry-list roster with the LIVE active/eliminated flag merged in.
+  // Entry-list roster with the LIVE active/eliminated flag and name corrections merged in.
   if (pathname === '/api/teams') {
     const reg = (state && state.teams_registry) || {};
     const teams = (teamsData.teams || []).map((t) => ({
       ...t,
       active: reg[t.id] ? reg[t.id].active !== false : t.active !== false,
+      players: rosterPlayers(t),
     }));
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ tournament: teamsData.tournament || '', teams }));

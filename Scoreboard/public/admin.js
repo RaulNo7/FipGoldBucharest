@@ -55,9 +55,16 @@
     return t.active !== false;
   }
 
+  /** Live name correction from the registry (Teams page), else the roster name. */
+  function liveName(t, i) {
+    const reg = state && state.teams_registry;
+    const names = reg && reg[t.id] && reg[t.id].names;
+    return (names && names[i]) || (t.players[i] && t.players[i].originalName) || t.players[i].name;
+  }
+
   function teamOptionLabel(t) {
-    const p1 = C.shortName(t.players[0].name);
-    const p2 = C.shortName(t.players[1].name);
+    const p1 = C.shortName(liveName(t, 0));
+    const p2 = C.shortName(liveName(t, 1));
     const c1 = t.players[0].country;
     const c2 = t.players[1].country;
     const cc = c1 === c2 ? c1 : c1 + '/' + c2;

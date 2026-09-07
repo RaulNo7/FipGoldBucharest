@@ -266,9 +266,20 @@ function cleanupAndExit() {
   assert(st.status === 'finished', 'match finished');
   assert(st.display.scoreVisible !== false, 'score still visible right after the finish');
 
-  // The losing pair is eliminated automatically; reverting the result reinstates it.
+  // Player name corrections from the Teams page: roster API, live pair and re-selection all follow.
+  await cmd({ type: 'setPlayerName', teamId: 'M-Q-22', player: 1, name: 'Kaan Sali (WC)' });
   let roster = await api('/api/teams');
   const team = (id) => roster.teams.find((t) => t.id === id);
+  assert(team('M-Q-22').players[1].name === 'Kaan Sali (WC)' && team('M-Q-22').players[1].originalName === 'Kaan Sali', 'rename: /api/teams shows the corrected name and keeps the original');
+  st = await api('/api/state');
+  assert(st.teams[0].players[1].name === 'Kaan Sali (WC)', 'rename: the pair selected for the current match is updated live');
+  assert((await cmd({ type: 'setPlayerName', teamId: 'NOPE', player: 0, name: 'x' })).status === 200 && !(await api('/api/state')).teams_registry.NOPE, 'rename: unknown team ids are ignored');
+  await cmd({ type: 'setPlayerName', teamId: 'M-Q-22', player: 1, name: '' });
+  st = await api('/api/state');
+  assert(st.teams[0].players[1].name === 'Kaan Sali' && !st.teams_registry['M-Q-22'].names, 'rename: clearing restores the entry-list name');
+
+  // The losing pair is eliminated automatically; reverting the result reinstates it.
+  roster = await api('/api/teams');
   assert(team('M-MD-27').active === false, 'the losing team is eliminated automatically');
   assert(team('M-Q-22').active === true, 'the winning team stays active');
   await cmd({ type: 'removeLastSet' }); // result reverted -> match live again

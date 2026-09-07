@@ -8,6 +8,9 @@
 
   const $ = (sel) => document.querySelector(sel);
 
+  let editing = null; // { teamId, player } while a name input is open
+  let renderPending = false;
+
   const client = PadelClient.connect({
     onState: (s) => {
       state = s;
@@ -35,10 +38,64 @@
     return t.active !== false;
   }
 
+  /** Live name (registry correction) or the entry-list name. */
+  function playerName(t, i) {
+    const reg = state && state.teams_registry;
+    const names = reg && reg[t.id] && reg[t.id].names;
+    const p = (t.players || [])[i] || {};
+    return (names && names[i]) || p.originalName || p.name || '';
+  }
+
+  function isEdited(t, i) {
+    const p = (t.players || [])[i] || {};
+    return playerName(t, i) !== (p.originalName || p.name || '');
+  }
+
   function renderAll() {
     if (!roster) return;
+    if (editing) {
+      renderPending = true; // keep the open input; redraw when the edit ends
+      return;
+    }
+    renderPending = false;
     renderCategory('men', $('#menList'), $('#menCount'));
     renderCategory('women', $('#womenList'), $('#womenCount'));
+  }
+
+  function endEdit() {
+    editing = null;
+    if (renderPending) renderAll();
+  }
+
+  function startEdit(t, i, nameEl) {
+    if (editing) return;
+    editing = { teamId: t.id, player: i };
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'rp-input';
+    input.maxLength = 60;
+    input.value = playerName(t, i);
+    input.setAttribute('aria-label', 'Player name');
+    let done = false;
+    const finish = (save) => {
+      if (done) return;
+      done = true;
+      const value = input.value.replace(/\s+/g, ' ').trim();
+      if (save && value && value !== playerName(t, i)) {
+        client.send({ type: 'setPlayerName', teamId: t.id, player: i, name: value });
+        nameEl.textContent = value; // instant feedback; the state broadcast confirms it
+      }
+      input.replaceWith(nameEl);
+      endEdit();
+    };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') finish(true);
+      else if (e.key === 'Escape') finish(false);
+    });
+    input.addEventListener('blur', () => finish(true));
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
   }
 
   function renderCategory(category, container, countEl) {
@@ -74,7 +131,7 @@
 
     const playersBox = document.createElement('div');
     playersBox.className = 'roster-players';
-    (t.players || []).forEach((p) => {
+    (t.players || []).forEach((p, i) => {
       const pr = document.createElement('div');
       pr.className = 'rp-row';
 
@@ -83,15 +140,35 @@
       const url = C.flagUrl(p.country);
       if (url) flag.style.backgroundImage = `url('${url}')`;
 
+      const edited = isEdited(t, i);
       const nm = document.createElement('span');
-      nm.className = 'rp-name';
-      nm.textContent = p.name;
+      nm.className = 'rp-name' + (edited ? ' edited' : '');
+      nm.textContent = playerName(t, i);
+      nm.title = edited ? `Entry list: ${p.originalName || p.name}` : 'Click to edit the name';
+      nm.addEventListener('click', () => startEdit(t, i, nm));
 
       const cc = document.createElement('span');
       cc.className = 'rp-cc';
       cc.textContent = p.country;
 
-      pr.append(flag, nm, cc);
+      const edit = document.createElement('button');
+      edit.className = 'rp-edit';
+      edit.type = 'button';
+      edit.textContent = '✎';
+      edit.title = 'Edit the name';
+      edit.addEventListener('click', () => startEdit(t, i, nm));
+
+      pr.append(flag, nm, cc, edit);
+
+      if (edited) {
+        const reset = document.createElement('button');
+        reset.className = 'rp-edit rp-reset';
+        reset.type = 'button';
+        reset.textContent = '↺';
+        reset.title = `Restore the entry-list name: ${p.originalName || p.name}`;
+        reset.addEventListener('click', () => client.send({ type: 'setPlayerName', teamId: t.id, player: i, name: '' }));
+        pr.appendChild(reset);
+      }
       playersBox.appendChild(pr);
     });
 

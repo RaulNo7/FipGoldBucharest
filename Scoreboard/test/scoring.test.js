@@ -277,6 +277,19 @@ console.log('\nRunning padel scoring tests…\n');
   eq(s.teams[0].teamId, 'M-MD-01', 'resetMatch: selected teams kept');
   s = scoring.applyCommand(s, { type: 'setTeamActive', teamId: 'M-MD-02', active: true });
   eq(s.teams_registry['M-MD-02'], { active: true }, 'registry: team reactivated');
+
+  // Player name corrections (Teams page): stored in the registry, applied to a selected pair.
+  s = scoring.applyCommand(s, { type: 'setPlayerName', teamId: 'M-MD-01', player: 1, name: '  David   Gala Jr. ', resolvedName: 'David Gala Jr.' });
+  eq(s.teams_registry['M-MD-01'].names, [null, 'David Gala Jr.'], 'rename: override stored (trimmed)');
+  eq(s.teams[0].players[1].name, 'David Gala Jr.', 'rename: the selected pair is updated live');
+  eq(s.teams[0].players[0].name, 'Enzo Jensen Sirvent', 'rename: the partner is untouched');
+  s = scoring.applyCommand(s, { type: 'setTeamActive', teamId: 'M-MD-01', active: false });
+  eq(s.teams_registry['M-MD-01'], { names: [null, 'David Gala Jr.'], active: false }, 'rename: elimination keeps the name override');
+  s = scoring.applyCommand(s, { type: 'setPlayerName', teamId: 'M-MD-01', player: 1, name: '', resolvedName: 'David Gala' });
+  eq(s.teams_registry['M-MD-01'], { active: false }, 'rename: empty name clears the override');
+  eq(s.teams[0].players[1].name, 'David Gala', 'rename: clearing restores the entry-list name on the selected pair');
+  const noTeam = scoring.applyCommand(s, { type: 'setPlayerName', teamId: '', player: 0, name: 'X' });
+  assert(noTeam === s, 'rename: missing teamId is a no-op');
 })();
 
 // --- Score visibility (commercial breaks) ----------------------------------

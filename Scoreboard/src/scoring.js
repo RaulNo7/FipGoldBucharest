@@ -323,7 +323,7 @@ function awardPoint(state, team) {
 const MUTATING = new Set([
   'point', 'adjustPoints', 'adjustGames', 'adjustSets', 'saveSet', 'removeLastSet',
   'setServer', 'swapServer', 'setServingPlayer', 'swapServingPlayer',
-  'setTeams', 'selectTeam', 'setTeamActive', 'setConfig', 'setDisplay', 'resetMatch', 'resetAll', 'startMatch',
+  'setTeams', 'selectTeam', 'setTeamActive', 'setPlayerName', 'setConfig', 'setDisplay', 'resetMatch', 'resetAll', 'startMatch',
   'finishMatch', 'setStatus',
 ]);
 
@@ -452,7 +452,33 @@ function applyCommand(prev, cmd) {
     case 'setTeamActive': {
       if (typeof cmd.teamId !== 'string' || !cmd.teamId) return prev;
       if (!state.teams_registry) state.teams_registry = {};
-      state.teams_registry[cmd.teamId] = { active: cmd.active !== false };
+      state.teams_registry[cmd.teamId] = { ...(state.teams_registry[cmd.teamId] || {}), active: cmd.active !== false };
+      return state;
+    }
+
+    case 'setPlayerName': {
+      // Corrects a player's name in the entry list (spelling, replacement player).
+      // Stored as an override in the registry; an empty name clears it. The
+      // server attaches cmd.resolvedName (override or the entry-list name) so a
+      // pair already selected for the current match is updated too.
+      if (typeof cmd.teamId !== 'string' || !cmd.teamId) return prev;
+      const idx = cmd.player === 1 ? 1 : 0;
+      const name = String(cmd.name || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+      if (!state.teams_registry) state.teams_registry = {};
+      const entry = { ...(state.teams_registry[cmd.teamId] || {}) };
+      const names = Array.isArray(entry.names) ? entry.names.slice(0, 2) : [null, null];
+      while (names.length < 2) names.push(null);
+      names[idx] = name || null;
+      if (names[0] || names[1]) entry.names = names;
+      else delete entry.names;
+      state.teams_registry[cmd.teamId] = entry;
+      const live = typeof cmd.resolvedName === 'string' ? cmd.resolvedName : name;
+      if (live) {
+        for (let t = 0; t < 2; t++) {
+          const team = state.teams[t];
+          if (team && team.teamId === cmd.teamId && team.players && team.players[idx]) team.players[idx].name = live;
+        }
+      }
       return state;
     }
 
