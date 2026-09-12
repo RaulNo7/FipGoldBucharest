@@ -62,11 +62,17 @@
     return (names && names[i]) || (t.players[i] && t.players[i].originalName) || t.players[i].name;
   }
 
+  function liveCountry(t, i) {
+    const reg = state && state.teams_registry;
+    const codes = reg && reg[t.id] && reg[t.id].countries;
+    return (codes && codes[i]) || (t.players[i] && t.players[i].originalCountry) || t.players[i].country;
+  }
+
   function teamOptionLabel(t) {
     const p1 = C.shortName(liveName(t, 0));
     const p2 = C.shortName(liveName(t, 1));
-    const c1 = t.players[0].country;
-    const c2 = t.players[1].country;
+    const c1 = liveCountry(t, 0);
+    const c2 = liveCountry(t, 1);
     const cc = c1 === c2 ? c1 : c1 + '/' + c2;
     return `${t.position}. ${p1} / ${p2} — ${cc}${t.wildcard ? ' (WC)' : ''}`;
   }
@@ -131,13 +137,14 @@
       display: {
         title: $('#dspTitle').value,
         subtitle: $('#dspSubtitle').value,
+        startTime: $('#dspStartTime').value,
         showTitle: $('#dspShowTitle').checked,
         showSets: $('#dspShowSets').checked,
         showServe: $('#dspShowServe').checked,
       },
     });
   }
-  ['#dspShowTitle', '#dspShowSets', '#dspShowServe'].forEach((sel) =>
+  ['#dspShowTitle', '#dspShowSets', '#dspShowServe', '#dspStartTime'].forEach((sel) =>
     $(sel).addEventListener('change', sendDisplay)
   );
   bindEditable('#dspTitle, #dspSubtitle', sendDisplay);
@@ -192,6 +199,7 @@
     const d = s.display;
     setVal('#dspTitle', d.title || '');
     setVal('#dspSubtitle', d.subtitle || '');
+    setVal('#dspStartTime', d.startTime || '');
     setChk('#dspShowTitle', d.showTitle !== false);
     setChk('#dspShowSets', d.showSets !== false);
     setChk('#dspShowServe', d.showServe !== false);

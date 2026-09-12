@@ -144,6 +144,30 @@
   font-size: 14px;
 }
 
+.rp-cc {
+  cursor: pointer;
+}
+
+.rp-cc.edited {
+  color: var(--accent-light);
+  text-decoration: underline dotted var(--accent-light);
+  text-underline-offset: 3px;
+}
+
+.rp-cc-input {
+  flex: none;
+  width: 58px;
+  padding: 3px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
 .roster-badges {
   display: flex;
   gap: 6px;

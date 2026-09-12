@@ -290,12 +290,27 @@ console.log('\nRunning padel scoring tests…\n');
   eq(s.teams[0].players[1].name, 'David Gala', 'rename: clearing restores the entry-list name on the selected pair');
   const noTeam = scoring.applyCommand(s, { type: 'setPlayerName', teamId: '', player: 0, name: 'X' });
   assert(noTeam === s, 'rename: missing teamId is a no-op');
+
+  // Country corrections work the same way (flag follows on every page).
+  s = scoring.applyCommand(s, { type: 'setPlayerCountry', teamId: 'M-MD-01', player: 1, country: ' pol ', resolvedCountry: 'POL' });
+  eq(s.teams_registry['M-MD-01'].countries, [null, 'POL'], 'country: override stored upper-cased');
+  eq(s.teams[0].players[1].country, 'POL', 'country: the selected pair is updated live');
+  const badCode = scoring.applyCommand(s, { type: 'setPlayerCountry', teamId: 'M-MD-01', player: 1, country: 'Poland' });
+  assert(badCode === s, 'country: anything but a 3-letter code is rejected');
+  s = scoring.applyCommand(s, { type: 'setPlayerCountry', teamId: 'M-MD-01', player: 1, country: '', resolvedCountry: 'ESP' });
+  eq(s.teams_registry['M-MD-01'], { active: false }, 'country: empty code clears the override');
+  eq(s.teams[0].players[1].country, 'ESP', 'country: clearing restores the entry-list code on the selected pair');
 })();
 
 // --- Score visibility (commercial breaks) ----------------------------------
 (function scoreVisibleFlag() {
   let s = scoring.createDefaultState();
   eq(s.display.scoreVisible, true, 'scoreVisible: defaults to visible');
+  eq(s.display.startTime, '', 'startTime: empty by default');
+  s = scoring.applyCommand(s, { type: 'setDisplay', display: { startTime: '14:30' } });
+  eq(s.display.startTime, '14:30', 'startTime: stored by setDisplay (players intro shows it)');
+  s = scoring.applyCommand(s, { type: 'resetMatch' });
+  eq(s.display.startTime, '14:30', 'startTime: survives a score reset');
   s = scoring.applyCommand(s, { type: 'setDisplay', display: { scoreVisible: false } });
   eq(s.display.scoreVisible, false, 'scoreVisible: setDisplay can hide the scorebug');
   s = scoring.applyCommand(s, { type: 'startMatch' });

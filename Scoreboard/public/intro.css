@@ -80,6 +80,23 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Scheduled start time (display.startTime), right-aligned gold pill */
+.intro-start {
+  margin-left: auto;
+  align-self: center;
+  flex: 0 0 auto;
+  font-family: var(--font-names);
+  font-size: 0.66em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #10202f;
+  background: var(--gold-light);
+  padding: 0.18em 0.6em;
+  border-radius: 0.3em;
+  white-space: nowrap;
+}
+
 /* ---- Teams ---- */
 .intro-board {
   border-radius: 0 0 0.3em 0.3em;

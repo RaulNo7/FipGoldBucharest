@@ -46,9 +46,59 @@
     return (names && names[i]) || p.originalName || p.name || '';
   }
 
+  /** Live country code (registry correction) or the entry-list code. */
+  function playerCountry(t, i) {
+    const reg = state && state.teams_registry;
+    const codes = reg && reg[t.id] && reg[t.id].countries;
+    const p = (t.players || [])[i] || {};
+    return (codes && codes[i]) || p.originalCountry || p.country || '';
+  }
+
   function isEdited(t, i) {
     const p = (t.players || [])[i] || {};
-    return playerName(t, i) !== (p.originalName || p.name || '');
+    return playerName(t, i) !== (p.originalName || p.name || '') || playerCountry(t, i) !== (p.originalCountry || p.country || '');
+  }
+
+  // Known country codes for the code editor's suggestions.
+  const ccList = document.createElement('datalist');
+  ccList.id = 'ccList';
+  Object.keys(C.ISO3_TO_ISO2 || {}).sort().forEach((code) => {
+    const o = document.createElement('option');
+    o.value = code;
+    ccList.appendChild(o);
+  });
+  document.body.appendChild(ccList);
+
+  function startCountryEdit(t, i, ccEl) {
+    if (editing) return;
+    editing = { teamId: t.id, player: i, field: 'country' };
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'rp-cc-input';
+    input.maxLength = 3;
+    input.setAttribute('list', 'ccList');
+    input.setAttribute('aria-label', 'Country code (3 letters)');
+    input.value = playerCountry(t, i);
+    let done = false;
+    const finish = (save) => {
+      if (done) return;
+      done = true;
+      const value = input.value.trim().toUpperCase();
+      if (save && /^[A-Z]{3}$/.test(value) && value !== playerCountry(t, i)) {
+        client.send({ type: 'setPlayerCountry', teamId: t.id, player: i, country: value });
+        ccEl.textContent = value;
+      }
+      input.replaceWith(ccEl);
+      endEdit();
+    };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') finish(true);
+      else if (e.key === 'Escape') finish(false);
+    });
+    input.addEventListener('blur', () => finish(true));
+    ccEl.replaceWith(input);
+    input.focus();
+    input.select();
   }
 
   function renderAll() {
@@ -135,21 +185,26 @@
       const pr = document.createElement('div');
       pr.className = 'rp-row';
 
+      const country = playerCountry(t, i);
       const flag = document.createElement('span');
       flag.className = 'rp-flag';
-      const url = C.flagUrl(p.country);
+      const url = C.flagUrl(country);
       if (url) flag.style.backgroundImage = `url('${url}')`;
 
       const edited = isEdited(t, i);
+      const origName = p.originalName || p.name || '';
+      const origCountry = p.originalCountry || p.country || '';
       const nm = document.createElement('span');
-      nm.className = 'rp-name' + (edited ? ' edited' : '');
+      nm.className = 'rp-name' + (playerName(t, i) !== origName ? ' edited' : '');
       nm.textContent = playerName(t, i);
-      nm.title = edited ? `Entry list: ${p.originalName || p.name}` : 'Click to edit the name';
+      nm.title = edited ? `Entry list: ${origName} (${origCountry})` : 'Click to edit the name';
       nm.addEventListener('click', () => startEdit(t, i, nm));
 
       const cc = document.createElement('span');
-      cc.className = 'rp-cc';
-      cc.textContent = p.country;
+      cc.className = 'rp-cc' + (country !== origCountry ? ' edited' : '');
+      cc.textContent = country;
+      cc.title = 'Click to change the country (3-letter code, e.g. POL)';
+      cc.addEventListener('click', () => startCountryEdit(t, i, cc));
 
       const edit = document.createElement('button');
       edit.className = 'rp-edit';
@@ -165,8 +220,11 @@
         reset.className = 'rp-edit rp-reset';
         reset.type = 'button';
         reset.textContent = '↺';
-        reset.title = `Restore the entry-list name: ${p.originalName || p.name}`;
-        reset.addEventListener('click', () => client.send({ type: 'setPlayerName', teamId: t.id, player: i, name: '' }));
+        reset.title = `Restore the entry-list data: ${origName} (${origCountry})`;
+        reset.addEventListener('click', () => {
+          client.send({ type: 'setPlayerName', teamId: t.id, player: i, name: '' });
+          client.send({ type: 'setPlayerCountry', teamId: t.id, player: i, country: '' });
+        });
         pr.appendChild(reset);
       }
       playersBox.appendChild(pr);

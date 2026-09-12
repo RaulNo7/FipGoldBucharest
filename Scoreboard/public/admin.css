@@ -309,6 +309,7 @@ label.check {
 }
 
 input[type='text'],
+input[type='time'],
 input[type='url'],
 input[type='number'],
 select {

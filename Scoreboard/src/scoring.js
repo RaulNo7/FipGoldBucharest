@@ -82,6 +82,7 @@ function createDefaultState() {
       showTitle: true,
       scoreVisible: true, // false while the stream shows commercials; the /tv page ignores it
       introVisible: false, // pre-match players presentation (the /intro overlay page)
+      startTime: '', // scheduled start of the match, e.g. '14:30' — shown on the players intro
     },
     teams_registry: {}, // live Active/Eliminated flags per entry-list teamId ({ [id]: { active } }; missing = active)
     seq: 0, // monotonically increasing change counter (animation hint)
@@ -323,7 +324,7 @@ function awardPoint(state, team) {
 const MUTATING = new Set([
   'point', 'adjustPoints', 'adjustGames', 'adjustSets', 'saveSet', 'removeLastSet',
   'setServer', 'swapServer', 'setServingPlayer', 'swapServingPlayer',
-  'setTeams', 'selectTeam', 'setTeamActive', 'setPlayerName', 'setConfig', 'setDisplay', 'resetMatch', 'resetAll', 'startMatch',
+  'setTeams', 'selectTeam', 'setTeamActive', 'setPlayerName', 'setPlayerCountry', 'setConfig', 'setDisplay', 'resetMatch', 'resetAll', 'startMatch',
   'finishMatch', 'setStatus',
 ]);
 
@@ -477,6 +478,31 @@ function applyCommand(prev, cmd) {
         for (let t = 0; t < 2; t++) {
           const team = state.teams[t];
           if (team && team.teamId === cmd.teamId && team.players && team.players[idx]) team.players[idx].name = live;
+        }
+      }
+      return state;
+    }
+
+    case 'setPlayerCountry': {
+      // Country correction for a player (3-letter FIP/IOC code, e.g. POL);
+      // '' clears it. Same registry/override scheme as setPlayerName.
+      if (typeof cmd.teamId !== 'string' || !cmd.teamId) return prev;
+      const idx = cmd.player === 1 ? 1 : 0;
+      const code = String(cmd.country || '').trim().toUpperCase();
+      if (code && !/^[A-Z]{3}$/.test(code)) return prev;
+      if (!state.teams_registry) state.teams_registry = {};
+      const entry = { ...(state.teams_registry[cmd.teamId] || {}) };
+      const countries = Array.isArray(entry.countries) ? entry.countries.slice(0, 2) : [null, null];
+      while (countries.length < 2) countries.push(null);
+      countries[idx] = code || null;
+      if (countries[0] || countries[1]) entry.countries = countries;
+      else delete entry.countries;
+      state.teams_registry[cmd.teamId] = entry;
+      const live = typeof cmd.resolvedCountry === 'string' ? cmd.resolvedCountry : code;
+      if (live) {
+        for (let t = 0; t < 2; t++) {
+          const team = state.teams[t];
+          if (team && team.teamId === cmd.teamId && team.players && team.players[idx]) team.players[idx].country = live;
         }
       }
       return state;

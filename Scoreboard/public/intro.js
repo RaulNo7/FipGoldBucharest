@@ -7,6 +7,7 @@
   const root = document.getElementById('intro');
   const titleEl = document.getElementById('introTitle');
   const subtitleEl = document.getElementById('introSubtitle');
+  const startEl = document.getElementById('introStart');
 
   const q = (sel) => document.querySelector(sel);
   const el = {
@@ -32,6 +33,11 @@
     titleEl.textContent = d.title || 'FIP GOLD BUCHAREST 2026';
     subtitleEl.textContent = d.subtitle || '';
     subtitleEl.hidden = !d.subtitle;
+
+    // Scheduled start (set on the Score settings tab), e.g. "START 14:30"
+    const start = String(d.startTime || '').trim();
+    startEl.textContent = start ? `Start ${start}` : '';
+    startEl.hidden = !start;
 
     for (let t = 0; t < 2; t++) {
       const players = (state.teams[t] || {}).players || [];

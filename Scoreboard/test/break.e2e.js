@@ -277,6 +277,13 @@ function cleanupAndExit() {
   await cmd({ type: 'setPlayerName', teamId: 'M-Q-22', player: 1, name: '' });
   st = await api('/api/state');
   assert(st.teams[0].players[1].name === 'Kaan Sali' && !st.teams_registry['M-Q-22'].names, 'rename: clearing restores the entry-list name');
+  await cmd({ type: 'setPlayerCountry', teamId: 'M-Q-22', player: 1, country: 'pol' });
+  roster = await api('/api/teams');
+  st = await api('/api/state');
+  assert(team('M-Q-22').players[1].country === 'POL' && team('M-Q-22').players[1].originalCountry === 'ROU' && st.teams[0].players[1].country === 'POL', 'country: /api/teams and the selected pair show the corrected code');
+  await cmd({ type: 'setPlayerCountry', teamId: 'M-Q-22', player: 1, country: '' });
+  st = await api('/api/state');
+  assert(st.teams[0].players[1].country === 'ROU' && !st.teams_registry['M-Q-22'].countries, 'country: clearing restores the entry-list code');
 
   // The losing pair is eliminated automatically; reverting the result reinstates it.
   roster = await api('/api/teams');

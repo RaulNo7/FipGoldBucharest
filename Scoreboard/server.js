@@ -31,10 +31,18 @@ try {
 }
 const teamById = new Map((teamsData.teams || []).map((t) => [t.id, t]));
 
-/** The pair's players with any name corrections from the live registry applied (originalName = entry list). */
+/** The pair's players with any name/country corrections from the live registry applied (original* = entry list). */
 function rosterPlayers(rec) {
-  const names = (((state && state.teams_registry) || {})[rec.id] || {}).names || [];
-  return (rec.players || []).map((p, i) => ({ ...p, name: names[i] || p.name, originalName: p.name }));
+  const entry = ((state && state.teams_registry) || {})[rec.id] || {};
+  const names = entry.names || [];
+  const countries = entry.countries || [];
+  return (rec.players || []).map((p, i) => ({
+    ...p,
+    name: names[i] || p.name,
+    originalName: p.name,
+    country: countries[i] || p.country,
+    originalCountry: p.country,
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -603,6 +611,14 @@ function handleCommand(cmd) {
     const idx = cmd.player === 1 ? 1 : 0;
     const name = String(cmd.name || '').replace(/\s+/g, ' ').trim().slice(0, 60);
     cmd = { ...cmd, resolvedName: name || ((rec.players || [])[idx] || {}).name || '' };
+  }
+
+  if (cmd.type === 'setPlayerCountry') {
+    const rec = teamById.get(cmd.teamId);
+    if (!rec) return;
+    const idx = cmd.player === 1 ? 1 : 0;
+    const code = String(cmd.country || '').trim().toUpperCase();
+    cmd = { ...cmd, resolvedCountry: code || ((rec.players || [])[idx] || {}).country || '' };
   }
 
   if (scoring.isMutating(cmd.type)) {
