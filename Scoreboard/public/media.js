@@ -66,6 +66,48 @@
     if (file) send({ type: 'playVideo', file });
   });
 
+  // ---- instant replay ----
+  let replayCount = -1; // last `replay.count` seen: the list reloads when it changes
+  function loadReplays() {
+    fetch('/api/replays')
+      .then((r) => r.json())
+      .then((data) => {
+        const sel = $('#replaySelect');
+        const current = sel.value;
+        const clips = data.replays || [];
+        sel.innerHTML = '';
+        if (!clips.length) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = '— no replay saved yet —';
+          sel.appendChild(opt);
+        }
+        clips.forEach((c, i) => {
+          const opt = document.createElement('option');
+          opt.value = c.name;
+          const when = c.time ? new Date(c.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+          opt.textContent = `${i + 1}. ${c.name}${when ? '  (' + when + ')' : ''}`;
+          sel.appendChild(opt);
+        });
+        // Keep the operator's pick if it is still listed, else the newest clip.
+        sel.value = clips.some((c) => c.name === current) ? current : (clips[0] ? clips[0].name : '');
+        $('#replayDir').textContent = data.dir || '';
+        $('#replaySecondsLabel').textContent = `last ${data.seconds} s → on the stream`;
+        render();
+      })
+      .catch(() => {
+        $('#replayDir').textContent = '(could not load the replay list)';
+      });
+  }
+  loadReplays();
+
+  $('#saveReplayBtn').addEventListener('click', () => send({ type: 'saveReplay' }));
+  $('#playReplayBtn').addEventListener('click', () => {
+    const file = $('#replaySelect').value;
+    if (file) send({ type: 'playReplay', file });
+  });
+  $('#cancelReplayBtn').addEventListener('click', () => send({ type: 'cancelCommercials' }));
+
   // ---- broadcast controls ----
   $('#introBtn').addEventListener('click', () => {
     const visible = !!(state && state.display && state.display.introVisible);
@@ -94,6 +136,11 @@
       $('#obsMediaSource').value = cfg.mediaSource || '';
       $('#obsAdsDir').value = cfg.commercialsDir || '';
       $('#obsMaxBreak').value = cfg.maxBreakSeconds;
+      $('#rpEnabled').checked = cfg.replayEnabled !== false;
+      $('#rpSeconds').value = cfg.replaySeconds || 20;
+      $('#rpScene').value = cfg.replayScene || '';
+      $('#rpSource').value = cfg.replaySource || '';
+      $('#rpDir').value = cfg.replayDir || '';
     })
     .catch(() => {
       $('#breakStatus').textContent = 'Could not load the OBS settings.';
@@ -111,6 +158,11 @@
       mediaSource: $('#obsMediaSource').value.trim(),
       commercialsDir: $('#obsAdsDir').value.trim(),
       maxBreakSeconds: +$('#obsMaxBreak').value,
+      replayEnabled: $('#rpEnabled').checked,
+      replaySeconds: +$('#rpSeconds').value,
+      replayScene: $('#rpScene').value.trim(),
+      replaySource: $('#rpSource').value.trim(),
+      replayDir: $('#rpDir').value.trim(),
     };
     fetch('/api/obs-settings', {
       method: 'POST',
@@ -119,7 +171,10 @@
     })
       .then((r) => {
         flash($('#saveObsBtn'), r.ok ? 'Saved!' : 'Failed');
-        if (r.ok) loadCommercials(); // the folder may have changed
+        if (r.ok) {
+          loadCommercials(); // the folders may have changed
+          loadReplays();
+        }
       })
       .catch(() => flash($('#saveObsBtn'), 'Failed'));
   });
@@ -176,6 +231,33 @@
     }
     if (o.lastError) text += ` — last error: ${o.lastError}`;
     $('#breakStatus').textContent = text;
+
+    // Replay card.
+    const rp = o.replay || {};
+    const replayPlaying = running && !!rp.playing;
+    const rpBadge = $('#replayBadge');
+    rpBadge.textContent = !rp.enabled ? 'replay OFF' : rp.bufferActive ? 'buffer: recording' : 'buffer: off';
+    rpBadge.className = 'badge ' + (rp.enabled && rp.bufferActive ? 'live' : '');
+    const saveBtn = $('#saveReplayBtn');
+    saveBtn.disabled = running || !!rp.saving || !rp.enabled;
+    saveBtn.classList.toggle('is-playing', !!rp.saving || replayPlaying);
+    $('#cancelReplayBtn').disabled = !replayPlaying;
+    $('#playReplayBtn').disabled = running || !!rp.saving || !$('#replaySelect').value;
+    $('#playReplayBtn').classList.toggle('is-playing', replayPlaying);
+    $('#replaySelect').disabled = running || !!rp.saving;
+    let rpText;
+    if (rp.saving) rpText = 'Saving the replay from OBS…';
+    else if (replayPlaying) rpText = `Replay "${rp.playing}" is on the stream…`;
+    else if (!rp.enabled) rpText = 'Instant replay is OFF (settings card below).';
+    else if (rp.bufferActive) rpText = `Ready — Replay puts the last ${rp.seconds} s on the stream.` + (rp.last ? ` Last clip: ${rp.last}.` : '');
+    else rpText = 'Waiting for OBS — the replay buffer is not recording yet.';
+    if (rp.error) rpText += ` — ${rp.error}`;
+    $('#replayStatus').textContent = rpText;
+    if (typeof rp.count === 'number' && rp.count !== replayCount) {
+      const first = replayCount < 0;
+      replayCount = rp.count;
+      if (!first) loadReplays();
+    }
 
     // Video row: locked while anything is on air, green while its file plays.
     const playingVideo = running && !!videoName(o.currentCommercial);

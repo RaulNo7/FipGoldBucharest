@@ -69,6 +69,18 @@
   outline-offset: 2px;
 }
 
+/* "Replay" — blue, like the completed-set columns of the scorebug. */
+.btn.spot.spot-replay {
+  background: #2f6fb5;
+  border-color: #2f6fb5;
+  color: #fff;
+}
+
+.btn.spot.spot-replay .spot-num,
+.btn.spot.spot-replay .spot-file {
+  color: rgba(255, 255, 255, 0.75);
+}
+
 /* "Cancel" — red-tinted when a break can be cancelled, dimmed otherwise. */
 .btn.spot.spot-cancel {
   border-color: rgba(231, 76, 60, 0.55);

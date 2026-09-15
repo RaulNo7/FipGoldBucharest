@@ -36,6 +36,11 @@ fs.writeFileSync(
     autoDelaySeconds: 2,
     maxBreakSeconds: 60,
     refereeKey: 'testkey',
+    replayEnabled: true,
+    replaySeconds: 15,
+    replayDir: path.join(tmp, 'Replay'),
+    replayScene: 'REPLAY',
+    replaySource: 'Replay',
   })
 );
 
@@ -46,6 +51,12 @@ let totalPolls = 0; // never reset
 const inputSettingsCalls = []; // files set on the media source, in order
 const transformCalls = []; // scene-item transforms applied to the media source
 let mediaFile = 'C:\\merged-break.mp4';
+let replayBufferActive = false;
+let replaySaves = 0;
+let lastReplayPath = '';
+const profileParams = {};
+const obsRecDir = path.join(tmp, 'obs-videos');
+fs.mkdirSync(obsRecDir);
 
 const hub = createWsHub();
 hub.onConnect((sock) => hub.sendText(sock, JSON.stringify({ op: 0, d: { rpcVersion: 1 } })));
@@ -73,6 +84,18 @@ hub.onMessage((sock, text) => {
       inputSettingsCalls.push(mediaFile);
       mediaPolls = 0; // a newly loaded file plays from the start
     }
+    // Replay buffer: "recording" once started; a save writes a small file to
+    // OBS's own recording folder (the app moves it into the replay folder).
+    if (requestType === 'GetReplayBufferStatus') responseData = { outputActive: replayBufferActive };
+    if (requestType === 'StartReplayBuffer') replayBufferActive = true;
+    if (requestType === 'StopReplayBuffer') replayBufferActive = false;
+    if (requestType === 'SetProfileParameter') profileParams[requestData.parameterCategory + '/' + requestData.parameterName] = requestData.parameterValue;
+    if (requestType === 'SaveReplayBuffer') {
+      replaySaves++;
+      lastReplayPath = path.join(obsRecDir, `Replay 2026-09-15 10-30-${String(replaySaves).padStart(2, '0')}.mp4`);
+      fs.writeFileSync(lastReplayPath, Buffer.alloc(2048, 1));
+    }
+    if (requestType === 'GetLastReplayBufferReplay') responseData = { savedReplayPath: lastReplayPath };
     if (requestType === 'GetMediaInputStatus') {
       mediaPolls++;
       totalPolls++;
@@ -353,6 +376,51 @@ function cleanupAndExit() {
   );
   assert(inputSettingsCalls.length === 7, 'manual break: playlist of 6 spots + restore (got ' + inputSettingsCalls.length + ' loads)');
   assert(st.display.scoreVisible === true, 'manual break during a live match: score restored afterwards');
+
+  // Instant replay: the housekeeping loop keeps the buffer running with the configured length.
+  const replayDir = path.join(tmp, 'Replay');
+  assert(replayBufferActive === true && profileParams['AdvOut/RecRBTime'] === '15', 'replay: buffer started by the app with the configured length (got active=' + replayBufferActive + ', RecRBTime=' + profileParams['AdvOut/RecRBTime'] + ')');
+  sceneSwitches.length = 0;
+  mediaPolls = 0;
+  inputSettingsCalls.length = 0;
+  const waitFor = async (cond, timeoutMs) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) {
+      if (cond()) return true;
+      await sleep(250);
+    }
+    return cond();
+  };
+  const backToLive = () => sceneSwitches.length >= 2 && sceneSwitches[sceneSwitches.length - 1] === 'LIVE';
+  await cmd({ type: 'saveReplay' });
+  await waitFor(backToLive, 15000);
+  await sleep(500);
+  st = await api('/api/state');
+  const clips = fs.existsSync(replayDir) ? fs.readdirSync(replayDir) : [];
+  assert(clips.length === 1 && /^Replay 2026-09-15 10-30-01\.mp4$/.test(clips[0]) && !fs.existsSync(lastReplayPath), 'replay: the saved clip was moved into the replay folder (got: ' + clips.join(', ') + ')');
+  assert(inputSettingsCalls.length === 1 && inputSettingsCalls[0] === path.join(replayDir, clips[0] || ''), 'replay: the clip was loaded into the replay media source (got: ' + inputSettingsCalls.join(' | ') + ')');
+  assert(JSON.stringify(sceneSwitches) === JSON.stringify(['REPLAY', 'LIVE']), 'replay: scenes switched to REPLAY and back to LIVE (got: ' + sceneSwitches.join(', ') + ')');
+  let list = await api('/api/replays');
+  assert(list.replays.length === 1 && list.replays[0].name === clips[0] && list.seconds === 15, 'replay: /api/replays lists the clip');
+
+  // A second save lands first in the list; a saved clip can be replayed by name only.
+  sceneSwitches.length = 0;
+  await cmd({ type: 'saveReplay' });
+  await waitFor(backToLive, 15000);
+  await sleep(500);
+  list = await api('/api/replays');
+  assert(list.replays.length === 2 && /10-30-02/.test(list.replays[0].name), 'replay: the newest clip is listed first (got: ' + list.replays.map((r) => r.name).join(', ') + ')');
+  sceneSwitches.length = 0;
+  mediaPolls = 0;
+  inputSettingsCalls.length = 0;
+  await cmd({ type: 'playReplay', file: '..\\server.js' });
+  await cmd({ type: 'playReplay', file: 'nope.mp4' });
+  await sleep(300);
+  assert(inputSettingsCalls.length === 0 && sceneSwitches.length === 0, 'playReplay: names outside the replay folder are ignored');
+  await cmd({ type: 'playReplay', file: (list.replays[1] || {}).name || 'missing.mp4' });
+  await waitFor(backToLive, 15000);
+  await sleep(500);
+  assert(inputSettingsCalls.length === 1 && /10-30-01\.mp4$/.test(inputSettingsCalls[0]) && JSON.stringify(sceneSwitches) === JSON.stringify(['REPLAY', 'LIVE']), 'playReplay: the chosen clip plays on the replay scene, then back to LIVE (got: ' + inputSettingsCalls.join(' | ') + ' / ' + sceneSwitches.join(', ') + ')');
 
   cleanupAndExit();
 })().catch((err) => {

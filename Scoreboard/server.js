@@ -219,6 +219,14 @@ const DEFAULT_OBS_SETTINGS = {
   // folder, see defaultCommercialsDir). Spot files below are looked up in it
   // by file name, so the list survives moving the app to another PC.
   commercialsDir: '',
+  // Instant replay: OBS's Replay Buffer keeps the last N seconds; the Media
+  // tab's Replay button saves it, moves the clip into the replay folder and
+  // plays it on the replay scene (which needs one media source).
+  replayEnabled: true,
+  replaySeconds: 20,
+  replayDir: '', // '' = auto: the app's Replay folder (see defaultReplayDir)
+  replayScene: 'REPLAY',
+  replaySource: 'Replay',
   // Individual spots for the Media tab: each temporarily swaps the media
   // source's file, plays through the same break routine, then restores the
   // merged break video configured in OBS.
@@ -318,8 +326,31 @@ const breakState = {
   playlist: false, // true while the full spot list is being played
   playlistIndex: 0,
   playlistTotal: 0,
+  kind: null, // 'break' | 'replay' while phase === 'running'
+};
+const replayState = {
+  bufferActive: false, // OBS replay buffer running (kept running by replayHousekeeping)
+  appliedSeconds: null, // replaySeconds last pushed into the OBS profile
+  saving: false,
+  playing: null, // clip file name while a replay is on the stream
+  lastReplay: null,
+  count: 0,
+  lastError: null,
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// One connection attempt at a time: a break, a replay and the replay
+// housekeeping may all want OBS at the same moment.
+let obsConnecting = null;
+function connectObs() {
+  if (obs.connected) return Promise.resolve();
+  if (!obsConnecting) {
+    obsConnecting = obs.connect(obsSettings.url, obsSettings.password).finally(() => {
+      obsConnecting = null;
+    });
+  }
+  return obsConnecting;
+}
 
 function obsStatusPayload() {
   return {
@@ -334,6 +365,16 @@ function obsStatusPayload() {
     playlistTotal: breakState.playlistTotal,
     lastError: breakState.lastError || obs.lastError || null,
     youtubeUrl: obsSettings.youtubeUrl || '', // for the website menu ("YouTube Live"); updates live on save
+    replay: {
+      enabled: !!obsSettings.replayEnabled,
+      seconds: obsSettings.replaySeconds,
+      bufferActive: replayState.bufferActive,
+      saving: replayState.saving,
+      playing: replayState.playing, // clip file name while a replay is on the stream
+      last: replayState.lastReplay, // file name of the last clip saved
+      count: replayState.count, // bumps on every new clip: the Media tab reloads its list
+      error: replayState.lastError,
+    },
   };
 }
 
@@ -444,7 +485,7 @@ async function runBreak(opts = {}) {
 
   let swapped = false;
   try {
-    if (!obs.connected) await obs.connect(obsSettings.url, obsSettings.password);
+    await connectObs();
     await fitMediaSourceToCanvas();
     if (queue[0]) {
       // Remember the file that was on the source so it can be put back afterwards.
@@ -520,15 +561,12 @@ async function runBreak(opts = {}) {
  * video's resolution is (spots differ) - the same as OBS's "Fit to screen".
  * The scene item keeps its old scale otherwise, so a larger file looks cropped.
  */
-async function fitMediaSourceToCanvas() {
+async function fitMediaSourceToCanvas(sceneName = obsSettings.commercialsScene, sourceName = obsSettings.mediaSource) {
   try {
     const video = await obs.request('GetVideoSettings');
-    const item = await obs.request('GetSceneItemId', {
-      sceneName: obsSettings.commercialsScene,
-      sourceName: obsSettings.mediaSource,
-    });
+    const item = await obs.request('GetSceneItemId', { sceneName, sourceName });
     await obs.request('SetSceneItemTransform', {
-      sceneName: obsSettings.commercialsScene,
+      sceneName,
       sceneItemId: item.sceneItemId,
       sceneItemTransform: {
         positionX: 0,
@@ -549,9 +587,9 @@ async function fitMediaSourceToCanvas() {
   }
 }
 
-async function waitForCommercialsEnd() {
+async function waitForCommercialsEnd(inputName = obsSettings.mediaSource, capMsOverride = null) {
   const started = Date.now();
-  const capMs = Math.max(5, Number(obsSettings.maxBreakSeconds) || 300) * 1000;
+  const capMs = capMsOverride || Math.max(5, Number(obsSettings.maxBreakSeconds) || 300) * 1000;
   let sawPlayback = false;
 
   while (Date.now() - started < capMs) {
@@ -560,7 +598,7 @@ async function waitForCommercialsEnd() {
 
     let status;
     try {
-      status = await obs.request('GetMediaInputStatus', { inputName: obsSettings.mediaSource });
+      status = await obs.request('GetMediaInputStatus', { inputName });
     } catch (_) {
       // Media source not queryable — fall back to the fixed safety cap.
       while (Date.now() - started < capMs && !breakState.abort) await sleep(500);
@@ -578,10 +616,222 @@ async function waitForCommercialsEnd() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Instant replay (OBS Replay Buffer)
+// ---------------------------------------------------------------------------
+
+/** Replay clips folder: the setting, else the nearest "Replay" folder above Scoreboard\ (like the commercials). */
+function defaultReplayDir() {
+  if (process.env.REPLAY_DIR) return process.env.REPLAY_DIR;
+  let dir = __dirname;
+  for (let i = 0; i < 6; i++) {
+    dir = path.dirname(dir);
+    const candidate = path.join(dir, 'Replay');
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return path.join(path.dirname(__dirname), 'Replay');
+}
+
+function replayDir() {
+  return (obsSettings && obsSettings.replayDir) || defaultReplayDir();
+}
+
+/** The newest replay clips (file names, newest first), at most `limit`. */
+function listReplays(limit = 10) {
+  try {
+    const dir = replayDir();
+    return fs.readdirSync(dir)
+      .filter((f) => VIDEO_FILE.test(f))
+      .map((name) => {
+        const st = fs.statSync(path.join(dir, name));
+        return { name, size: st.size, time: st.mtimeMs };
+      })
+      .sort((a, b) => b.time - a.time)
+      .slice(0, limit);
+  } catch (_) {
+    return [];
+  }
+}
+
+function replaySeconds() {
+  return Math.min(600, Math.max(5, Math.round(Number(obsSettings.replaySeconds) || 20)));
+}
+
+/**
+ * Keep OBS's replay buffer running with the configured length. The length is
+ * pushed into the profile (both output modes, harmless) and the buffer is
+ * restarted when it changes. Throws with a readable message when the buffer
+ * cannot start (Replay Buffer not enabled in OBS's output settings).
+ */
+async function ensureReplayBuffer() {
+  if (!obsSettings.replayEnabled) return false;
+  await connectObs();
+  const notEnabled = 'Replay buffer is off — enable it in OBS: Settings → Output → Recording → Replay Buffer (then OK; the app starts it)';
+  let status;
+  try {
+    status = await obs.request('GetReplayBufferStatus');
+  } catch (err) {
+    // obs-websocket answers "Replay buffer is not available" while it is disabled in OBS's settings.
+    if (/not available|not enabled/i.test(err.message)) throw new Error(notEnabled);
+    throw err;
+  }
+  let active = !!status.outputActive;
+  const seconds = replaySeconds();
+  if (replayState.appliedSeconds !== seconds) {
+    for (const parameterCategory of ['SimpleOutput', 'AdvOut']) {
+      try {
+        await obs.request('SetProfileParameter', { parameterCategory, parameterName: 'RecRBTime', parameterValue: String(seconds) });
+      } catch (_) { /* older OBS: keep whatever length is configured there */ }
+    }
+    replayState.appliedSeconds = seconds;
+    if (active) {
+      await obs.request('StopReplayBuffer');
+      await sleep(700);
+      active = false;
+    }
+  }
+  if (!active) {
+    await obs.request('StartReplayBuffer');
+    await sleep(700);
+    status = await obs.request('GetReplayBufferStatus');
+    active = !!status.outputActive;
+  }
+  replayState.bufferActive = active;
+  if (!active) throw new Error(notEnabled);
+  return true;
+}
+
+async function waitForFileToSettle(file, timeoutMs = 8000) {
+  const started = Date.now();
+  let last = -1;
+  while (Date.now() - started < timeoutMs) {
+    let size = -1;
+    try { size = fs.statSync(file).size; } catch (_) { /* not there yet */ }
+    if (size > 0 && size === last) return;
+    last = size;
+    await sleep(300);
+  }
+}
+
+/** Save the last N seconds from OBS and move the clip into the replay folder. Returns the clip path. */
+async function saveReplayClip() {
+  await ensureReplayBuffer();
+  let before = '';
+  try { before = (await obs.request('GetLastReplayBufferReplay')).savedReplayPath || ''; } catch (_) { /* none yet */ }
+  await obs.request('SaveReplayBuffer');
+  let saved = '';
+  const started = Date.now();
+  while (Date.now() - started < 15000) {
+    await sleep(300);
+    try {
+      const r = await obs.request('GetLastReplayBufferReplay');
+      if (r.savedReplayPath && r.savedReplayPath !== before) { saved = r.savedReplayPath; break; }
+    } catch (_) { /* keep polling */ }
+  }
+  if (!saved) throw new Error('OBS did not report a saved replay');
+  await waitForFileToSettle(saved);
+
+  const dir = replayDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const ext = path.extname(saved);
+  let dest = path.join(dir, path.basename(saved));
+  if (path.resolve(path.dirname(saved)) !== path.resolve(dir)) {
+    for (let n = 2; fs.existsSync(dest); n++) dest = path.join(dir, `${path.basename(saved, ext)} (${n})${ext}`);
+    try {
+      fs.renameSync(saved, dest);
+    } catch (_) {
+      fs.copyFileSync(saved, dest); // other drive: copy, then drop the original
+      try { fs.unlinkSync(saved); } catch (_) { /* leave it */ }
+    }
+  }
+  replayState.lastReplay = path.basename(dest);
+  replayState.count++;
+  return dest;
+}
+
+/** Put one replay clip on the stream: replay scene + its media source, back to live when it ends. */
+async function runReplayClip(file) {
+  if (breakState.phase === 'running') return;
+  breakState.phase = 'running';
+  breakState.kind = 'replay';
+  breakState.abort = false;
+  breakState.lastError = null;
+  replayState.playing = path.basename(file);
+  replayState.lastError = null;
+  broadcastState();
+  try {
+    await connectObs();
+    await fitMediaSourceToCanvas(obsSettings.replayScene, obsSettings.replaySource);
+    await obs.request('SetInputSettings', {
+      inputName: obsSettings.replaySource,
+      inputSettings: { is_local_file: true, local_file: file },
+      overlay: true,
+    });
+    await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.replayScene });
+    try {
+      await obs.request('TriggerMediaInputAction', {
+        inputName: obsSettings.replaySource,
+        mediaAction: 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART',
+      });
+    } catch (_) { /* the settings change alone restarts playback on most builds */ }
+    await waitForCommercialsEnd(obsSettings.replaySource, (replaySeconds() + 15) * 1000);
+    await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.liveScene });
+  } catch (err) {
+    replayState.lastError = err.message;
+    console.error('Replay failed:', err.message);
+    try {
+      if (obs.connected) await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.liveScene });
+    } catch (_) { /* reported above */ }
+  }
+  replayState.playing = null;
+  breakState.kind = null;
+  breakState.phase = 'idle';
+  broadcastState();
+}
+
+/** Replay button: save the buffer, then play the clip right away. */
+function saveAndPlayReplay() {
+  if (replayState.saving || breakState.phase === 'running') return;
+  (async () => {
+    replayState.saving = true;
+    replayState.lastError = null;
+    broadcastState();
+    let clip = null;
+    try {
+      clip = await saveReplayClip();
+    } catch (err) {
+      replayState.lastError = err.message;
+      console.error('Replay save failed:', err.message);
+    }
+    replayState.saving = false;
+    broadcastState();
+    if (clip) await runReplayClip(clip);
+  })();
+}
+
+/** Keeps OBS connected and the replay buffer running so a replay is always available. */
+function replayHousekeeping() {
+  if (!obsSettings.replayEnabled) {
+    replayState.bufferActive = false;
+    return;
+  }
+  ensureReplayBuffer()
+    .then(() => {
+      replayState.lastError = null;
+    })
+    .catch((err) => {
+      replayState.bufferActive = false;
+      replayState.lastError = err.message;
+    })
+    .finally(() => broadcastState());
+}
+setTimeout(replayHousekeeping, 3000);
+setInterval(replayHousekeeping, 15000);
+
 function testObsConnection() {
   (async () => {
     try {
-      if (!obs.connected) await obs.connect(obsSettings.url, obsSettings.password);
+      await connectObs();
       await obs.request('GetVersion');
       breakState.lastError = null;
     } catch (err) {
@@ -663,6 +913,22 @@ function handleCommand(cmd) {
 
   if (cmd.type === 'cancelCommercials') {
     cancelBreak();
+    return;
+  }
+
+  // Replay button: save the last N seconds from OBS and play the clip.
+  if (cmd.type === 'saveReplay') {
+    saveAndPlayReplay();
+    return;
+  }
+
+  // Play one of the saved clips (file name only — nothing outside the replay folder).
+  if (cmd.type === 'playReplay') {
+    const name = typeof cmd.file === 'string' ? path.basename(cmd.file) : '';
+    const clip = name && listReplays(1000).find((r) => r.name === name);
+    if (!clip) return;
+    if (breakState.phase === 'countdown') cancelBreak();
+    if (breakState.phase !== 'running') runReplayClip(path.join(replayDir(), name));
     return;
   }
 
@@ -838,6 +1104,13 @@ function handleMainRequest(req, res) {
     return;
   }
 
+  // The last 10 replay clips for the Media tab (newest first).
+  if (pathname === '/api/replays') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    res.end(JSON.stringify({ dir: replayDir(), seconds: replaySeconds(), replays: listReplays(10) }));
+    return;
+  }
+
   // OBS / commercial-break settings. Server-side only — deliberately NOT part
   // of the broadcast state, so the OBS password never reaches referee phones.
   if (pathname === '/api/obs-settings') {
@@ -861,6 +1134,13 @@ function handleMainRequest(req, res) {
             if (typeof incoming[k] === 'string') clean[k] = incoming[k];
           }
           if (typeof incoming.commercialsDir === 'string') clean.commercialsDir = incoming.commercialsDir.trim();
+          for (const k of ['replayDir', 'replayScene', 'replaySource']) {
+            if (typeof incoming[k] === 'string') clean[k] = incoming[k].trim();
+          }
+          if (typeof incoming.replayEnabled === 'boolean') clean.replayEnabled = incoming.replayEnabled;
+          if (Number.isFinite(Number(incoming.replaySeconds)) && Number(incoming.replaySeconds) >= 5) {
+            clean.replaySeconds = Math.min(600, Math.round(Number(incoming.replaySeconds)));
+          }
           if (typeof incoming.youtubeUrl === 'string') clean.youtubeUrl = sanitizeLink(incoming.youtubeUrl);
           for (const k of ['autoDelaySeconds', 'maxBreakSeconds']) {
             const n = Number(incoming[k]);
@@ -958,7 +1238,7 @@ const KEYED_PAGES = new Set([
   '/mobile', '/mobile.html', '/admin', '/admin.html', '/teams', '/teams.html', '/media', '/media.html',
 ]);
 const KEYED_PATHS = new Set([
-  ...KEYED_PAGES, '/api/command', '/api/teams', '/api/info', '/api/obs-settings', '/api/commercials',
+  ...KEYED_PAGES, '/api/command', '/api/teams', '/api/info', '/api/obs-settings', '/api/commercials', '/api/replays',
 ]);
 
 /** True when the request carries the configured access key (?key=... or cookie). */
