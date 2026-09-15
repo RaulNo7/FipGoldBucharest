@@ -17,11 +17,11 @@ Windows WPF (.NET 10) app purpose-built for streaming the **FIP Gold Bucharest 2
 - **Media tab** — the broadcast controls (OBS status, Show/hide players, Show/hide score, Play commercials, Cancel) plus a dropdown of every video file in the **Commercials folder** (by default the app's own `Commercials\` directory, changeable in the settings card) with a **Play** button. Playing a video temporarily swaps the file of the OBS media source, plays through the same break routine and restores the merged break video afterwards; the last file played is shown in the card. The Play-all / automatic break uses the spot list in `obs-settings.json` (`01_FIP_INTRO.mp4` … `06_MONDO.mov`, looked up by name in the same folder). After a single spot the score always comes back (spots are for during the game); after "Play all" / the automatic break it comes back only if a live match was interrupted, and stays hidden after a finished match.
 - **Commercial breaks** — a configurable delay (default 60s) after a match ends: the scorebug fades off the stream, OBS switches to the commercials scene, the six spots are loaded into its media source **one after another** (no merged file needed; a "single merged file" mode remains available in the settings), and OBS returns to the live scene when the last one ends. The score stays hidden while the next match is set up and reappears when it starts. A "Play commercials now" button runs the same break manually; countdown + Cancel are shown in the admin panel.
 
-## Fixed match format (whole tournament)
+## Match format
 
-- Best of 3 sets, 6 games per set.
-- **Star point**: advantage is played at the first two deuces; the third deuce is a single golden point.
-- Tiebreak at 6-6, to 7 points, win by 2. The deciding 3rd set is a normal set.
+- Best of 3 sets, 6 games per set, tiebreak at 6-6 to 7 points, win by 2.
+- **Deuce rule** (Score settings → Match format): **Star point** (default — advantage at the first two deuces, the third deuce is a single decisive point, shown as `SP`), **Golden point** (no advantage: the point at 40-40 wins the game, shown as `GP`) or **Killer point** (one advantage deuce `D1`, then the next deuce is the decisive point, shown as `KP`).
+- **3rd set** (same card): a **normal set** (default) or a **maxi tiebreak to 10**, win by 2, played instead of the deciding set (shown as 7-6 / 6-7 with the tiebreak points, like a set won on a tiebreak). Choose it before the match starts — a deciding set already under way is not converted.
 
 ## Data
 

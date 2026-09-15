@@ -130,6 +130,23 @@
     if (confirm('Reset EVERYTHING to defaults? Teams, settings, score and eliminations will be cleared.')) send({ type: 'resetAll' });
   });
 
+  // ---- match format ----
+  $('#cfgDeuce').addEventListener('change', () => {
+    const deuceMode = $('#cfgDeuce').value;
+    if (deuceMode === 'star' || deuceMode === 'golden' || deuceMode === 'silver') {
+      send({ type: 'setConfig', config: { deuceMode, starDeuceLimit: 3 } });
+    }
+  });
+  $('#cfgFinalSet').addEventListener('change', () => {
+    const maxi = $('#cfgFinalSet').value === 'superTiebreak';
+    send({
+      type: 'setConfig',
+      config: maxi
+        ? { finalSetMode: 'superTiebreak', superTiebreakPoints: 10, tiebreakWinByTwo: true }
+        : { finalSetMode: 'normal' },
+    });
+  });
+
   // ---- display form ----
   function sendDisplay() {
     send({
@@ -196,6 +213,10 @@
 
   // Push server state into form fields, but never overwrite a field being edited.
   function syncForms(s) {
+    const c = s.config || {};
+    setVal('#cfgDeuce', ['star', 'golden', 'silver'].includes(c.deuceMode) ? c.deuceMode : 'star');
+    setVal('#cfgFinalSet', c.finalSetMode === 'superTiebreak' ? 'superTiebreak' : 'normal');
+
     const d = s.display;
     setVal('#dspTitle', d.title || '');
     setVal('#dspSubtitle', d.subtitle || '');

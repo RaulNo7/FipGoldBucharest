@@ -59,19 +59,34 @@ function loadState() {
       const saved = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
       // Merge over defaults so new fields are always present after upgrades.
       const base = scoring.createDefaultState();
+      const config = { ...base.config, ...(saved.config || {}) };
       return {
         ...base,
         ...saved,
-        config: { ...base.config, ...(saved.config || {}) },
+        config,
         display: { ...base.display, ...(saved.display || {}) },
         teams: normalizeTeams(saved.teams, base.teams),
         teams_registry: { ...(saved.teams_registry || {}) },
+        sets: normalizeSets(saved.sets, config),
       };
     }
   } catch (err) {
     console.error('Could not load saved state, starting fresh:', err.message);
   }
   return scoring.createDefaultState();
+}
+
+/**
+ * A maxi-tiebreak set saved by an older build as 1-0 / 0-1 is shown as
+ * 7-6 / 6-7 now (see scoring.resolveTiebreak); rewrite it on load.
+ */
+function normalizeSets(savedSets, config) {
+  if (!Array.isArray(savedSets)) return [];
+  const g = (config && config.gamesPerSet) || 6;
+  return savedSets.map((set) => {
+    if (!set || !set.superTb || (set.a || 0) + (set.b || 0) !== 1) return set;
+    return { ...set, a: set.a ? g + 1 : g, b: set.b ? g + 1 : g };
+  });
 }
 
 /** Accept both the current per-player object shape and the legacy string[] players. */

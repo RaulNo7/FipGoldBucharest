@@ -10,7 +10,7 @@
  * Scoring rules supported (config.deuceMode):
  *   - 'golden'    : sudden-death point at 40-40 (the deciding "golden point").
  *   - 'advantage' : classic tennis deuce, must win the game by two points.
- *   - 'silver'    : one advantage deuce (40-40), then the next deuce (4-4) is
+ *   - 'silver'    : "killer point" — one advantage deuce (40-40), then the next deuce (4-4) is
  *                   a sudden-death point.
  *   - 'star'      : two advantage deuces (40-40 and 4-4), then the next deuce
  *                   (5-5) is a sudden-death point. The threshold can still be
@@ -41,6 +41,23 @@ function suddenDeathDeuceNumber(config) {
 
 function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
+}
+
+/** Scoreboard label of the decisive (sudden-death) point for the deuce rule in force. */
+function suddenDeathLabel(config) {
+  switch (config.deuceMode) {
+    case 'golden':
+      return 'GP';
+    case 'silver':
+      return 'KP';
+    default:
+      return 'SP';
+  }
+}
+
+/** True when `label` (from pointLabel) is the decisive sudden-death point. */
+function isSuddenDeathLabel(label) {
+  return label === 'SP' || label === 'GP' || label === 'KP';
 }
 
 function createDefaultState() {
@@ -155,8 +172,10 @@ function pointLabel(points, idx, config) {
   const isGoldenPoint =
     config.deuceMode === 'golden' || deuceNumber >= suddenDeathDeuceNumber(config);
 
-  // The sudden-death point is labelled 'SP' (star point, tournament terminology).
-  if (p === q) return isGoldenPoint ? 'SP' : 'D' + deuceNumber;
+  // The sudden-death point is labelled after the rule in force: star point
+  // 'SP', golden point 'GP' (no advantage at 40-40), killer point 'KP' (one
+  // advantage deuce, then the decisive point).
+  if (p === q) return isGoldenPoint ? suddenDeathLabel(config) : 'D' + deuceNumber;
   // Advantage to this side during deuce #deuceNumber.
   if (p === q + 1) return 'Ad' + deuceNumber;
   // Trailing side during an advantage shows 40.
@@ -240,10 +259,12 @@ function resolveTiebreak(state, tbWinnerIdx) {
   const tbScore = { a: state.points[0], b: state.points[1] };
 
   if (state.inSuperTiebreak) {
-    // Whole deciding set decided by the super tiebreak.
+    // Whole deciding set decided by the maxi tiebreak: shown like a set won
+    // on a tiebreak (7-6 / 6-7, with the tiebreak points underneath).
+    const g = state.config.gamesPerSet;
     completeSet(state, tbWinnerIdx, {
-      a: tbWinnerIdx === 0 ? 1 : 0,
-      b: tbWinnerIdx === 1 ? 1 : 0,
+      a: tbWinnerIdx === 0 ? g + 1 : g,
+      b: tbWinnerIdx === 1 ? g + 1 : g,
       tb: tbScore,
       superTb: true,
     });
@@ -397,10 +418,19 @@ function applyCommand(prev, cmd) {
       const winnerIdx = (last.a || 0) > (last.b || 0) ? 0 : 1;
       if (state.setsWon[winnerIdx] > 0) state.setsWon[winnerIdx] -= 1;
       // Re-open the match and restore the games so the set can be re-edited.
-      state.games = [last.a || 0, last.b || 0];
-      state.points = [0, 0];
-      state.inTiebreak = false;
-      state.inSuperTiebreak = false;
+      // A maxi-tiebreak set goes back into the tiebreak at its final points
+      // (its 7-6 is only how it is displayed).
+      if (last.superTb) {
+        state.games = [0, 0];
+        state.inTiebreak = true;
+        state.inSuperTiebreak = true;
+        state.points = last.tb ? [last.tb.a || 0, last.tb.b || 0] : [0, 0];
+      } else {
+        state.games = [last.a || 0, last.b || 0];
+        state.points = [0, 0];
+        state.inTiebreak = false;
+        state.inSuperTiebreak = false;
+      }
       state.deuceCount = 0;
       state.status = 'live';
       state.winner = null;
@@ -583,6 +613,8 @@ const api = {
   isMutating,
   gameWinner,
   pointLabel,
+  suddenDeathLabel,
+  isSuddenDeathLabel,
   clone,
   POINT_LABELS,
 };

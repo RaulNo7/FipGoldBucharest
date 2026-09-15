@@ -40,7 +40,8 @@ console.log('\nRunning padel scoring tests…\n');
   let s = withConfig({ deuceMode: 'golden' });
   // 40-40 then team 0 wins the golden point -> wins the game.
   s = play(s, [0, 1, 0, 1, 0, 1]); // 3-3 (40-40)
-  eq(scoring.pointLabel(s.points, 0, s.config), 'SP', 'golden: 3-3 shows SP (sudden-death point)');
+  eq(scoring.pointLabel(s.points, 0, s.config), 'GP', 'golden: 3-3 shows GP (golden point, no advantage)');
+  eq(scoring.isSuddenDeathLabel('GP') && scoring.isSuddenDeathLabel('KP') && scoring.isSuddenDeathLabel('SP') && !scoring.isSuddenDeathLabel('D1'), true, 'isSuddenDeathLabel: SP/GP/KP only');
   s = play(s, [0]); // golden point team 0
   eq(s.games, [1, 0], 'golden: team0 wins game on sudden death');
   eq(s.points, [0, 0], 'golden: points reset after game');
@@ -90,7 +91,7 @@ console.log('\nRunning padel scoring tests…\n');
   s = withConfig({ deuceMode: 'silver' });
   s = play(s, [0, 1, 0, 1, 0, 1, 0, 1]); // 40-40 then Ad lost -> 4-4 (deuce #2)
   eq(s.points, [4, 4], 'silver: reached 4-4');
-  eq(scoring.pointLabel(s.points, 0, s.config), 'SP', 'silver: 4-4 is the sudden-death point');
+  eq(scoring.pointLabel(s.points, 0, s.config), 'KP', 'silver/killer: 4-4 is the decisive point, shown as KP');
   s = play(s, [1]); // single point decides
   eq(s.games, [0, 1], 'silver: sudden death awards the game by one point');
 })();
@@ -347,6 +348,63 @@ console.log('\nRunning padel scoring tests…\n');
   eq([s.display.introVisible, s.display.scoreVisible], [false, true], 'exclusive: showing the score hides the players');
   s = scoring.applyCommand(s, { type: 'setDisplay', display: { scoreVisible: false } });
   eq([s.display.introVisible, s.display.scoreVisible], [false, false], 'exclusive: hiding one does not force the other on');
+})();
+
+// --- Killer point (Score settings option): D1, then the decisive point -------
+(function killerPoint() {
+  let s = withConfig({ deuceMode: 'silver' });
+  s = play(s, [0, 1, 0, 1, 0, 1]); // 40-40
+  eq(scoring.pointLabel(s.points, 0, s.config), 'D1', 'killer: 40-40 is played as a normal deuce (D1)');
+  s = play(s, [1, 0]); // Ad team1, back to 4-4
+  eq(scoring.pointLabel(s.points, 1, s.config), 'KP', 'killer: the second deuce is the killer point (KP)');
+  s = play(s, [1]);
+  eq(s.games, [0, 1], 'killer: one point decides the game at the killer point');
+})();
+
+// --- Match format is switched live with setConfig -----------------------------
+(function setConfigSwitchesRules() {
+  let s = scoring.createDefaultState();
+  s = play(s, [0, 1, 0, 1, 0, 1]); // 40-40 under star point
+  eq(scoring.pointLabel(s.points, 0, s.config), 'D1', 'setConfig: star point shows D1 at 40-40');
+  s = scoring.applyCommand(s, { type: 'setConfig', config: { deuceMode: 'golden' } });
+  eq(scoring.pointLabel(s.points, 0, s.config), 'GP', 'setConfig: switching to golden point relabels 40-40 as GP');
+  s = play(s, [0]);
+  eq(s.games, [1, 0], 'setConfig: ...and the next point wins the game');
+  s = scoring.applyCommand(s, { type: 'resetMatch' });
+  eq(s.config.deuceMode, 'golden', 'setConfig: resetMatch keeps the chosen rule');
+  s = scoring.applyCommand(s, { type: 'resetAll' });
+  eq(s.config.deuceMode, 'star', 'setConfig: resetAll restores star point');
+})();
+
+// --- 3rd set as a maxi tiebreak to 10 -----------------------------------------
+(function maxiTiebreakThirdSet() {
+  let s = withConfig({ finalSetMode: 'superTiebreak', superTiebreakPoints: 10, tiebreakWinByTwo: true });
+  s = scoring.applyCommand(s, { type: 'adjustGames', team: 0, delta: 6 });
+  s = scoring.applyCommand(s, { type: 'saveSet' }); // 1-0 in sets
+  eq([s.inTiebreak, s.inSuperTiebreak], [false, false], 'maxi: the 2nd set is a normal set');
+  s = scoring.applyCommand(s, { type: 'adjustGames', team: 1, delta: 6 });
+  s = scoring.applyCommand(s, { type: 'saveSet' }); // 1-1 -> deciding set
+  eq([s.inTiebreak, s.inSuperTiebreak, s.games], [true, true, [0, 0]], 'maxi: the deciding set starts straight as a tiebreak');
+  const pts = [];
+  for (let i = 0; i < 9; i++) pts.push(0, 1); // 9-9
+  s = play(s, pts);
+  eq(s.points, [9, 9], 'maxi: 9-9 reached');
+  s = play(s, [0]); // 10-9: not over (win by 2)
+  eq([s.status, s.points], ['live', [10, 9]], 'maxi: 10-9 does not end it (win by 2)');
+  s = play(s, [1, 1, 1]); // 10-10, 10-11, 10-12
+  eq([s.status, s.winner, s.setsWon], ['finished', 1, [1, 2]], 'maxi: 12-10 wins the match');
+  const last = s.sets[s.sets.length - 1];
+  eq([last.superTb, last.tb, last.a, last.b], [true, { a: 10, b: 12 }, 6, 7], 'maxi: the set is recorded as 6-7 with the tiebreak points 10-12');
+  s = scoring.applyCommand(s, { type: 'removeLastSet' });
+  eq([s.status, s.setsWon, s.inSuperTiebreak, s.games, s.points], ['live', [1, 1], true, [0, 0], [10, 12]], 'maxi: removing the set re-opens the maxi tiebreak at its points');
+
+  // With the normal 3rd set (default) the deciding set is played as games.
+  s = scoring.createDefaultState();
+  s = scoring.applyCommand(s, { type: 'adjustGames', team: 0, delta: 6 });
+  s = scoring.applyCommand(s, { type: 'saveSet' });
+  s = scoring.applyCommand(s, { type: 'adjustGames', team: 1, delta: 6 });
+  s = scoring.applyCommand(s, { type: 'saveSet' });
+  eq([s.inTiebreak, s.inSuperTiebreak], [false, false], 'normal 3rd set: no tiebreak at the start of the deciding set');
 })();
 
 console.log(`\n${passed} passed, ${failed} failed.\n`);

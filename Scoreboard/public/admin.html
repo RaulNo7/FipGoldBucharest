@@ -33,7 +33,27 @@
           <div class="side-preview" data-side-preview="1"></div>
         </div>
       </div>
-      <p class="hint">Teams come from the official entry lists (89 pairs). Eliminated teams are greyed out — the pair that loses a match is eliminated automatically; manage exceptions on the <b>Teams</b> page. The match format is fixed for the whole tournament: best of 3 sets · star point (two advantages, then golden point) · tiebreak to 7, win by 2.</p>
+      <p class="hint">Teams come from the official entry lists. Eliminated teams are greyed out — the pair that loses a match is eliminated automatically; manage exceptions on the <b>Teams</b> page.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Match format</h2></div>
+      <div class="config-grid">
+        <label>Deuce (40-40)
+          <select id="cfgDeuce">
+            <option value="star">Star point — advantage twice, then a decisive point (SP)</option>
+            <option value="golden">Golden point — no advantage, the point at 40-40 wins (GP)</option>
+            <option value="silver">Killer point — one advantage (D1), then a decisive point (KP)</option>
+          </select>
+        </label>
+        <label>3rd set
+          <select id="cfgFinalSet">
+            <option value="normal">Normal set — 6 games, tiebreak to 7 at 6-6</option>
+            <option value="superTiebreak">Maxi tiebreak — to 10 points, win by 2, instead of a set</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint">Best of 3 sets · 6 games per set · tiebreak to 7, win by 2. The deuce rule takes effect at once (even mid-game); pick the 3rd-set format <b>before the match starts</b> — a deciding set already under way is not converted. Both are kept by "Reset score" and go back to the defaults (star point, normal set) with "Reset everything".</p>
     </div>
 
     <div class="card">

@@ -91,7 +91,7 @@
       el.points[t].textContent = label;
       el.points[t].classList.toggle('ad', /^Ad/.test(label));
       el.points[t].classList.toggle('deuce', /^D\d/.test(label));
-      el.points[t].classList.toggle('gp', label === 'SP');
+      el.points[t].classList.toggle('gp', S.isSuddenDeathLabel(label));
     }
 
     // Winner banner
@@ -127,7 +127,7 @@
       const cell = document.createElement('span');
       cell.className = 'set-cell';
       cell.textContent = teamIdx === 0 ? set.a : set.b;
-      if (set.tb && !set.superTb) {
+      if (set.tb) {
         const tb = document.createElement('span');
         tb.className = 'tb';
         tb.textContent = teamIdx === 0 ? set.tb.a : set.tb.b;
