@@ -25,43 +25,46 @@
     client.send(obj);
   }
 
-  // ---- commercial spots ----
-  fetch('/api/commercials')
-    .then((r) => r.json())
-    .then((data) => {
-      spots = data.commercials || [];
-      buildSpots();
-      render();
-    })
-    .catch(() => {
-      $('#spots').textContent = 'Could not load the commercials list.';
-    });
-
-  function buildSpots() {
-    const box = $('#spots');
-    box.innerHTML = '';
-    spots.forEach((c, i) => {
-      const btn = document.createElement('button');
-      btn.className = 'btn spot';
-      btn.dataset.spot = c.id;
-
-      const num = document.createElement('span');
-      num.className = 'spot-num';
-      num.textContent = String(i + 1).padStart(2, '0');
-
-      const label = document.createElement('span');
-      label.className = 'spot-label';
-      label.textContent = c.label || c.id;
-
-      const file = document.createElement('span');
-      file.className = 'spot-file';
-      file.textContent = (c.file || '').split(/[\\/]/).pop();
-
-      btn.append(num, label, file);
-      btn.addEventListener('click', () => send({ type: 'playCommercial', id: c.id }));
-      box.appendChild(btn);
-    });
+  // ---- the spot list (for status texts) + the videos in the commercials folder ----
+  function loadCommercials() {
+    fetch('/api/commercials')
+      .then((r) => r.json())
+      .then((data) => {
+        spots = data.commercials || [];
+        buildVideos(data);
+        render();
+      })
+      .catch(() => {
+        buildVideos({ videos: [], dir: '' });
+        $('#videoDir').textContent = '(could not load the commercials list)';
+      });
   }
+  loadCommercials();
+
+  function buildVideos(data) {
+    const sel = $('#videoSelect');
+    const videos = data.videos || [];
+    sel.innerHTML = '';
+    if (!videos.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '— no video files in this folder —';
+      sel.appendChild(opt);
+    }
+    videos.forEach((name) => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+    $('#videoDir').textContent = data.dir || '';
+    $('#playVideoBtn').disabled = !videos.length;
+  }
+
+  $('#playVideoBtn').addEventListener('click', () => {
+    const file = $('#videoSelect').value;
+    if (file) send({ type: 'playVideo', file });
+  });
 
   // ---- broadcast controls ----
   $('#introBtn').addEventListener('click', () => {
@@ -89,6 +92,7 @@
       $('#obsLiveScene').value = cfg.liveScene || '';
       $('#obsAdsScene').value = cfg.commercialsScene || '';
       $('#obsMediaSource').value = cfg.mediaSource || '';
+      $('#obsAdsDir').value = cfg.commercialsDir || '';
       $('#obsMaxBreak').value = cfg.maxBreakSeconds;
     })
     .catch(() => {
@@ -105,6 +109,7 @@
       liveScene: $('#obsLiveScene').value.trim(),
       commercialsScene: $('#obsAdsScene').value.trim(),
       mediaSource: $('#obsMediaSource').value.trim(),
+      commercialsDir: $('#obsAdsDir').value.trim(),
       maxBreakSeconds: +$('#obsMaxBreak').value,
     };
     fetch('/api/obs-settings', {
@@ -112,7 +117,10 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-      .then((r) => flash($('#saveObsBtn'), r.ok ? 'Saved!' : 'Failed'))
+      .then((r) => {
+        flash($('#saveObsBtn'), r.ok ? 'Saved!' : 'Failed');
+        if (r.ok) loadCommercials(); // the folder may have changed
+      })
       .catch(() => flash($('#saveObsBtn'), 'Failed'));
   });
 
@@ -159,7 +167,8 @@
     } else if (running) {
       const cur = spots.find((c) => c.id === o.currentCommercial);
       const pos = o.playlist && o.playlistTotal ? ` (${o.playlistIndex}/${o.playlistTotal})` : '';
-      text = cur ? `Playing "${cur.label}"${pos} on the stream…` : 'Commercials are playing on the stream…';
+      const label = cur ? cur.label : videoName(o.currentCommercial);
+      text = label ? `Playing "${label}"${pos} on the stream…` : 'Commercials are playing on the stream…';
     } else if (!o.enabled) {
       text = 'Automatic break is OFF — use the buttons to run commercials manually.';
     } else {
@@ -168,16 +177,23 @@
     if (o.lastError) text += ` — last error: ${o.lastError}`;
     $('#breakStatus').textContent = text;
 
-    $$('[data-spot]').forEach((btn) => {
-      const id = btn.dataset.spot;
-      btn.classList.toggle('is-playing', running && o.currentCommercial === id);
-      btn.classList.toggle('is-last', !running && o.lastCommercial === id);
-      btn.disabled = running;
-    });
+    // Video row: locked while anything is on air, green while its file plays.
+    const playingVideo = running && !!videoName(o.currentCommercial);
+    const playBtn = $('#playVideoBtn');
+    playBtn.disabled = running || !$('#videoSelect').value;
+    playBtn.classList.toggle('is-playing', playingVideo);
+    $('#videoSelect').disabled = running;
+
     const last = spots.find((c) => c.id === o.lastCommercial);
     $('#lastPlayed').textContent = last
       ? 'last played: ' + last.label
-      : o.lastCommercial === 'BREAK' ? 'last played: break video' : '';
+      : o.lastCommercial === 'BREAK' ? 'last played: break video'
+        : videoName(o.lastCommercial) ? 'last played: ' + videoName(o.lastCommercial) : '';
+  }
+
+  /** File name behind a "check a video" run (its id is FILE:<name>), else ''. */
+  function videoName(id) {
+    return typeof id === 'string' && id.startsWith('FILE:') ? id.slice(5) : '';
   }
   setInterval(render, 500); // live countdown tick
 })();

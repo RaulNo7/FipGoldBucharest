@@ -139,8 +139,8 @@ function cleanupAndExit() {
     }
   }
   assert(up, 'scoreboard server started');
-  await cmd({ type: 'selectTeam', team: 0, teamId: 'M-Q-22' });
-  await cmd({ type: 'selectTeam', team: 1, teamId: 'M-MD-27' });
+  await cmd({ type: 'selectTeam', team: 0, teamId: 'M-MD-14' });
+  await cmd({ type: 'selectTeam', team: 1, teamId: 'M-MD-01' });
 
   // Public read-only port: widget pages only, commands rejected, WS is broadcast-only.
   const pub = (p, opts) => fetch(`http://127.0.0.1:${PUBLIC_PORT}${p}`, opts);
@@ -258,6 +258,29 @@ function cleanupAndExit() {
   mediaPolls = 0;
   inputSettingsCalls.length = 0;
 
+  // Media tab "check a video": any file from the commercials folder, by name only.
+  const ads = await api('/api/commercials');
+  assert(
+    !!ads.dir && ads.videos.includes('02_INVERSORES.mp4') && ads.commercials.length === 6 && ads.commercials.every((c) => c.exists === true && path.isAbsolute(c.file)),
+    'commercials API: folder, its video files and the spots resolved to existing files (got dir=' + ads.dir + ', ' + ads.videos.length + ' videos)'
+  );
+  await cmd({ type: 'playVideo', file: '..\\server.js' });
+  await cmd({ type: 'playVideo', file: 'nope.mp4' });
+  await sleep(300);
+  assert(inputSettingsCalls.length === 0 && sceneSwitches.length === 0, 'playVideo: names outside the folder are ignored');
+  await cmd({ type: 'playVideo', file: '02_INVERSORES.mp4' });
+  await sleep(6000);
+  st = await api('/api/state');
+  assert(
+    inputSettingsCalls.length === 2 && /02_INVERSORES\.mp4$/.test(inputSettingsCalls[0]) && inputSettingsCalls[1] === 'C:\\merged-break.mp4',
+    'playVideo: the chosen file is loaded, played and the break video restored (got: ' + inputSettingsCalls.join(' | ') + ')'
+  );
+  assert(JSON.stringify(sceneSwitches) === JSON.stringify(['COMMERCIALS', 'LIVE']), 'playVideo: scenes switched to COMMERCIALS and back');
+  assert(st.display.scoreVisible === true, 'playVideo: the score is shown again afterwards');
+  sceneSwitches.length = 0;
+  mediaPolls = 0;
+  inputSettingsCalls.length = 0;
+
   await cmd({ type: 'adjustGames', team: 0, delta: 6 });
   await cmd({ type: 'saveSet' });
   await cmd({ type: 'adjustGames', team: 0, delta: 6 });
@@ -267,34 +290,34 @@ function cleanupAndExit() {
   assert(st.display.scoreVisible !== false, 'score still visible right after the finish');
 
   // Player name corrections from the Teams page: roster API, live pair and re-selection all follow.
-  await cmd({ type: 'setPlayerName', teamId: 'M-Q-22', player: 1, name: 'Kaan Sali (WC)' });
+  await cmd({ type: 'setPlayerName', teamId: 'M-MD-14', player: 1, name: 'Giulio Graziotti (WC)' });
   let roster = await api('/api/teams');
   const team = (id) => roster.teams.find((t) => t.id === id);
-  assert(team('M-Q-22').players[1].name === 'Kaan Sali (WC)' && team('M-Q-22').players[1].originalName === 'Kaan Sali', 'rename: /api/teams shows the corrected name and keeps the original');
+  assert(team('M-MD-14').players[1].name === 'Giulio Graziotti (WC)' && team('M-MD-14').players[1].originalName === 'Giulio Graziotti', 'rename: /api/teams shows the corrected name and keeps the original');
   st = await api('/api/state');
-  assert(st.teams[0].players[1].name === 'Kaan Sali (WC)', 'rename: the pair selected for the current match is updated live');
+  assert(st.teams[0].players[1].name === 'Giulio Graziotti (WC)', 'rename: the pair selected for the current match is updated live');
   assert((await cmd({ type: 'setPlayerName', teamId: 'NOPE', player: 0, name: 'x' })).status === 200 && !(await api('/api/state')).teams_registry.NOPE, 'rename: unknown team ids are ignored');
-  await cmd({ type: 'setPlayerName', teamId: 'M-Q-22', player: 1, name: '' });
+  await cmd({ type: 'setPlayerName', teamId: 'M-MD-14', player: 1, name: '' });
   st = await api('/api/state');
-  assert(st.teams[0].players[1].name === 'Kaan Sali' && !st.teams_registry['M-Q-22'].names, 'rename: clearing restores the entry-list name');
-  await cmd({ type: 'setPlayerCountry', teamId: 'M-Q-22', player: 1, country: 'pol' });
+  assert(st.teams[0].players[1].name === 'Giulio Graziotti' && !st.teams_registry['M-MD-14'].names, 'rename: clearing restores the entry-list name');
+  await cmd({ type: 'setPlayerCountry', teamId: 'M-MD-14', player: 1, country: 'pol' });
   roster = await api('/api/teams');
   st = await api('/api/state');
-  assert(team('M-Q-22').players[1].country === 'POL' && team('M-Q-22').players[1].originalCountry === 'ROU' && st.teams[0].players[1].country === 'POL', 'country: /api/teams and the selected pair show the corrected code');
-  await cmd({ type: 'setPlayerCountry', teamId: 'M-Q-22', player: 1, country: '' });
+  assert(team('M-MD-14').players[1].country === 'POL' && team('M-MD-14').players[1].originalCountry === 'ITA' && st.teams[0].players[1].country === 'POL', 'country: /api/teams and the selected pair show the corrected code');
+  await cmd({ type: 'setPlayerCountry', teamId: 'M-MD-14', player: 1, country: '' });
   st = await api('/api/state');
-  assert(st.teams[0].players[1].country === 'ROU' && !st.teams_registry['M-Q-22'].countries, 'country: clearing restores the entry-list code');
+  assert(st.teams[0].players[1].country === 'ITA' && !st.teams_registry['M-MD-14'].countries, 'country: clearing restores the entry-list code');
 
   // The losing pair is eliminated automatically; reverting the result reinstates it.
   roster = await api('/api/teams');
-  assert(team('M-MD-27').active === false, 'the losing team is eliminated automatically');
-  assert(team('M-Q-22').active === true, 'the winning team stays active');
+  assert(team('M-MD-01').active === false, 'the losing team is eliminated automatically');
+  assert(team('M-MD-14').active === true, 'the winning team stays active');
   await cmd({ type: 'removeLastSet' }); // result reverted -> match live again
   roster = await api('/api/teams');
-  assert(team('M-MD-27').active === true, 'reverting the result reinstates the team');
+  assert(team('M-MD-01').active === true, 'reverting the result reinstates the team');
   await cmd({ type: 'saveSet' }); // ...and finishing again eliminates it again
   roster = await api('/api/teams');
-  assert(team('M-MD-27').active === false, 'finishing again eliminates it again');
+  assert(team('M-MD-01').active === false, 'finishing again eliminates it again');
 
   // countdown (2s) + fade (1s) + 6 spots x (load + 3 polls x 0.5s) -> done well within 16s
   await sleep(16000);

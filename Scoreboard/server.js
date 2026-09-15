@@ -200,18 +200,66 @@ const DEFAULT_OBS_SETTINGS = {
   publicHostname: '', // e.g. scorebug.example.com (the tunnel hostname) - only used to build URLs in the admin panel
   refereeKey: '', // secret that unlocks the referee page + score commands on the public port (empty = LAN only)
   youtubeUrl: '', // live-stream link; when set, the website menu shows a "YouTube Live" entry (public, not secret)
+  // Folder holding the commercial videos ('' = auto: the app's Commercials
+  // folder, see defaultCommercialsDir). Spot files below are looked up in it
+  // by file name, so the list survives moving the app to another PC.
+  commercialsDir: '',
   // Individual spots for the Media tab: each temporarily swaps the media
   // source's file, plays through the same break routine, then restores the
   // merged break video configured in OBS.
   commercials: [
-    { id: 'FIP_INTRO', label: 'FIP INTRO', file: 'C:\\Padel\\FipGoldBucharest\\Commercials\\01_FIP_INTRO.mp4' },
-    { id: 'INVERSORES', label: 'INVERSORES', file: 'C:\\Padel\\FipGoldBucharest\\Commercials\\02_INVERSORES.mp4' },
-    { id: 'BULLPADEL', label: 'BULLPADEL', file: 'C:\\Padel\\FipGoldBucharest\\Commercials\\03_BULLPADEL.mp4' },
-    { id: 'CUPRA', label: 'CUPRA', file: 'C:\\Padel\\FipGoldBucharest\\Commercials\\04_CUPRA.mp4' },
-    { id: 'FIP_BEYOND', label: 'FIP BEYOND', file: 'C:\\Padel\\FipGoldBucharest\\Commercials\\05_FIP_BEYOND.mp4' },
-    { id: 'MONDO', label: 'MONDO', file: 'C:\\Padel\\FipGoldBucharest\\Commercials\\06_MONDO.mov' },
+    { id: 'FIP_INTRO', label: 'FIP INTRO', file: '01_FIP_INTRO.mp4' },
+    { id: 'INVERSORES', label: 'INVERSORES', file: '02_INVERSORES.mp4' },
+    { id: 'BULLPADEL', label: 'BULLPADEL', file: '03_BULLPADEL.mp4' },
+    { id: 'CUPRA', label: 'CUPRA', file: '04_CUPRA.mp4' },
+    { id: 'FIP_BEYOND', label: 'FIP BEYOND', file: '05_FIP_BEYOND.mp4' },
+    { id: 'MONDO', label: 'MONDO', file: '06_MONDO.mov' },
   ],
 };
+
+const VIDEO_FILE = /\.(mp4|mov|m4v|mkv|webm|avi|mpg|mpeg|wmv)$/i;
+
+/**
+ * Where the commercial videos live when no folder is configured: the
+ * COMMERCIALS_DIR env, else the nearest "Commercials" folder above this one
+ * (<repo>\Commercials next to Scoreboard\ in the source tree, and the same
+ * repo folder when the app runs from bin\Debug\net10.0-windows\Scoreboard).
+ */
+function defaultCommercialsDir() {
+  if (process.env.COMMERCIALS_DIR) return process.env.COMMERCIALS_DIR;
+  let dir = __dirname;
+  for (let i = 0; i < 6; i++) {
+    dir = path.dirname(dir);
+    const candidate = path.join(dir, 'Commercials');
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return path.join(path.dirname(__dirname), 'Commercials');
+}
+
+function commercialsDir() {
+  return (obsSettings && obsSettings.commercialsDir) || defaultCommercialsDir();
+}
+
+/** Video files in the commercials folder (file names, sorted) — [] if unreadable. */
+function listCommercialVideos() {
+  try {
+    return fs.readdirSync(commercialsDir()).filter((f) => VIDEO_FILE.test(f)).sort();
+  } catch (_) {
+    return [];
+  }
+}
+
+/**
+ * Absolute path OBS should load for a spot: the configured path if it exists,
+ * else the same file name inside the commercials folder (the spot lists were
+ * written on another PC with absolute paths), else the path as configured.
+ */
+function resolveSpotFile(file) {
+  if (!file) return file;
+  if (path.isAbsolute(file) && fs.existsSync(file)) return file;
+  const local = path.join(commercialsDir(), path.basename(file));
+  return fs.existsSync(local) ? local : file;
+}
 
 let obsSettings = loadObsSettings();
 
@@ -353,7 +401,7 @@ function cancelBreak() {
  */
 async function runBreak(opts = {}) {
   if (breakState.phase === 'running') return;
-  const spots = obsSettings.commercials || [];
+  const spots = (obsSettings.commercials || []).map((c) => ({ id: c.id, file: resolveSpotFile(c.file) }));
   let queue;
   if (opts.file) queue = [{ id: opts.id, file: opts.file }];
   else if (obsSettings.breakMode !== 'file' && spots.length) queue = spots.map((c) => ({ id: c.id, file: c.file }));
@@ -387,7 +435,7 @@ async function runBreak(opts = {}) {
       // Remember the file that was on the source so it can be put back afterwards.
       const current = await obs.request('GetInputSettings', { inputName: obsSettings.mediaSource });
       const orig = current.inputSettings && current.inputSettings.local_file;
-      const isSpot = spots.some((c) => c.file === orig);
+      const isSpot = spots.some((c) => c.file === orig) || (opts.file && orig === opts.file);
       if (orig && !isSpot) breakState.origFile = orig;
     }
     for (let i = 0; i < queue.length; i++) {
@@ -579,7 +627,22 @@ function handleCommand(cmd) {
       breakState.phase = 'idle';
       breakState.countdownEndsAt = null;
     }
-    if (breakState.phase !== 'running') runBreak({ id: spot.id, file: spot.file });
+    if (breakState.phase !== 'running') runBreak({ id: spot.id, file: resolveSpotFile(spot.file) });
+    return;
+  }
+
+  // Media tab "check a video": play any video file from the commercials folder
+  // (file name only — nothing outside that folder can be loaded into OBS).
+  if (cmd.type === 'playVideo') {
+    const name = typeof cmd.file === 'string' ? path.basename(cmd.file) : '';
+    if (!name || !listCommercialVideos().includes(name)) return;
+    if (breakState.phase === 'countdown') {
+      clearTimeout(breakState.timer);
+      breakState.timer = null;
+      breakState.phase = 'idle';
+      breakState.countdownEndsAt = null;
+    }
+    if (breakState.phase !== 'running') runBreak({ id: 'FILE:' + name, file: path.join(commercialsDir(), name) });
     return;
   }
 
@@ -745,11 +808,17 @@ function handleMainRequest(req, res) {
     return;
   }
 
-  // Commercial spots for the Media tab (no secrets: ids, labels, file names only).
+  // Commercial spots for the Media tab (no secrets: ids, labels, file names),
+  // plus the commercials folder and every video file found in it.
   if (pathname === '/api/commercials') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-      commercials: (obsSettings.commercials || []).map((c) => ({ id: c.id, label: c.label, file: c.file })),
+      dir: commercialsDir(),
+      videos: listCommercialVideos(),
+      commercials: (obsSettings.commercials || []).map((c) => {
+        const file = resolveSpotFile(c.file);
+        return { id: c.id, label: c.label, file, exists: fs.existsSync(file) };
+      }),
     }));
     return;
   }
@@ -776,6 +845,7 @@ function handleMainRequest(req, res) {
           for (const k of ['url', 'password', 'liveScene', 'commercialsScene', 'mediaSource', 'publicHostname', 'refereeKey']) {
             if (typeof incoming[k] === 'string') clean[k] = incoming[k];
           }
+          if (typeof incoming.commercialsDir === 'string') clean.commercialsDir = incoming.commercialsDir.trim();
           if (typeof incoming.youtubeUrl === 'string') clean.youtubeUrl = sanitizeLink(incoming.youtubeUrl);
           for (const k of ['autoDelaySeconds', 'maxBreakSeconds']) {
             const n = Number(incoming[k]);

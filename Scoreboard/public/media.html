@@ -40,8 +40,11 @@
           <span class="spot-file">back to the live scene</span>
         </button>
       </div>
-      <div id="spots" class="spots"></div>
-      <p class="hint"><b>Play all commercials</b> (and the automatic break after a match) runs these spots one after another, in this order — no merged file needed. Each button below plays just that spot. Either way: the scorebug hides, OBS switches to the commercials scene, the files are loaded into the media source one by one, and OBS returns to the live scene when the last one ends. After a <b>single spot</b> the score always comes back (they are meant for during the game). After <b>Play all</b> or the automatic break, the score comes back only if it interrupted a live match; after a finished match it stays hidden until the next match starts. The last spot played stays highlighted. Files are listed in <b>obs-settings.json</b> (Commercials folder).</p>
+      <div class="video-row">
+        <select id="videoSelect" aria-label="Video file"></select>
+        <button class="btn btn-play" id="playVideoBtn">▶ Play</button>
+      </div>
+      <p class="hint"><b>Play all commercials</b> (and the automatic break after a match) runs the spots listed in <b>obs-settings.json</b> one after another — no merged file needed. The dropdown holds every video file in the commercials folder <b id="videoDir">…</b>; <b>Play</b> puts just that file on the stream. Either way: the scorebug hides, OBS switches to the commercials scene, the file is loaded into the media source, and OBS returns to the live scene when it ends. After a <b>single video</b> the score always comes back (they are meant for during the game). After <b>Play all</b> or the automatic break, the score comes back only if it interrupted a live match; after a finished match it stays hidden until the next match starts.</p>
     </div>
     <div class="card">
       <div class="card-head"><h2>Commercial break settings</h2></div>
@@ -73,6 +76,9 @@
         </label>
         <label>Commercials media source
           <input type="text" id="obsMediaSource" />
+        </label>
+        <label>Commercials folder
+          <input type="text" id="obsAdsDir" placeholder="(auto: the app's Commercials folder)" />
         </label>
       </div>
       <div class="row gap wrap actions">

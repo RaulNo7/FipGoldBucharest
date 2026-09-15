@@ -109,6 +109,41 @@
   color: var(--muted);
 }
 
+/* The folder's video files in a dropdown + a gold Play button (replaces the per-spot buttons). */
+.video-row {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  margin-bottom: 10px;
+}
+
+.video-row select {
+  padding: 12px 14px;
+  font-size: 15px;
+}
+
+.video-row select {
+  flex: 1;
+  min-width: 0;
+  font-family: Consolas, monospace;
+}
+
+.btn.btn-play {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 800;
+  padding: 0 24px;
+  white-space: nowrap;
+}
+
+.btn.btn-play.is-playing {
+  background: rgba(34, 197, 94, 0.22);
+  border-color: var(--green);
+  color: var(--fg);
+  animation: playingPulse 1.4s ease-in-out infinite;
+}
+
 .btn.is-on {
   background: var(--accent);
   color: var(--accent-fg);
