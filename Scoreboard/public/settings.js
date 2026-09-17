@@ -33,11 +33,6 @@
   $('#copyIntroUrlBtn').addEventListener('click', () => copyField($('#introUrl'), $('#copyIntroUrlBtn')));
   $('#openIntroBtn').addEventListener('click', () => window.open($('#introUrl').value, '_blank'));
 
-  // ---- replay tag URL (Browser Source for the REPLAY scene) ----
-  $('#replayTagUrl').value = new URL('/replay', location.origin).toString();
-  $('#copyReplayTagUrlBtn').addEventListener('click', () => copyField($('#replayTagUrl'), $('#copyReplayTagUrlBtn')));
-  $('#openReplayTagBtn').addEventListener('click', () => window.open($('#replayTagUrl').value + '?preview=1', '_blank'));
-
   // ---- court TV URL (LAN) + public port info ----
   fetch('/api/info')
     .then((r) => r.json())

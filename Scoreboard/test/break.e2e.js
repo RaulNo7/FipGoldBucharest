@@ -171,13 +171,6 @@ function cleanupAndExit() {
   const home = await pub('/');
   assert(home.status === 200 && /id="youtubeLink"/.test(await home.text()) && (await pub('/home.css')).status === 200, 'public port serves the main page');
   assert((await pub('/scorebug')).status === 200 && (await pub('/scorebug.js')).status === 200, 'public port serves the scorebug page (embed code)');
-  const main = (p) => fetch(`http://127.0.0.1:${SB_PORT}${p}`);
-  const replayPage = await main('/replay');
-  assert(
-    replayPage.status === 200 && /id="replayTag"/.test(await replayPage.text()) && (await main('/replay.css')).status === 200 && (await main('/replay.js')).status === 200,
-    'main port serves the replay tag page (Browser Source for the REPLAY scene)'
-  );
-  assert((await pub('/replay')).status === 404, 'replay tag page is not served on the public port');
   assert((await pub('/settings')).status === 404 && (await pub('/settings.js')).status === 404, 'public port never serves the app-only Admin page');
   assert((await fetch(`http://127.0.0.1:${SB_PORT}/settings`)).status === 200 && /Bucharest 2026 — Home/.test(await (await fetch(`http://127.0.0.1:${SB_PORT}/`)).text()), 'LAN port serves the Admin page and the main page');
   const keyedHome = await pub('/?key=testkey');
