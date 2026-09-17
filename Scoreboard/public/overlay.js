@@ -41,13 +41,35 @@
   // (the /tv page has its own full-screen layout and ignores it).
   if (!tvMode) applyPositionFromQuery();
 
+  // Replay cover (/overlay?...&cover=1): a Browser Source for the OBS REPLAY
+  // scene, set up exactly like the live scorebug source. Replay clips are
+  // recorded from the program picture, so the score is baked into them; this
+  // mode lays out the very same scorebug (same size and position) but covers
+  // its rows with an opaque "REPLAY" plate, and shows only while a replay clip
+  // is on the stream (&preview=1 keeps it visible to line it up in OBS).
+  const query = new URLSearchParams(location.search);
+  const coverMode = !tvMode && query.get('cover') === '1';
+  const coverPreview = query.get('preview') === '1';
+  if (coverMode) {
+    root.classList.add('cover');
+    const plate = document.createElement('div');
+    plate.className = 'cover-plate';
+    const icon = document.createElement('span');
+    icon.className = 'cover-icon';
+    const word = document.createElement('span');
+    word.className = 'cover-word';
+    word.textContent = 'REPLAY';
+    plate.append(icon, word);
+    root.querySelector('.board').appendChild(plate);
+  }
+
   let lastSeq = -1;
 
   PadelClient.connect({
     onState: render,
   });
 
-  function render(state) {
+  function render(state, msg) {
     const d = state.display || {};
     const finished = state.status === 'finished';
 
@@ -115,6 +137,14 @@
         cell.classList.add('bump');
       }
       lastSeq = state.seq;
+    }
+
+    if (coverMode) {
+      // The cover follows the replay, not the score toggle (the score is
+      // switched off for the replay, yet the cover must be there).
+      const replay = msg && msg.obs && msg.obs.replay;
+      root.classList.toggle('hidden', !(coverPreview || (replay && replay.playing)));
+      return;
     }
 
     // During a commercial break the broadcast overlay hides itself; /tv keeps showing.

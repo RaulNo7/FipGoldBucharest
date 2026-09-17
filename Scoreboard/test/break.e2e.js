@@ -171,6 +171,13 @@ function cleanupAndExit() {
   const home = await pub('/');
   assert(home.status === 200 && /id="youtubeLink"/.test(await home.text()) && (await pub('/home.css')).status === 200, 'public port serves the main page');
   assert((await pub('/scorebug')).status === 200 && (await pub('/scorebug.js')).status === 200, 'public port serves the scorebug page (embed code)');
+  const main = (p) => fetch(`http://127.0.0.1:${SB_PORT}${p}`);
+  const replayPage = await main('/replay');
+  assert(
+    replayPage.status === 200 && /id="replayTag"/.test(await replayPage.text()) && (await main('/replay.css')).status === 200 && (await main('/replay.js')).status === 200,
+    'main port serves the replay tag page (Browser Source for the REPLAY scene)'
+  );
+  assert((await pub('/replay')).status === 404, 'replay tag page is not served on the public port');
   assert((await pub('/settings')).status === 404 && (await pub('/settings.js')).status === 404, 'public port never serves the app-only Admin page');
   assert((await fetch(`http://127.0.0.1:${SB_PORT}/settings`)).status === 200 && /Bucharest 2026 — Home/.test(await (await fetch(`http://127.0.0.1:${SB_PORT}/`)).text()), 'LAN port serves the Admin page and the main page');
   const keyedHome = await pub('/?key=testkey');
@@ -392,10 +399,15 @@ function cleanupAndExit() {
     return cond();
   };
   const backToLive = () => sceneSwitches.length >= 2 && sceneSwitches[sceneSwitches.length - 1] === 'LIVE';
+  await cmd({ type: 'setDisplay', display: { scoreVisible: true } });
   await cmd({ type: 'saveReplay' });
+  await waitFor(() => sceneSwitches.includes('REPLAY'), 15000);
+  st = await api('/api/state');
+  assert(st.display.scoreVisible === false, 'replay: the scorebug is hidden while the clip is on the stream');
   await waitFor(backToLive, 15000);
   await sleep(500);
   st = await api('/api/state');
+  assert(st.display.scoreVisible === true, 'replay: the scorebug comes back after the clip');
   const clips = fs.existsSync(replayDir) ? fs.readdirSync(replayDir) : [];
   assert(clips.length === 1 && /^Replay 2026-09-15 10-30-01\.mp4$/.test(clips[0]) && !fs.existsSync(lastReplayPath), 'replay: the saved clip was moved into the replay folder (got: ' + clips.join(', ') + ')');
   assert(inputSettingsCalls.length === 1 && inputSettingsCalls[0] === path.join(replayDir, clips[0] || ''), 'replay: the clip was loaded into the replay media source (got: ' + inputSettingsCalls.join(' | ') + ')');
@@ -417,9 +429,12 @@ function cleanupAndExit() {
   await cmd({ type: 'playReplay', file: 'nope.mp4' });
   await sleep(300);
   assert(inputSettingsCalls.length === 0 && sceneSwitches.length === 0, 'playReplay: names outside the replay folder are ignored');
+  await cmd({ type: 'setDisplay', display: { scoreVisible: false } }); // hidden by the operator before the replay
   await cmd({ type: 'playReplay', file: (list.replays[1] || {}).name || 'missing.mp4' });
   await waitFor(backToLive, 15000);
   await sleep(500);
+  st = await api('/api/state');
+  assert(st.display.scoreVisible === false, 'playReplay: a score that was already hidden stays hidden afterwards');
   assert(inputSettingsCalls.length === 1 && /10-30-01\.mp4$/.test(inputSettingsCalls[0]) && JSON.stringify(sceneSwitches) === JSON.stringify(['REPLAY', 'LIVE']), 'playReplay: the chosen clip plays on the replay scene, then back to LIVE (got: ' + inputSettingsCalls.join(' | ') + ' / ' + sceneSwitches.join(', ') + ')');
 
   cleanupAndExit();

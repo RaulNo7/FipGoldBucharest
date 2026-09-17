@@ -16,7 +16,12 @@
     url.searchParams.set('pos', pos);
     if (scale && scale !== '1') url.searchParams.set('scale', scale);
     $('#overlayUrl').value = url.toString();
+    // Replay cover: the same scorebug URL + cover=1, so it lands on the same pixels.
+    url.searchParams.set('cover', '1');
+    $('#coverUrl').value = url.toString();
   }
+  $('#copyCoverUrlBtn').addEventListener('click', () => copyField($('#coverUrl'), $('#copyCoverUrlBtn')));
+  $('#openCoverBtn').addEventListener('click', () => window.open($('#coverUrl').value + '&preview=1', '_blank'));
   $('#ovPos').addEventListener('change', updateOverlayUrl);
   $('#ovScale').addEventListener('input', updateOverlayUrl);
   $('#copyUrlBtn').addEventListener('click', () => copyField($('#overlayUrl'), $('#copyUrlBtn')));
@@ -27,6 +32,11 @@
   $('#introUrl').value = new URL('/intro', location.origin).toString();
   $('#copyIntroUrlBtn').addEventListener('click', () => copyField($('#introUrl'), $('#copyIntroUrlBtn')));
   $('#openIntroBtn').addEventListener('click', () => window.open($('#introUrl').value, '_blank'));
+
+  // ---- replay tag URL (Browser Source for the REPLAY scene) ----
+  $('#replayTagUrl').value = new URL('/replay', location.origin).toString();
+  $('#copyReplayTagUrlBtn').addEventListener('click', () => copyField($('#replayTagUrl'), $('#copyReplayTagUrlBtn')));
+  $('#openReplayTagBtn').addEventListener('click', () => window.open($('#replayTagUrl').value + '?preview=1', '_blank'));
 
   // ---- court TV URL (LAN) + public port info ----
   fetch('/api/info')

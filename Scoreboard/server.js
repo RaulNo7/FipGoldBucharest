@@ -758,7 +758,14 @@ async function runReplayClip(file) {
   breakState.lastError = null;
   replayState.playing = path.basename(file);
   replayState.lastError = null;
+  // The scorebug is hidden for the whole replay (only the REPLAY tag stays on
+  // screen) and comes back afterwards if it was showing before.
+  const scoreWasVisible = !(state.display && state.display.scoreVisible === false);
   broadcastState();
+  if (scoreWasVisible) {
+    handleCommand({ type: 'setDisplay', display: { scoreVisible: false } });
+    await sleep(500); // let the overlay fade out before the scene switch
+  }
   try {
     await connectObs();
     await fitMediaSourceToCanvas(obsSettings.replayScene, obsSettings.replaySource);
@@ -786,6 +793,7 @@ async function runReplayClip(file) {
   replayState.playing = null;
   breakState.kind = null;
   breakState.phase = 'idle';
+  if (scoreWasVisible) handleCommand({ type: 'setDisplay', display: { scoreVisible: true } });
   broadcastState();
 }
 
@@ -1180,6 +1188,7 @@ function handleMainRequest(req, res) {
   if (pathname === '/teams') pathname = '/teams.html';
   if (pathname === '/tv') pathname = '/tv.html';
   if (pathname === '/intro') pathname = '/intro.html';
+  if (pathname === '/replay') pathname = '/replay.html'; // REPLAY-scene badge (OBS only, not on the public port)
   if (pathname === '/media') pathname = '/media.html';
 
   const filePath = safeJoin(PUBLIC_DIR, pathname);

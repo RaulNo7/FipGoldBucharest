@@ -300,3 +300,70 @@ body {
   from { opacity: 0; transform: scale(0.92); }
   to { opacity: 1; transform: scale(1); }
 }
+
+/* ---- Replay cover (?cover=1) ----
+   Same scorebug, same geometry, but the rows are covered by an opaque
+   "REPLAY" plate: it sits on top of the score that is baked into a replay
+   clip (the replay buffer records the program picture). */
+.scoreboard.cover .board {
+  position: relative;
+  background: #0b1b2e; /* opaque: nothing of the recorded score shines through */
+  backdrop-filter: none;
+}
+
+.scoreboard.cover .board > :not(.cover-plate) {
+  visibility: hidden; /* keeps the layout (= the size of the live scorebug) */
+}
+
+.scoreboard.cover .title-bar {
+  background: #081422;
+}
+
+.cover-plate {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: linear-gradient(135deg, #2e6ca4 0%, #1f4f7d 100%);
+  border-left: 8px solid var(--gold);
+  color: var(--white);
+}
+
+.cover-word {
+  font-family: var(--font-names);
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  line-height: 1;
+}
+
+/* Double "rewind" chevrons drawn in CSS. */
+.cover-icon {
+  position: relative;
+  width: 44px;
+  height: 34px;
+  flex: none;
+  animation: coverPulse 1.2s ease-in-out infinite;
+}
+
+.cover-icon::before,
+.cover-icon::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-top: 17px solid transparent;
+  border-bottom: 17px solid transparent;
+  border-right: 22px solid var(--gold-light);
+}
+
+.cover-icon::before { left: 0; }
+.cover-icon::after { left: 21px; }
+
+@keyframes coverPulse {
+  0%, 100% { opacity: 1; transform: translateX(0); }
+  50% { opacity: 0.55; transform: translateX(-4px); }
+}

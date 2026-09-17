@@ -1,0 +1,137 @@
+/* Replay tag — a transparent OBS Browser Source for the REPLAY scene: a small
+   blue/gold "REPLAY" badge that slides in while a replay clip is on the
+   stream, so viewers can tell it from live play. Same palette as the scorebug. */
+
+:root {
+  --font: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+  --font-names: 'Bahnschrift SemiCondensed', 'Bahnschrift', 'Arial Narrow', 'Segoe UI', sans-serif;
+  --gold: #d4a017;
+  --gold-light: #e8c158;
+  --blue: #2e6ca4;
+  --blue-deep: #1f4f7d;
+  --title-bg: rgba(8, 20, 34, 0.96);
+  --white: #ffffff;
+  --muted: #9fb1c4;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  background: transparent;
+  font-family: var(--font);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* Top-left by default (where the scorebug sits on the live scene); ?pos=
+   moves it. All sizes scale from this one font-size (1920x1080 => ~26px). */
+.replay-tag {
+  --scale: 1;
+  --slide: -130%;
+  position: fixed;
+  top: 40px;
+  left: 40px;
+  font-size: min(1.35vw, 2.4vh);
+  transform-origin: top left;
+  transform: scale(var(--scale)) translateX(0);
+  filter: drop-shadow(0 0.35em 1em rgba(0, 0, 0, 0.5));
+  transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.25, 1), opacity 0.35s ease;
+  opacity: 1;
+}
+
+.replay-tag.pos-top-right,
+.replay-tag.pos-bottom-right {
+  --slide: 130%;
+  left: auto;
+  right: 40px;
+}
+
+.replay-tag.pos-bottom-left,
+.replay-tag.pos-bottom-right {
+  top: auto;
+  bottom: 40px;
+}
+
+.replay-tag.pos-top-right { transform-origin: top right; }
+.replay-tag.pos-bottom-left { transform-origin: bottom left; }
+.replay-tag.pos-bottom-right { transform-origin: bottom right; }
+
+/* Hidden = slid out past the nearest side edge. */
+.replay-tag.hidden {
+  transform: scale(var(--scale)) translateX(var(--slide));
+  opacity: 0;
+}
+
+.replay-main {
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  padding: 0.38em 1em 0.38em 0.8em;
+  background: linear-gradient(135deg, var(--blue) 0%, var(--blue-deep) 100%);
+  border-left: 0.32em solid var(--gold);
+  border-radius: 0.35em 0.35em 0 0;
+  color: var(--white);
+}
+
+.replay-word {
+  font-family: var(--font-names);
+  font-size: 1.55em;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1;
+}
+
+/* Double "rewind" chevrons drawn in CSS (no icon font in OBS's browser). */
+.replay-icon {
+  position: relative;
+  width: 1.5em;
+  height: 1.15em;
+  flex: none;
+  animation: replayPulse 1.2s ease-in-out infinite;
+}
+
+.replay-icon::before,
+.replay-icon::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-top: 0.575em solid transparent;
+  border-bottom: 0.575em solid transparent;
+  border-right: 0.75em solid var(--gold-light);
+}
+
+.replay-icon::before { left: 0; }
+.replay-icon::after { left: 0.72em; }
+
+.replay-title {
+  padding: 0.3em 1em 0.34em 1.12em;
+  background: var(--title-bg);
+  border-radius: 0 0 0.35em 0.35em;
+  color: var(--muted);
+  font-size: 0.62em;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.replay-tag.no-title .replay-title {
+  display: none;
+}
+
+.replay-tag.no-title .replay-main {
+  border-radius: 0.35em;
+}
+
+@keyframes replayPulse {
+  0%, 100% { opacity: 1; transform: translateX(0); }
+  50% { opacity: 0.55; transform: translateX(-0.12em); }
+}
