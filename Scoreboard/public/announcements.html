@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIP Gold Bucharest 2026 — Announcements</title>
+  <link rel="stylesheet" href="admin.css" />
+  <link rel="stylesheet" href="announcements.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🎾 FIP Gold Bucharest 2026 <span class="brand-sub">Announcements</span></div>
+    <div class="topbar-right">
+      <span id="connDot" class="conn-dot" title="connection"></span>
+      <span id="connText" class="conn-text">connecting…</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <div class="card">
+      <div class="card-head"><h2>New announcement</h2></div>
+      <label class="full">Text
+        <textarea id="newText" rows="2" maxlength="300" placeholder="e.g. Next match on Center Court: Women's final at 14:30"></textarea>
+      </label>
+      <div class="timing" id="newTiming"></div>
+      <div class="row gap wrap actions">
+        <button class="btn btn-add" id="addBtn">＋ Add and put on air</button>
+        <button class="btn btn-ghost" id="addOffBtn">Add switched off</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Announcements</h2><span class="badge" id="onAirBadge"></span></div>
+      <div id="list" class="ann-list"></div>
+      <p class="hint">The bar at the bottom of the stream shows the announcements that are <b>on air</b>, one after another in this order (↑ ↓ to change it). An announcement with a <b>timer</b> switches itself off when its time is up — switch it on again to restart the countdown. <b>Always on</b> stays until you switch it off. Click ✎ to edit the text or the timing. Showing or hiding the bar, the seconds per announcement, the label and the OBS links are on the <b>Admin</b> tab, card <b>Info bar</b>.</p>
+    </div>
+
+  </main>
+
+  <template id="timingTpl">
+    <div class="timing-row">
+      <label class="radio"><input type="radio" value="always" /> Always on — until I switch it off</label>
+      <label class="radio"><input type="radio" value="timer" /> Timer — on for
+        <input type="number" class="dur-value" min="1" max="999" step="1" value="10" />
+        <select class="dur-unit">
+          <option value="60">minutes</option>
+          <option value="3600">hours</option>
+        </select>
+      </label>
+    </div>
+  </template>
+
+  <script src="client.js"></script>
+  <script src="announcements.js"></script>
+</body>
+</html>

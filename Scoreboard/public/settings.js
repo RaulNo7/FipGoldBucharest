@@ -33,6 +33,48 @@
   $('#copyIntroUrlBtn').addEventListener('click', () => copyField($('#introUrl'), $('#copyIntroUrlBtn')));
   $('#openIntroBtn').addEventListener('click', () => window.open($('#introUrl').value, '_blank'));
 
+  // ---- Info bar (bottom announcements bar): settings + its URLs ----
+  // The settings are announcement-bar settings on the server (annSettings);
+  // this card is the only place they are edited.
+  fetch('/api/announcements')
+    .then((r) => r.json())
+    .then((data) => {
+      const s = data.settings || {};
+      $('#ibVisible').checked = s.visible !== false;
+      $('#ibRotate').value = s.rotateSeconds || 8;
+      $('#ibLabel').value = s.label == null ? 'INFO' : s.label;
+    })
+    .catch(() => {});
+  function saveInfoBar() {
+    fetch('/api/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'annSettings',
+        settings: {
+          visible: $('#ibVisible').checked,
+          rotateSeconds: Number($('#ibRotate').value) || 8,
+          label: $('#ibLabel').value,
+        },
+      }),
+    })
+      // show the value the server kept (seconds are clamped to 3-120)
+      .then(() => fetch('/api/announcements'))
+      .then((r) => r.json())
+      .then((data) => {
+        if (document.activeElement !== $('#ibRotate')) $('#ibRotate').value = data.settings.rotateSeconds;
+      })
+      .catch(() => {});
+  }
+  ['#ibVisible', '#ibRotate', '#ibLabel'].forEach((sel) => $(sel).addEventListener('change', saveInfoBar));
+  $('#ibUrl').value = new URL('/ticker', location.origin).toString();
+  const isUrl = (v) => /^https?:\/\/\S+$/.test(v);
+  const openPreview = (v) => isUrl(v) && window.open(v + (v.includes('?') ? '&' : '?') + 'preview=1', '_blank');
+  $('#copyIbUrlBtn').addEventListener('click', () => copyField($('#ibUrl'), $('#copyIbUrlBtn')));
+  $('#openIbUrlBtn').addEventListener('click', () => openPreview($('#ibUrl').value));
+  $('#copyIbPubUrlBtn').addEventListener('click', () => isUrl($('#ibPubUrl').value) && copyField($('#ibPubUrl'), $('#copyIbPubUrlBtn')));
+  $('#openIbPubUrlBtn').addEventListener('click', () => openPreview($('#ibPubUrl').value));
+
   // ---- court TV URL (LAN) + public port info ----
   fetch('/api/info')
     .then((r) => r.json())
@@ -64,6 +106,9 @@
     $('#pubHomeUrl').value = base ? (key ? `${base}/?key=${encodeURIComponent(key)}` : `${base}/`) : '';
     $('#pubOverlayUrl').value = base ? `${base}/overlay?pos=top-left` : '';
     $('#pubTvUrl').value = base ? `${base}/tv` : '';
+    $('#pubTickerUrl').value = base ? `${base}/ticker` : '';
+    $('#ibPubUrl').value = base ? `${base}/ticker` : '(set the public hostname in the Internet access card)';
+    $('#pubAnnouncementsUrl').value = keyed('/announcements');
     $('#pubRefereeUrl').value = keyed('/mobile');
     $('#pubAdminUrl').value = keyed('/admin');
     $('#pubTeamsUrl').value = keyed('/teams');
@@ -153,6 +198,52 @@
     $('#hostReloadBtn').addEventListener('click', () => send({ type: 'reload' }));
     send({ type: 'ready' });
   }
+
+  // ---- collapsible cards: click a card's title to hide/show its content ----
+  // Collapsed cards show only their title bar. Every card starts collapsed;
+  // a card the operator opened (or closed) is remembered per card.
+  const COLLAPSE_KEY = 'adminCollapsedCards';
+  let collapsed = {};
+  try {
+    collapsed = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}') || {};
+  } catch (_) {
+    collapsed = {};
+  }
+  $$('.layout > .card').forEach((card) => {
+    const head = card.querySelector(':scope > .card-head');
+    const title = head && head.querySelector('h2');
+    if (!title) return;
+    const name = title.textContent.trim();
+    card.classList.add('collapsible');
+    const chevron = document.createElement('span');
+    chevron.className = 'collapse-chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    head.appendChild(chevron);
+    head.setAttribute('role', 'button');
+    head.tabIndex = 0;
+    const isCollapsed = () => collapsed[name] !== false; // no choice stored yet = collapsed
+    const apply = () => {
+      card.classList.toggle('collapsed', isCollapsed());
+      head.setAttribute('aria-expanded', String(!isCollapsed()));
+      head.title = isCollapsed() ? 'Show' : 'Hide';
+    };
+    const toggle = (e) => {
+      if (e.target.closest('button, input, select, a, label')) return; // controls inside the title bar keep working
+      collapsed[name] = !isCollapsed();
+      try {
+        localStorage.setItem(COLLAPSE_KEY, JSON.stringify(collapsed));
+      } catch (_) { /* not persisted - still toggles */ }
+      apply();
+    };
+    head.addEventListener('click', toggle);
+    head.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggle(e);
+      }
+    });
+    apply();
+  });
 
   // ---- helpers ----
   function copyField(input, btn) {

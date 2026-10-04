@@ -1,0 +1,133 @@
+/* Announcements bar — a transparent full-canvas OBS Browser Source with a
+   bar along the bottom edge that cycles through the active announcements.
+   Same palette as the scorebug; all sizes scale from one font-size. */
+
+:root {
+  --font: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+  --font-names: 'Bahnschrift SemiCondensed', 'Bahnschrift', 'Arial Narrow', 'Segoe UI', sans-serif;
+  --navy: #0b1b2e;
+  --navy-2: #13294a;
+  --gold: #d4a017;
+  --gold-light: #e8c158;
+  --white: #ffffff;
+  --muted: #9fb1c4;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  background: transparent;
+  font-family: var(--font);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* 1920x1080 => ~26px base, bar ~56px high. */
+.ticker {
+  --scale: 1;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2.15em;
+  font-size: min(1.35vw, 2.4vh);
+  display: flex;
+  align-items: stretch;
+  /* Opaque on purpose: a copy of this source in the REPLAY scene covers the
+     bar that is baked into the replay clip. */
+  background: linear-gradient(180deg, var(--navy-2) 0%, var(--navy) 100%);
+  border-top: 0.12em solid var(--gold);
+  box-shadow: 0 -0.3em 1em rgba(0, 0, 0, 0.45);
+  transform-origin: bottom center;
+  transform: scale(var(--scale)) translateY(0);
+  transition: transform 0.5s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+.ticker.hidden {
+  transform: scale(var(--scale)) translateY(140%);
+}
+
+.ticker-label {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 1em 0 0.9em;
+  background: var(--gold);
+  color: #2a1500;
+  font-family: var(--font-names);
+  font-size: 1em;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 0.7em) 100%, 0 100%);
+  padding-right: 1.5em;
+}
+
+.ticker-label:empty {
+  display: none;
+}
+
+.ticker-window {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  padding: 0 1.1em;
+  /* soft edges where long text scrolls in/out */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 1.1em, #000 calc(100% - 1.1em), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 1.1em, #000 calc(100% - 1.1em), transparent 100%);
+}
+
+.ticker-text {
+  display: inline-block;
+  white-space: nowrap;
+  color: var(--white);
+  font-family: var(--font-names);
+  font-size: 1.05em;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  will-change: transform, opacity;
+}
+
+/* Swap animation between two announcements. */
+.ticker-text.out {
+  opacity: 0;
+  transform: translateY(-0.7em);
+}
+
+.ticker-text.in-start {
+  opacity: 0;
+  transform: translateY(0.7em);
+  transition: none;
+}
+
+/* Position dots: which announcement of how many (only with 2+). */
+.ticker-dots {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.32em;
+  padding: 0 0.9em;
+}
+
+.ticker-dots span {
+  width: 0.32em;
+  height: 0.32em;
+  border-radius: 50%;
+  background: rgba(159, 177, 196, 0.45);
+  transition: background 0.3s, transform 0.3s;
+}
+
+.ticker-dots span.on {
+  background: var(--gold-light);
+  transform: scale(1.3);
+}

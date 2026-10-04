@@ -424,3 +424,47 @@ label.host-port input {
   display: inline-block;
   flex: 0 0 10px;
 }
+
+/* ---- Collapsible cards (Admin tab: settings.js adds .collapsible) ----
+   Click the title bar to hide the content; a collapsed card shows only its title. */
+.card.collapsible > .card-head {
+  cursor: pointer;
+  user-select: none;
+  gap: 12px;
+}
+
+.card.collapsible > .card-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.card.collapsible > .card-head h2 {
+  margin-right: auto;
+}
+
+.card.collapsible > .card-head:hover h2 {
+  color: var(--fg);
+}
+
+.collapse-chevron {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: translateY(-2px) rotate(45deg); /* pointing down = open */
+  transition: transform 0.2s ease;
+}
+
+.card.collapsible.collapsed > .card-head {
+  margin-bottom: 0;
+}
+
+.card.collapsible.collapsed > .card-head .collapse-chevron {
+  transform: rotate(-45deg); /* pointing right = closed */
+}
+
+.card.collapsible.collapsed > :not(.card-head) {
+  display: none;
+}

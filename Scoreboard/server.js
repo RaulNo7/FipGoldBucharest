@@ -169,12 +169,12 @@ publicHub.onMessage((socket, text) => {
 function publicStateMessage() {
   // Same as the LAN message minus the client count. The OBS/break status is
   // needed by the (key-protected) Media page and contains nothing sensitive.
-  return JSON.stringify({ type: 'state', state, obs: obsStatusPayload() });
+  return JSON.stringify({ type: 'state', state, obs: obsStatusPayload(), announcements: annPayload() });
 }
 
 function stateMessage() {
   // `obs` is transient status for the admin UI — never persisted, never secret.
-  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload() });
+  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload(), announcements: annPayload() });
 }
 
 function broadcastState() {
@@ -836,6 +836,155 @@ function replayHousekeeping() {
 setTimeout(replayHousekeeping, 3000);
 setInterval(replayHousekeeping, 15000);
 
+// ---------------------------------------------------------------------------
+// Announcements (bottom ticker bar, /ticker)
+// ---------------------------------------------------------------------------
+// Edited on the Announcements tab (/announcements). Kept apart from the match
+// state on purpose: "Reset everything" never wipes them. Each item is either
+// "always" (on until switched off) or "timer" (switches itself off after
+// durationSec, counted from the moment it was switched on).
+
+const ANN_FILE = path.join(path.dirname(STATE_FILE), 'announcements.json');
+const ANN_DEFAULT_SETTINGS = { visible: true, rotateSeconds: 8, label: 'INFO' };
+let annRev = 0; // bumps on every change: the editor reloads its list when it moves
+let announcements = loadAnnouncements();
+
+function loadAnnouncements() {
+  try {
+    if (fs.existsSync(ANN_FILE)) {
+      const saved = JSON.parse(fs.readFileSync(ANN_FILE, 'utf8'));
+      return {
+        settings: sanitizeAnnSettings({ ...ANN_DEFAULT_SETTINGS, ...(saved.settings || {}) }),
+        items: (Array.isArray(saved.items) ? saved.items : []).map(sanitizeAnnItem).filter(Boolean),
+      };
+    }
+  } catch (err) {
+    console.error('Could not load announcements.json:', err.message);
+  }
+  return { settings: { ...ANN_DEFAULT_SETTINGS }, items: [] };
+}
+
+function saveAnnouncements() {
+  annRev++;
+  try {
+    fs.writeFileSync(ANN_FILE, JSON.stringify(announcements, null, 2));
+  } catch (err) {
+    console.error('Could not save announcements.json:', err.message);
+  }
+}
+
+function sanitizeAnnSettings(s) {
+  return {
+    visible: s.visible !== false,
+    rotateSeconds: Math.min(120, Math.max(3, Math.round(Number(s.rotateSeconds) || ANN_DEFAULT_SETTINGS.rotateSeconds))),
+    label: String(s.label == null ? ANN_DEFAULT_SETTINGS.label : s.label).trim().slice(0, 24),
+  };
+}
+
+function sanitizeAnnDuration(sec) {
+  return Math.min(7 * 24 * 3600, Math.max(5, Math.round(Number(sec) || 600)));
+}
+
+function sanitizeAnnItem(it) {
+  if (!it || typeof it.text !== 'string' || !it.text.trim()) return null;
+  const mode = it.mode === 'timer' ? 'timer' : 'always';
+  return {
+    id: typeof it.id === 'string' && it.id ? it.id : 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    text: it.text.trim().slice(0, 300),
+    mode,
+    durationSec: sanitizeAnnDuration(it.durationSec),
+    enabled: !!it.enabled,
+    expiresAt: mode === 'timer' && it.enabled && Number(it.expiresAt) > 0 ? Number(it.expiresAt) : null,
+    createdAt: Number(it.createdAt) || Date.now(),
+  };
+}
+
+/** Switch an item on/off; a timer item starts counting down from now. */
+function setAnnEnabled(item, enabled) {
+  item.enabled = !!enabled;
+  item.expiresAt = item.enabled && item.mode === 'timer' ? Date.now() + item.durationSec * 1000 : null;
+}
+
+function activeAnnouncements() {
+  const now = Date.now();
+  return announcements.items.filter((a) => a.enabled && (a.mode !== 'timer' || (a.expiresAt && a.expiresAt > now)));
+}
+
+/** What every screen gets in the state broadcast: only what is on air (no drafts). */
+function annPayload() {
+  return {
+    rev: annRev,
+    settings: announcements.settings,
+    active: activeAnnouncements().map((a) => ({ id: a.id, text: a.text, expiresAt: a.expiresAt })),
+    serverNow: Date.now(),
+  };
+}
+
+/** Timer items switch themselves off when their time is up. */
+setInterval(() => {
+  const now = Date.now();
+  let changed = false;
+  for (const a of announcements.items) {
+    if (a.enabled && a.mode === 'timer' && (!a.expiresAt || a.expiresAt <= now)) {
+      a.enabled = false;
+      a.expiresAt = null;
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveAnnouncements();
+    broadcastState();
+  }
+}, 1000);
+
+/** Announcement commands from the editor. Returns true when the command was one of them. */
+function handleAnnouncementCommand(cmd) {
+  const find = () => announcements.items.find((a) => a.id === cmd.id);
+  switch (cmd.type) {
+    case 'annAdd': {
+      const item = sanitizeAnnItem({ text: cmd.text, mode: cmd.mode, durationSec: cmd.durationSec, enabled: false });
+      if (!item) return true;
+      announcements.items.push(item);
+      if (cmd.enabled !== false) setAnnEnabled(item, true);
+      break;
+    }
+    case 'annUpdate': {
+      const item = find();
+      if (!item) return true;
+      if (typeof cmd.text === 'string' && cmd.text.trim()) item.text = cmd.text.trim().slice(0, 300);
+      const timingChanged = (cmd.mode && cmd.mode !== item.mode) || (cmd.durationSec != null && sanitizeAnnDuration(cmd.durationSec) !== item.durationSec);
+      if (cmd.mode === 'timer' || cmd.mode === 'always') item.mode = cmd.mode;
+      if (cmd.durationSec != null) item.durationSec = sanitizeAnnDuration(cmd.durationSec);
+      if (timingChanged && item.enabled) setAnnEnabled(item, true); // restart the countdown with the new timing
+      break;
+    }
+    case 'annSetEnabled': {
+      const item = find();
+      if (!item) return true;
+      setAnnEnabled(item, !!cmd.enabled);
+      break;
+    }
+    case 'annDelete':
+      announcements.items = announcements.items.filter((a) => a.id !== cmd.id);
+      break;
+    case 'annMove': {
+      const i = announcements.items.findIndex((a) => a.id === cmd.id);
+      const j = i + (cmd.delta < 0 ? -1 : 1);
+      if (i < 0 || j < 0 || j >= announcements.items.length) return true;
+      [announcements.items[i], announcements.items[j]] = [announcements.items[j], announcements.items[i]];
+      break;
+    }
+    case 'annSettings':
+      announcements.settings = sanitizeAnnSettings({ ...announcements.settings, ...(cmd.settings || {}) });
+      break;
+    default:
+      return false;
+  }
+  saveAnnouncements();
+  broadcastState();
+  return true;
+}
+
 function testObsConnection() {
   (async () => {
     try {
@@ -875,6 +1024,8 @@ function handleCommand(cmd) {
     }
     return;
   }
+
+  if (handleAnnouncementCommand(cmd)) return;
 
   if (cmd.type === 'ping') {
     return; // handled by ws layer; ignore app-level pings
@@ -1112,6 +1263,13 @@ function handleMainRequest(req, res) {
     return;
   }
 
+  // Every announcement, drafts included, for the editor (the broadcast only carries the active ones).
+  if (pathname === '/api/announcements') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    res.end(JSON.stringify({ rev: annRev, serverNow: Date.now(), settings: announcements.settings, items: announcements.items }));
+    return;
+  }
+
   // The last 10 replay clips for the Media tab (newest first).
   if (pathname === '/api/replays') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
@@ -1189,6 +1347,8 @@ function handleMainRequest(req, res) {
   if (pathname === '/tv') pathname = '/tv.html';
   if (pathname === '/intro') pathname = '/intro.html';
   if (pathname === '/media') pathname = '/media.html';
+  if (pathname === '/announcements') pathname = '/announcements.html';
+  if (pathname === '/ticker') pathname = '/ticker.html';
 
   const filePath = safeJoin(PUBLIC_DIR, pathname);
   if (!filePath) {
@@ -1235,18 +1395,20 @@ server.listen(PORT, HOST, () => {
 
 const PUBLIC_PAGES = {
   '/': 'home.html', '/home': 'home.html', '/scorebug': 'scorebug.html',
-  '/overlay': 'overlay.html', '/tv': 'tv.html', '/intro': 'intro.html',
+  '/overlay': 'overlay.html', '/tv': 'tv.html', '/intro': 'intro.html', '/ticker': 'ticker.html',
 };
-const PUBLIC_ASSET = /^\/(home|scorebug|overlay|tv|intro)\.(html|css|js)$|^\/(mobile|admin|teams|media)\.(css|js)$|^\/(client|countries)\.js$|^\/fip-logo\.png$|^\/flags\/[a-z]{2}\.svg$/;
+const PUBLIC_ASSET = /^\/(home|scorebug|overlay|tv|intro|ticker)\.(html|css|js)$|^\/(mobile|admin|teams|media|announcements)\.(css|js)$|^\/(client|countries)\.js$|^\/fip-logo\.png$|^\/flags\/[a-z]{2}\.svg$/;
 
 // Operator pages (referee, admin, teams, media) and the APIs they use: only
 // with the access key, given as ?key=... or as the cookie set when a page was
 // opened with the key. They are then handled by the main server's own routing.
 const KEYED_PAGES = new Set([
   '/mobile', '/mobile.html', '/admin', '/admin.html', '/teams', '/teams.html', '/media', '/media.html',
+  '/announcements', '/announcements.html',
 ]);
 const KEYED_PATHS = new Set([
   ...KEYED_PAGES, '/api/command', '/api/teams', '/api/info', '/api/obs-settings', '/api/commercials', '/api/replays',
+  '/api/announcements',
 ]);
 
 /** True when the request carries the configured access key (?key=... or cookie). */

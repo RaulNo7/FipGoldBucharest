@@ -430,6 +430,57 @@ function cleanupAndExit() {
   assert(st.display.scoreVisible === false, 'playReplay: a score that was already hidden stays hidden afterwards');
   assert(inputSettingsCalls.length === 1 && /10-30-01\.mp4$/.test(inputSettingsCalls[0]) && JSON.stringify(sceneSwitches) === JSON.stringify(['REPLAY', 'LIVE']), 'playReplay: the chosen clip plays on the replay scene, then back to LIVE (got: ' + inputSettingsCalls.join(' | ') + ' / ' + sceneSwitches.join(', ') + ')');
 
+  // ---- Announcements (bottom bar) ----
+  const ann = () => api('/api/announcements');
+  let a = await ann();
+  assert(Array.isArray(a.items) && a.items.length === 0 && a.settings.visible === true && a.settings.rotateSeconds === 8, 'announcements: empty list and default bar settings at start');
+  await cmd({ type: 'annAdd', text: '  Next match on Center Court at 14:30  ', mode: 'always', enabled: true });
+  await cmd({ type: 'annAdd', text: 'Draft, not on air yet', mode: 'always', enabled: false });
+  await cmd({ type: 'annAdd', text: 'Short timer', mode: 'timer', durationSec: 5, enabled: true });
+  await cmd({ type: 'annAdd', text: '   ', enabled: true }); // empty text is ignored
+  a = await ann();
+  const [always, draftItem, timed] = a.items;
+  assert(a.items.length === 3 && always.text === 'Next match on Center Court at 14:30' && always.enabled && always.expiresAt === null, 'announcements: added (text trimmed, empty one ignored, "always" has no expiry)');
+  assert(draftItem.enabled === false && timed.enabled === true && timed.mode === 'timer' && timed.durationSec === 5 && timed.expiresAt > Date.now(), 'announcements: a draft stays off; a timer item counts down from now');
+
+  // What screens receive: only the active ones, no drafts (public port included).
+  const firstMessage = (port) => new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+    const t = setTimeout(() => { ws.close(); reject(new Error('no ws message')); }, 4000);
+    ws.onmessage = (ev) => { clearTimeout(t); ws.close(); resolve(JSON.parse(ev.data)); };
+    ws.onerror = () => { clearTimeout(t); reject(new Error('ws error')); };
+  });
+  const pubMsg = await firstMessage(PUBLIC_PORT);
+  const activeTexts = ((pubMsg.announcements || {}).active || []).map((x) => x.text);
+  assert(JSON.stringify(activeTexts) === JSON.stringify(['Next match on Center Court at 14:30', 'Short timer']), 'announcements: the public broadcast carries the active ones in order, never the draft (got: ' + activeTexts.join(' | ') + ')');
+
+  // The timer switches itself off.
+  await sleep(6500);
+  a = await ann();
+  assert(a.items[2].enabled === false && a.items[2].expiresAt === null, 'announcements: the timer item switched itself off when its time was up');
+  await cmd({ type: 'annSetEnabled', id: timed.id, enabled: true });
+  a = await ann();
+  assert(a.items[2].enabled === true && a.items[2].expiresAt > Date.now() + 3000, 'announcements: switching a timer item on again restarts its countdown');
+
+  // Edit, reorder, delete, bar settings.
+  await cmd({ type: 'annUpdate', id: always.id, text: 'Final at 16:00', mode: 'timer', durationSec: 3600 });
+  await cmd({ type: 'annMove', id: draftItem.id, delta: -1 });
+  await cmd({ type: 'annDelete', id: timed.id });
+  await cmd({ type: 'annSettings', settings: { visible: false, rotateSeconds: 1, label: 'NEWS' } });
+  a = await ann();
+  assert(a.items.length === 2 && a.items[0].id === draftItem.id && a.items[1].text === 'Final at 16:00' && a.items[1].mode === 'timer' && a.items[1].expiresAt > Date.now() + 3500 * 1000, 'announcements: edit (text + timing restarts the countdown), move up and delete');
+  assert(a.settings.visible === false && a.settings.rotateSeconds === 3 && a.settings.label === 'NEWS', 'announcements: bar settings saved (seconds clamped to at least 3)');
+  const annFile = path.join(tmp, 'announcements.json');
+  assert(fs.existsSync(annFile) && JSON.parse(fs.readFileSync(annFile, 'utf8')).items.length === 2, 'announcements: stored in announcements.json next to the match state');
+
+  // Pages: the bar is public (OBS anywhere), the editor needs the access key.
+  const mainPage = (p) => fetch(`http://127.0.0.1:${SB_PORT}${p}`);
+  assert((await mainPage('/announcements')).status === 200 && (await mainPage('/ticker')).status === 200 && (await mainPage('/ticker.js')).status === 200, 'announcements: editor and bar pages served on the main port');
+  const pubPage = (p) => fetch(`http://127.0.0.1:${PUBLIC_PORT}${p}`);
+  assert((await pubPage('/ticker')).status === 200 && (await pubPage('/ticker.css')).status === 200, 'announcements: the bar page is served on the public port');
+  assert((await pubPage('/announcements')).status === 403 && (await pubPage('/api/announcements')).status === 403, 'announcements: the editor and its API need the access key on the public port');
+  assert((await pubPage('/announcements?key=testkey')).status === 200, 'announcements: the editor opens on the public port with the key');
+
   cleanupAndExit();
 })().catch((err) => {
   console.error(err);

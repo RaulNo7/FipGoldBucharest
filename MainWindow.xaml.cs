@@ -160,6 +160,7 @@ public partial class MainWindow : Window
                 TxtScoreboardPlaceholder.Text = _scoreboard.LastError ?? "Scoreboard server could not start.";
                 TxtHomePlaceholder.Text = TxtScoreboardPlaceholder.Text;
                 TxtTeamsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
+                TxtAnnouncementsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
                 TxtMediaPlaceholder.Text = TxtScoreboardPlaceholder.Text;
                 TxtSettingsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
                 HideScoreboardViews();
@@ -185,6 +186,7 @@ public partial class MainWindow : Window
         TxtScoreboardPlaceholder.Text = "Scoreboard server is not running.";
         TxtHomePlaceholder.Text = "Score server is not running. Start it from the Admin tab.";
         TxtTeamsPlaceholder.Text = "Teams list loads when the score server is running.";
+        TxtAnnouncementsPlaceholder.Text = "Announcements load when the score server is running.";
         TxtMediaPlaceholder.Text = "Media controls load when the score server is running.";
         TxtSettingsPlaceholder.Text = "Admin settings load when the score server is running.";
         HideScoreboardViews();
@@ -198,6 +200,8 @@ public partial class MainWindow : Window
         HomePlaceholder.Visibility = Visibility.Visible;
         TeamsWebView.Visibility = Visibility.Collapsed;
         TeamsPlaceholder.Visibility = Visibility.Visible;
+        AnnouncementsWebView.Visibility = Visibility.Collapsed;
+        AnnouncementsPlaceholder.Visibility = Visibility.Visible;
         MediaWebView.Visibility = Visibility.Collapsed;
         MediaPlaceholder.Visibility = Visibility.Visible;
         SettingsWebView.Visibility = Visibility.Collapsed;
@@ -218,6 +222,8 @@ public partial class MainWindow : Window
             _scoreboard.AdminUrl);
         _ = InitWebViewAsync(MediaWebView, MediaPlaceholder, TxtMediaPlaceholder,
             $"http://127.0.0.1:{_scoreboard.Port}/media");
+        _ = InitWebViewAsync(AnnouncementsWebView, AnnouncementsPlaceholder, TxtAnnouncementsPlaceholder,
+            $"http://127.0.0.1:{_scoreboard.Port}/announcements");
         _ = InitWebViewAsync(TeamsWebView, TeamsPlaceholder, TxtTeamsPlaceholder,
             _scoreboard.TeamsUrl);
         _ = InitWebViewAsync(SettingsWebView, SettingsPlaceholder, TxtSettingsPlaceholder,
@@ -393,6 +399,7 @@ public partial class MainWindow : Window
             TxtScoreboardPlaceholder.Text = _scoreboard.LastError ?? "Scoreboard server stopped unexpectedly.";
             TxtHomePlaceholder.Text = TxtScoreboardPlaceholder.Text;
             TxtTeamsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
+            TxtAnnouncementsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
             TxtMediaPlaceholder.Text = TxtScoreboardPlaceholder.Text;
             TxtSettingsPlaceholder.Text = TxtScoreboardPlaceholder.Text;
             HideScoreboardViews();

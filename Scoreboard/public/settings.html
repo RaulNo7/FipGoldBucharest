@@ -51,6 +51,34 @@
     </div>
 
     <div class="card">
+      <div class="card-head"><h2>Info bar</h2></div>
+      <div class="config-grid">
+        <label class="check"><input type="checkbox" id="ibVisible" /> Show the bar on the stream</label>
+        <label>Seconds per announcement
+          <input type="number" id="ibRotate" min="3" max="120" step="1" />
+        </label>
+        <label>Label on the left (empty = none)
+          <input type="text" id="ibLabel" maxlength="24" placeholder="INFO" />
+        </label>
+      </div>
+      <p class="hint">The texts themselves are written on the <b>Announcements</b> tab. Long texts scroll through once during their turn, so they may stay a little longer than the seconds above.</p>
+      <div class="row gap url-row">
+        <span class="url-label">This PC / venue</span>
+        <input type="text" id="ibUrl" readonly />
+        <button class="btn btn-ghost" id="copyIbUrlBtn">Copy</button>
+        <button class="btn btn-ghost" id="openIbUrlBtn">Preview</button>
+      </div>
+      <div class="row gap url-row">
+        <span class="url-label">From outside</span>
+        <input type="text" id="ibPubUrl" readonly />
+        <button class="btn btn-ghost" id="copyIbPubUrlBtn">Copy</button>
+        <button class="btn btn-ghost" id="openIbPubUrlBtn">Preview</button>
+      </div>
+      <p class="hint">The <b>From outside</b> link goes through the internet tunnel (public hostname in the Internet access card below) — use it for an OBS on another network or to give the bar to FIP. Like the scorebug it needs no key.</p>
+      <p class="hint">In OBS: add this URL as a <b>Browser Source</b> in the <b>LIVE</b> scene, sized <b>exactly like your canvas</b> (1920 × 1080), on top of the other sources. The bar is opaque, so a copy of the same source in the <b>REPLAY</b> scene (Paste (Duplicate), same transform) also covers the bar that is recorded inside the replay clips. Add <b>?scale=0.9</b> for a thinner bar.</p>
+    </div>
+
+    <div class="card">
       <div class="card-head"><h2>Court TV display</h2></div>
       <div class="row gap url-row">
         <input type="text" id="tvUrl" readonly />
@@ -93,11 +121,13 @@
       <div class="row gap url-row"><span class="url-label">Main page</span><input type="text" id="pubHomeUrl" readonly /><button class="btn btn-ghost" data-copy="pubHomeUrl">Copy</button></div>
       <div class="row gap url-row"><span class="url-label">Scorebug (FIP)</span><input type="text" id="pubOverlayUrl" readonly /><button class="btn btn-ghost" data-copy="pubOverlayUrl">Copy</button></div>
       <div class="row gap url-row"><span class="url-label">Court TV</span><input type="text" id="pubTvUrl" readonly /><button class="btn btn-ghost" data-copy="pubTvUrl">Copy</button></div>
+      <div class="row gap url-row"><span class="url-label">Announcements bar</span><input type="text" id="pubTickerUrl" readonly /><button class="btn btn-ghost" data-copy="pubTickerUrl">Copy</button></div>
       <div class="row gap url-row"><span class="url-label">Referee</span><input type="text" id="pubRefereeUrl" readonly /><button class="btn btn-ghost" data-copy="pubRefereeUrl">Copy</button></div>
       <div class="row gap url-row"><span class="url-label">Score settings</span><input type="text" id="pubAdminUrl" readonly /><button class="btn btn-ghost" data-copy="pubAdminUrl">Copy</button></div>
       <div class="row gap url-row"><span class="url-label">Teams</span><input type="text" id="pubTeamsUrl" readonly /><button class="btn btn-ghost" data-copy="pubTeamsUrl">Copy</button></div>
       <div class="row gap url-row"><span class="url-label">Media</span><input type="text" id="pubMediaUrl" readonly /><button class="btn btn-ghost" data-copy="pubMediaUrl">Copy</button></div>
-      <p class="hint">Everything above goes through the read-only port <b id="publicPort">…</b> behind your tunnel (point Cloudflare / Tailscale at <b id="publicLocal">http://localhost:…</b>). The main page, scorebug and court TV are public; the referee, score settings, teams and media pages (and every score command) work only with the access key — open a page once with <b>?key=…</b> and the browser remembers it for 30 days. Treat the key like a password (Generate makes a random one; Save; hand the Referee link to the umpire). This Admin page itself is never served on the public port.</p>
+      <div class="row gap url-row"><span class="url-label">Announcements</span><input type="text" id="pubAnnouncementsUrl" readonly /><button class="btn btn-ghost" data-copy="pubAnnouncementsUrl">Copy</button></div>
+      <p class="hint">Everything above goes through the read-only port <b id="publicPort">…</b> behind your tunnel (point Cloudflare / Tailscale at <b id="publicLocal">http://localhost:…</b>). The main page, scorebug, court TV and announcements bar are public; the referee, score settings, teams, media and announcements pages (and every score command) work only with the access key — open a page once with <b>?key=…</b> and the browser remembers it for 30 days. Treat the key like a password (Generate makes a random one; Save; hand the Referee link to the umpire). This Admin page itself is never served on the public port.</p>
     </div>
 
     <!-- Score server: talks to the desktop app through the WebView2 bridge; hidden when this page is opened in a plain browser. -->
