@@ -19,6 +19,13 @@ public partial class App : System.Windows.Application
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
+    // Keep the PC from going to sleep while the app runs (on battery too), so the
+    // score server and the frplive.ro tunnel stay reachable. The screen may still turn off.
+    [DllImport("kernel32.dll")]
+    private static extern uint SetThreadExecutionState(uint esFlags);
+    private const uint ES_CONTINUOUS = 0x80000000;
+    private const uint ES_SYSTEM_REQUIRED = 0x00000001;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         _instanceMutex = new Mutex(initiallyOwned: true, MutexName, out var isFirstInstance);
@@ -50,6 +57,8 @@ public partial class App : System.Windows.Application
             Timeout.Infinite,
             executeOnlyOnce: false);
 
+        SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED);
+
         base.OnStartup(e);
     }
 
@@ -78,6 +87,7 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        SetThreadExecutionState(ES_CONTINUOUS); // let Windows sleep normally again
         _showSignalRegistration?.Unregister(null);
         _showSignal?.Dispose();
         try { _instanceMutex?.ReleaseMutex(); } catch { }

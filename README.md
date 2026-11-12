@@ -66,6 +66,11 @@ The score server also listens on a **read-only port** (main port + 1, i.e. **808
 
 The URL to give FIP is then `https://<hostname>/overlay?pos=top-left` (top-left is also the default without `?pos=`; add `&scale=` if they need it). The **court TV** page is public on the same hostname (`https://<hostname>/tv`). The **referee, admin, teams and media pages** are available there too, but only with an **access key**: set the hostname and a key in the admin panel's *Internet access (tunnel)* card (Generate → Save); it then shows the links `https://<hostname>/mobile?key=…`, `/admin?key=…`, `/teams?key=…` and `/media?key=…` — the whole app can be operated remotely. The key unlocks those pages, their APIs and score commands over the public port (opening a page once with `?key=` stores it in a 30-day cookie); without it the internet only sees the scorebug and court TV. Leave the key empty to keep the operator pages LAN-only. It works over HTTPS/WSS as-is and stays the same all week regardless of the venue LAN IP. Keep the PC on a wired connection, the app on auto-start, and the tunnel installed as a service so it survives reboots; test the public URL from a phone on mobile data before the first match.
 
+**frplive.ro** is the live hostname (tunnel `fipgold`, routes `frplive.ro` and `www.frplive.ro` → `http://localhost:8081`). Keeping it reachable:
+
+- **Offline page:** a Cloudflare Worker (`cloudflare/offline-worker/`) sits in front of the domain. While the app is closed or the laptop is off, visitors get an FRP Live "No match live right now" page that reloads itself when the score server is back, instead of a Cloudflare error. It also redirects `www.frplive.ro` → `frplive.ro` (the score server does the same while it runs). Deploy steps are in that folder's README.
+- **The laptop:** the app keeps Windows from sleeping while it runs (the screen may still turn off). A `FRP Live` shortcut in the Windows Startup folder opens it at login, `cloudflared` runs as an automatic Windows service, and AC sleep is set to *Never*. For a closed lid, set *Control Panel → Power Options → Choose what closing the lid does → Plugged in: Do nothing*.
+
 ## Running
 
 Requires Node.js on PATH (or set its path in settings). Build & run:

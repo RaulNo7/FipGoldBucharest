@@ -1,0 +1,17 @@
+# FRP Live - offline page + www redirect in front of the frplive.ro tunnel.
+# Deploy with:  npx wrangler@4 deploy   (from this folder, after: npx wrangler@4 login)
+name = "frplive-offline"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+workers_dev = false
+
+routes = [
+  { pattern = "frplive.ro/*", zone_name = "frplive.ro" },
+  { pattern = "www.frplive.ro/*", zone_name = "frplive.ro" },
+]
+
+# The FRP logo is bundled into the Worker (served at /__offline/frp-mark.png).
+[[rules]]
+type = "Data"
+globs = ["**/*.png"]
+fallthrough = false
