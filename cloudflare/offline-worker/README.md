@@ -25,9 +25,10 @@ npx wrangler@4 deploy
 ```
 
 `wrangler.toml` attaches the Worker to both routes in the `frplive.ro` zone.
-The free plan allows 100,000 requests a day. In the dashboard under
-**Workers Routes**, set the routes' failure mode to **Fail open** so the site
-still works through the tunnel if that limit is ever reached.
+The free plan allows 100,000 requests a day. Both routes are set to
+**Fail open** (dashboard → frplive.ro → **Workers Routes**), so the site still
+works through the tunnel if that limit is ever reached. Check that setting
+after a redeploy, in case wrangler recreated the routes as *Fail closed*.
 
 To remove it: Cloudflare dashboard → Workers & Pages → `frplive-offline` → delete
 (the site then goes back to the tunnel only).
