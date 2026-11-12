@@ -6,11 +6,11 @@
   --font: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
   --font-names: 'Bahnschrift SemiCondensed', 'Bahnschrift', 'Arial Narrow', 'Segoe UI', sans-serif;
 
-  --navy-deep: rgba(11, 27, 46, 0.96);
-  --navy-alt: rgba(27, 52, 84, 0.96);
-  --header-bg: rgba(8, 20, 34, 0.97);
-  --gold: #d4a017;
-  --gold-light: #e8c158;
+  --navy-deep: rgba(6, 20, 51, 0.96);
+  --navy-alt: rgba(18, 39, 90, 0.96);
+  --header-bg: rgba(4, 12, 34, 0.97);
+  --gold: #fcd116;
+  --gold-light: #ffe14d;
   --white: #ffffff;
   --muted: #9fb1c4;
 }
@@ -90,7 +90,7 @@ body {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #10202f;
+  color: #061433;
   background: var(--gold-light);
   padding: 0.18em 0.6em;
   border-radius: 0.3em;
@@ -149,4 +149,12 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.15;
+}
+
+/* FRP brand: Romanian-flag stripe + logo */
+.intro-header {
+  background-image: linear-gradient(90deg, #002B7F 0 33.34%, #FCD116 33.34% 66.67%, #CE1126 66.67% 100%);
+  background-size: 100% 0.14em;
+  background-repeat: no-repeat;
+  background-position: top left;
 }

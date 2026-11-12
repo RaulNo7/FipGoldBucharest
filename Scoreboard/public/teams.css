@@ -196,9 +196,9 @@
 }
 
 .btn.toggle.is-out {
-  background: rgba(231, 76, 60, 0.16);
-  border: 1px solid rgba(231, 76, 60, 0.55);
-  color: #ff8d80;
+  background: rgba(206, 17, 38, 0.16);
+  border: 1px solid rgba(206, 17, 38, 0.55);
+  color: #ff6b7d;
 }
 
 @media (max-width: 560px) {

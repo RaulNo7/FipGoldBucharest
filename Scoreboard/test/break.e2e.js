@@ -51,6 +51,7 @@ let totalPolls = 0; // never reset
 const inputSettingsCalls = []; // files set on the media source, in order
 const transformCalls = []; // scene-item transforms applied to the media source
 let mediaFile = 'C:\\merged-break.mp4';
+let holdMedia = false; // true: the mock media never ends (to test Cancel mid-clip)
 let replayBufferActive = false;
 let replaySaves = 0;
 let lastReplayPath = '';
@@ -99,7 +100,7 @@ hub.onMessage((sock, text) => {
     if (requestType === 'GetMediaInputStatus') {
       mediaPolls++;
       totalPolls++;
-      responseData = { mediaState: mediaPolls <= 2 ? 'OBS_MEDIA_STATE_PLAYING' : 'OBS_MEDIA_STATE_ENDED' };
+      responseData = { mediaState: holdMedia || mediaPolls <= 2 ? 'OBS_MEDIA_STATE_PLAYING' : 'OBS_MEDIA_STATE_ENDED' };
     }
     hub.sendText(
       sock,
@@ -172,7 +173,7 @@ function cleanupAndExit() {
   assert(home.status === 200 && /id="youtubeLink"/.test(await home.text()) && (await pub('/home.css')).status === 200, 'public port serves the main page');
   assert((await pub('/scorebug')).status === 200 && (await pub('/scorebug.js')).status === 200, 'public port serves the scorebug page (embed code)');
   assert((await pub('/settings')).status === 404 && (await pub('/settings.js')).status === 404, 'public port never serves the app-only Admin page');
-  assert((await fetch(`http://127.0.0.1:${SB_PORT}/settings`)).status === 200 && /Bucharest 2026 — Home/.test(await (await fetch(`http://127.0.0.1:${SB_PORT}/`)).text()), 'LAN port serves the Admin page and the main page');
+  assert((await fetch(`http://127.0.0.1:${SB_PORT}/settings`)).status === 200 && /FRP broadcasting — Home/.test(await (await fetch(`http://127.0.0.1:${SB_PORT}/`)).text()), 'LAN port serves the Admin page and the main page');
   const keyedHome = await pub('/?key=testkey');
   assert(keyedHome.status === 200 && /^key=testkey/.test(keyedHome.headers.get('set-cookie') || ''), 'main page opened with the key sets the key cookie');
   assert((await pub('/overlay.js')).status === 200 && (await pub('/flags/ro.svg')).status === 200, 'public port serves the widget assets');
@@ -480,6 +481,61 @@ function cleanupAndExit() {
   assert((await pubPage('/ticker')).status === 200 && (await pubPage('/ticker.css')).status === 200, 'announcements: the bar page is served on the public port');
   assert((await pubPage('/announcements')).status === 403 && (await pubPage('/api/announcements')).status === 403, 'announcements: the editor and its API need the access key on the public port');
   assert((await pubPage('/announcements?key=testkey')).status === 200, 'announcements: the editor opens on the public port with the key');
+
+  // ---- Replay: Cancel next to Play stops a clip mid-way and goes back to LIVE ----
+  holdMedia = true;
+  sceneSwitches.length = 0;
+  await cmd({ type: 'setDisplay', display: { scoreVisible: true } });
+  const clipList = await api('/api/replays');
+  await cmd({ type: 'playReplay', file: clipList.replays[0].name });
+  await waitFor(() => sceneSwitches.includes('REPLAY'), 8000);
+  await sleep(600);
+  st = await api('/api/state');
+  const stillPlaying = sceneSwitches[sceneSwitches.length - 1] === 'REPLAY' && st.display.scoreVisible === false;
+  const tCancel = Date.now();
+  await cmd({ type: 'cancelCommercials' });
+  await waitFor(() => sceneSwitches[sceneSwitches.length - 1] === 'LIVE', 5000);
+  await sleep(300);
+  st = await api('/api/state');
+  assert(stillPlaying && sceneSwitches[sceneSwitches.length - 1] === 'LIVE' && Date.now() - tCancel < 3000 && st.display.scoreVisible === true, 'replay: Cancel during a clip goes back to LIVE at once and the score comes back (got: ' + sceneSwitches.join(', ') + ')');
+  holdMedia = false;
+
+  // ---- Import players: pasted list, replace / keep, roster.json ----
+  const fl = (iso2) => [...iso2].map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65)).join('');
+  const pasted = ['3', 'perechi înscrise', '· 1+2 Wildcard-uri', '✓ Acceptați (2 / 3)',
+    '1', '900', fl('RO'), 'Test Unu', '(500 pct)', fl('MD'), 'Test Doi', '(400 pct)',
+    '2', '700', fl('ES'), 'Test Trei', '(400 pct)', fl('RO'), 'Test Patru', '(300 pct)',
+    '⏳ Listă de așteptare (1)',
+    '3', '100', fl('RO'), 'Test Cinci', '(60 pct)', 'Test Sase', '(40 pct)'].join('\n');
+  const postJ = (p, b) => fetch(`http://127.0.0.1:${SB_PORT}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(async (r) => ({ status: r.status, body: await r.json() }));
+  await cmd({ type: 'setTeamActive', teamId: 'M-MD-01', active: false }); // an elimination on the old roster
+  let rd = await postJ('/api/import/read', { paste: { text: pasted, division: 'Masculin 1', gender: 'male', tournament: 'Test Open' }, includeWaiting: true });
+  assert(rd.status === 200 && rd.body.teams === 3 && rd.body.categories[0].accepted === 2 && rd.body.categories[0].waiting === 1 && rd.body.existing.teams === 8 && rd.body.existing.newIfKept === 3, 'import: pasted list read (2 accepted + 1 waiting), the current roster is reported (' + JSON.stringify(rd.body.existing) + ')');
+  let teamsNow = await api('/api/teams');
+  assert(teamsNow.teams.length === 8, 'import: reading alone changes nothing');
+  let ap = await postJ('/api/import/apply', { token: rd.body.token, mode: 'replace' });
+  teamsNow = await api('/api/teams');
+  st = await api('/api/state');
+  assert(ap.status === 200 && ap.body.added === 3 && teamsNow.teams.length === 3 && teamsNow.tournament === 'Test Open' && !st.teams_registry['M-MD-01'], 'import: replace swaps the roster and clears the old eliminations');
+  assert(teamsNow.teams.map((t) => t.id).join(',') === 'M1-01,M1-02,M1-W03' && teamsNow.teams[0].players[1].country === 'MD' && teamsNow.teams[2].players[1].country === '', 'import: ids, 2-letter countries, a player without a flag');
+  assert(fs.existsSync(path.join(tmp, 'roster.json')), 'import: roster.json written next to the match state');
+  assert((await postJ('/api/import/apply', { token: rd.body.token, mode: 'keep' })).status === 400, 'import: a token can be applied only once');
+
+  rd = await postJ('/api/import/read', { paste: { text: pasted, division: 'Masculin 1', gender: 'male' }, includeWaiting: false });
+  ap = await postJ('/api/import/apply', { token: rd.body.token, mode: 'keep' });
+  assert(ap.body.added === 0 && ap.body.skipped === 2 && ap.body.total === 3, 'import: keep skips pairs already in the same division (' + JSON.stringify(ap.body) + ')');
+  rd = await postJ('/api/import/read', { paste: { text: pasted, division: 'Masculin 2', gender: 'male' }, includeWaiting: true });
+  ap = await postJ('/api/import/apply', { token: rd.body.token, mode: 'keep' });
+  teamsNow = await api('/api/teams');
+  assert(ap.body.added === 3 && teamsNow.teams.length === 6 && teamsNow.teams.some((t) => t.id === 'M2-01'), 'import: keep adds another division next to the existing one');
+  await cmd({ type: 'selectTeam', team: 0, teamId: 'M2-01' });
+  st = await api('/api/state');
+  assert(st.teams[0].players[0].name === 'Test Unu' && st.teams[0].players[0].country === 'RO', 'import: an imported pair can be picked for the match');
+
+  assert((await postJ('/api/import/read', { paste: { text: 'nothing useful', division: 'X' } })).status === 400, 'import: a paste without a list is refused');
+  assert((await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/import/read`, { method: 'POST', body: '{}' })).status !== 200 && (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/import/categories?url=x`)).status !== 200, 'import: never reachable on the public port');
+  const badLink = await fetch(`http://127.0.0.1:${SB_PORT}/api/import/categories?url=${encodeURIComponent('https://example.com/turnee/a/b')}`);
+  assert(badLink.status === 400, 'import: only padeltour.ro links are accepted');
 
   cleanupAndExit();
 })().catch((err) => {

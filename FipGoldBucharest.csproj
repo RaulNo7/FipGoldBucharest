@@ -9,8 +9,8 @@
     <AssemblyName>FipGoldBucharest</AssemblyName>
     <RootNamespace>FipGoldBucharest</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <AssemblyTitle>FIP Gold Bucharest 2026</AssemblyTitle>
-    <Product>FIP Gold Bucharest 2026</Product>
+    <AssemblyTitle>FRP broadcasting</AssemblyTitle>
+    <Product>FRP broadcasting</Product>
   </PropertyGroup>
 
   <ItemGroup>

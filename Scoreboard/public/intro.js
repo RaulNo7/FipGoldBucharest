@@ -27,10 +27,12 @@
 
   PadelClient.connect({ onState: render });
 
-  function render(state) {
+  function render(state, msg) {
     const d = state.display || {};
 
-    titleEl.textContent = d.title || 'FIP GOLD BUCHAREST 2026';
+    // No title set on Score settings: the imported tournament's name, else the channel name.
+    const roster = (msg && msg.roster) || {};
+    titleEl.textContent = d.title || (roster.shortName || roster.tournament || 'FRP broadcasting').toUpperCase();
     subtitleEl.textContent = d.subtitle || '';
     subtitleEl.hidden = !d.subtitle;
 

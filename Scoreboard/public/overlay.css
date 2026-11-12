@@ -1,4 +1,4 @@
-/* OBS overlay — transparent background, FIP Gold Bucharest 2026 scorebug.
+/* OBS overlay — transparent background, FRP broadcasting scorebug.
    4 player rows (2 per team block) + blue completed-set columns, gold
    current-set games column, white points column. */
 
@@ -8,17 +8,17 @@
   --radius: 10px;
   --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
 
-  /* FIP Gold Bucharest 2026 palette (official poster) */
-  --navy-deep: rgba(11, 27, 46, 0.94);
-  --navy-alt: rgba(27, 52, 84, 0.55);
-  --gold: #d4a017;
-  --gold-light: #e8c158;
-  --blue: #2e6ca4;
+  /* FRP palette: the Romanian flag (blue #002B7F, yellow #FCD116, red #CE1126) */
+  --navy-deep: rgba(6, 20, 51, 0.94);
+  --navy-alt: rgba(18, 39, 90, 0.55);
+  --gold: #fcd116;
+  --gold-light: #ffe14d;
+  --blue: #002b7f;
   --white: #ffffff;
   --muted: #9fb1c4;
-  --text-dark: #10202f;
+  --text-dark: #061433;
   --serve: #22c55e;
-  --title-bg: rgba(8, 20, 34, 0.96);
+  --title-bg: rgba(4, 12, 34, 0.96);
 }
 
 * {
@@ -90,7 +90,7 @@ body {
   background: var(--navy-deep);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  border: 1px solid rgba(232, 193, 88, 0.28);
+  border: 1px solid rgba(252, 209, 22, 0.28);
   overflow: hidden;
   backdrop-filter: blur(4px);
 }
@@ -112,7 +112,7 @@ body {
 
 .divider {
   height: 2px;
-  background: rgba(232, 193, 88, 0.35);
+  background: rgba(252, 209, 22, 0.35);
 }
 
 .players-col {
@@ -225,7 +225,7 @@ body {
   align-items: center;
   justify-content: center;
   background: var(--gold);
-  color: var(--white);
+  color: var(--text-dark);
   font-size: 26px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -256,7 +256,7 @@ body {
 .points.gp {
   font-size: 21px;
   letter-spacing: 0.06em;
-  color: #8a6a00;
+  color: #ce1126;
 }
 
 .points.bump {
@@ -307,7 +307,7 @@ body {
    clip (the replay buffer records the program picture). */
 .scoreboard.cover .board {
   position: relative;
-  background: #0b1b2e; /* opaque: nothing of the recorded score shines through */
+  background: #061433; /* opaque: nothing of the recorded score shines through */
   backdrop-filter: none;
 }
 
@@ -316,7 +316,7 @@ body {
 }
 
 .scoreboard.cover .title-bar {
-  background: #081422;
+  background: #040C22;
 }
 
 .cover-plate {
@@ -326,7 +326,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  background: linear-gradient(135deg, #2e6ca4 0%, #1f4f7d 100%);
+  background: linear-gradient(135deg, #002b7f 0%, #001d5a 100%);
   border-left: 8px solid var(--gold);
   color: var(--white);
 }
@@ -366,4 +366,12 @@ body {
 @keyframes coverPulse {
   0%, 100% { opacity: 1; transform: translateX(0); }
   50% { opacity: 0.55; transform: translateX(-4px); }
+}
+
+/* FRP brand: Romanian-flag stripe + logo */
+.title-bar {
+  background-image: linear-gradient(90deg, #002B7F 0 33.34%, #FCD116 33.34% 66.67%, #CE1126 66.67% 100%);
+  background-size: 100% 3px;
+  background-repeat: no-repeat;
+  background-position: top left;
 }

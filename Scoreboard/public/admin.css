@@ -1,18 +1,18 @@
-/* Control panels (Score settings + Teams) — FIP Gold Bucharest 2026 theme. */
+/* Control panels (Score settings + Teams) — FRP broadcasting theme (Romanian flag colours). */
 
 :root {
-  --bg: #0b1b2e;
-  --panel: #142943;
-  --panel-2: #1b3454;
-  --line: #2b4568;
+  --bg: #061433;
+  --panel: #0B1D45;
+  --panel-2: #12275a;
+  --line: #1e3a78;
   --fg: #ffffff;
   --muted: #9fb1c4;
-  --accent: #d4a017;
-  --accent-light: #e8c158;
-  --accent-fg: #10202f;
-  --blue: #2e6ca4;
+  --accent: #fcd116;
+  --accent-light: #ffe14d;
+  --accent-fg: #061433;
+  --blue: #002b7f;
   --green: #22c55e;
-  --red: #e74c3c;
+  --red: #ce1126;
   --orange: #e67e22;
   --radius: 12px;
   --font: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
@@ -41,7 +41,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 12px 22px;
-  background: rgba(11, 27, 46, 0.94);
+  background: rgba(6, 20, 51, 0.94);
   backdrop-filter: blur(8px);
   border-bottom: 2px solid var(--accent);
 }
@@ -358,7 +358,7 @@ input[type='checkbox'] {
 }
 
 .danger-card {
-  border-color: rgba(231, 76, 60, 0.35);
+  border-color: rgba(206, 17, 38, 0.35);
 }
 
 /* Phone / small-touchscreen tuning */
@@ -467,4 +467,172 @@ label.host-port input {
 
 .card.collapsible.collapsed > :not(.card-head) {
   display: none;
+}
+
+/* ---- Import players (Admin tab) ---- */
+.btn.btn-accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 800;
+}
+
+.imp-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.imp-tournament {
+  flex: 1 1 100%;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+label.imp-cat {
+  color: var(--fg);
+  font-size: 14px;
+}
+
+.imp-status.error {
+  color: #ff6b7d;
+}
+
+.imp-status.ok {
+  color: var(--green);
+}
+
+.imp-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.imp-table th,
+.imp-table td {
+  text-align: left;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.imp-table th {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.imp-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.imp-note.error {
+  color: #ff6b7d;
+}
+
+.imp-paste {
+  margin-top: 14px;
+}
+
+.imp-paste summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.imp-paste textarea {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--fg);
+  padding: 10px 11px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+/* Keep-or-replace dialog */
+.modal[hidden] {
+  display: none;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.modal-box {
+  max-width: 560px;
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-box h3 {
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+
+.modal-box p {
+  color: var(--muted);
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+/* FRP brand: Romanian-flag stripe + logo */
+.topbar {
+  border-bottom: 3px solid transparent;
+  border-image: linear-gradient(90deg, #002B7F 0 33.34%, #FCD116 33.34% 66.67%, #CE1126 66.67% 100%) 1;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-logo {
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+
+:root {
+  --flag-blue: #002B7F;
+  --flag-yellow: #FCD116;
+  --flag-red: #CE1126;
+}
+
+.btn.btn-danger {
+  background: var(--flag-red);
+  border-color: var(--flag-red);
+  color: #fff;
+}
+
+/* The hidden attribute always wins over a display set by a class (.row, .modal, .imp-cats...). */
+[hidden] {
+  display: none !important;
 }

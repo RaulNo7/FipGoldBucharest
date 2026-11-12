@@ -3,16 +3,66 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FIP Gold Bucharest 2026 — Admin</title>
+  <title>FRP broadcasting — Admin</title>
   <link rel="stylesheet" href="admin.css" />
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">🎾 FIP Gold Bucharest 2026 <span class="brand-sub">Admin</span></div>
+    <div class="brand"><img class="brand-logo" src="frp-mark.png" alt="" /> FRP broadcasting <span class="brand-sub">Admin</span></div>
     <div class="topbar-right"><span class="conn-text">this page is available only inside the app / venue network</span></div>
   </header>
 
   <main class="layout">
+    <div class="card" id="importCard">
+      <div class="card-head"><h2>Import players</h2></div>
+      <label class="full">Tournament link on padeltour.ro
+        <span class="row gap">
+          <input type="url" id="impUrl" placeholder="https://www.padeltour.ro/turnee/<club>/<tournament>/<edition>?tab=inscrisi" />
+          <button class="btn btn-ghost" id="impLoadBtn" type="button">Load categories</button>
+        </span>
+      </label>
+      <div id="impCats" class="imp-cats" hidden></div>
+      <div class="row gap wrap actions" id="impReadRow" hidden>
+        <label class="check"><input type="checkbox" id="impWaiting" checked /> Include the waiting list (marked "Waiting list")</label>
+        <button class="btn btn-accent" id="impReadBtn" type="button">Read players</button>
+      </div>
+      <p class="hint imp-status" id="impStatus"></p>
+      <div id="impPreview" hidden></div>
+      <details class="imp-paste">
+        <summary>No internet, or the site changed? Paste the list instead</summary>
+        <p class="hint">Open the category on padeltour.ro (tab <b>Înscriși</b>), press <b>Ctrl+A</b> then <b>Ctrl+C</b>, and paste below. One category at a time.</p>
+        <div class="config-grid">
+          <label>Division name
+            <input type="text" id="impPasteDiv" placeholder="e.g. Masculin 1" />
+          </label>
+          <label>Category
+            <select id="impPasteGender">
+              <option value="male">Men</option>
+              <option value="female">Women</option>
+              <option value="mixed">Mixed</option>
+            </select>
+          </label>
+        </div>
+        <textarea id="impPasteText" rows="5" placeholder="Paste the page text here"></textarea>
+        <div class="row gap wrap actions">
+          <button class="btn btn-ghost" id="impPasteBtn" type="button">Read pasted list</button>
+        </div>
+      </details>
+      <p class="hint">The players are read the way a browser shows them: the site loads its list after the page opens, so the app opens each category in a hidden Microsoft Edge (about 2 seconds per category). Country codes are the 2-letter codes of the flags on the site (RO, MD, ES…). Every import asks whether to <b>keep</b> the current teams and add the new pairs, or <b>replace</b> them. The teams are stored in <b>roster.json</b> in the app's data folder.</p>
+    </div>
+
+    <div class="modal" id="impModal" hidden>
+      <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="impModalTitle">
+        <h3 id="impModalTitle">Keep the existing teams?</h3>
+        <p id="impModalText"></p>
+        <div class="row gap wrap actions">
+          <button class="btn btn-accent" id="impKeepBtn" type="button">Keep them and add the new pairs</button>
+          <button class="btn btn-danger" id="impReplaceBtn" type="button">Replace them</button>
+          <button class="btn btn-ghost" id="impCancelBtn" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-head"><h2>OBS overlay URL</h2></div>
       <div class="row gap wrap">

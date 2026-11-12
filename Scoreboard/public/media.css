@@ -71,8 +71,8 @@
 
 /* "Replay" — blue, like the completed-set columns of the scorebug. */
 .btn.spot.spot-replay {
-  background: #2f6fb5;
-  border-color: #2f6fb5;
+  background: #002b7f;
+  border-color: #002b7f;
   color: #fff;
 }
 
@@ -83,17 +83,17 @@
 
 /* "Cancel" — red-tinted when a break can be cancelled, dimmed otherwise. */
 .btn.spot.spot-cancel {
-  border-color: rgba(231, 76, 60, 0.55);
+  border-color: rgba(206, 17, 38, 0.55);
 }
 
 .btn.spot.spot-cancel:not(:disabled) {
-  background: rgba(231, 76, 60, 0.16);
-  color: #ff8d80;
+  background: rgba(206, 17, 38, 0.16);
+  color: #ff6b7d;
 }
 
 .btn.spot.spot-cancel:not(:disabled) .spot-num,
 .btn.spot.spot-cancel:not(:disabled) .spot-file {
-  color: rgba(255, 141, 128, 0.75);
+  color: rgba(255, 107, 125, 0.75);
 }
 
 /* The spot that was played last stays gold. */
@@ -105,7 +105,7 @@
 
 .btn.spot.is-last .spot-num,
 .btn.spot.is-last .spot-file {
-  color: rgba(16, 32, 47, 0.75);
+  color: rgba(6, 20, 51, 0.75);
 }
 
 /* Whatever is on air right now pulses green (a spot, or the play-all run). */
@@ -132,6 +132,22 @@
 .video-row select {
   padding: 12px 14px;
   font-size: 15px;
+}
+
+/* Cancel next to Play in the replay row: red while a replay is on air. */
+.btn.btn-stop {
+  padding: 0 20px;
+  white-space: nowrap;
+  font-weight: 800;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+}
+
+.btn.btn-stop.is-armed {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
 }
 
 .video-row select {

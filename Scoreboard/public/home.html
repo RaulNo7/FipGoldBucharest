@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FIP Gold Bucharest 2026 — Home</title>
+  <title>FRP broadcasting — Home</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap" />
   <link rel="stylesheet" href="home.css" />
@@ -11,7 +11,7 @@
 <body>
   <header class="top">
     <div class="wrap top-inner">
-      <a class="brand" href="/">FIP GOLD <span>BUCHAREST 2026</span></a>
+      <a class="brand" href="/"><img class="brand-logo" src="frp-mark.png" alt="" />FRP <span>BROADCASTING</span></a>
       <nav class="menu">
         <a href="/scorebug" target="_blank" rel="noopener">Scorebug</a>
         <a href="/tv" target="_blank" rel="noopener">Court TV</a>
@@ -29,11 +29,10 @@
 
   <section class="hero">
     <div class="wrap">
-      <span class="tag">● FIP GOLD · BUCUREȘTI · 7–13 SEPT 2026</span>
-      <h1>The best padel<br />in the world<br />plays in Bucharest</h1>
+      <span class="tag" id="heroTag">● FEDERAȚIA ROMÂNĂ DE PADEL</span>
+      <h1 id="heroTitle">Romanian padel,<br />live, point<br />by point</h1>
       <div class="facts">
-        <a class="fact fact-site" href="https://fipgoldbucharest.ro/" target="_blank" rel="noopener"><small>OFFICIAL WEBSITE</small><b>FIPGOLDBUCHAREST.RO ↗</b></a>
-        <a class="fact fact-fip" href="https://www.padelfip.com/events/fip-gold-bucharest/" target="_blank" rel="noopener"><small>INTERNATIONAL PADEL FEDERATION</small><b>FIP EVENT ↗</b></a>
+        <a class="fact fact-site" id="tournamentFact" hidden href="#" target="_blank" rel="noopener"><small>TOURNAMENT</small><b id="tournamentFactName">PADELTOUR.RO ↗</b></a>
         <a class="fact fact-yt" id="youtubeFact" hidden href="#" target="_blank" rel="noopener"><small>WATCH</small><b>▶ YOUTUBE LIVE</b></a>
       </div>
       <div class="score" id="score"><div class="score-empty">Connecting to the score server…</div></div>
@@ -42,10 +41,10 @@
 
   <main class="wrap">
     <h2>On air</h2>
-    <p class="lead">Public pages — safe to share with FIP, the venue or anyone watching.</p>
+    <p class="lead">Public pages — safe to share with the organisers, the venue or anyone watching.</p>
     <div class="grid">
       <a class="card" href="/scorebug" target="_blank" rel="noopener">
-        <span class="card-kicker">OBS · FIP widget</span>
+        <span class="card-kicker">OBS · web widget</span>
         <span class="card-title">Scorebug</span>
         <span class="card-text">The transparent live-score widget for the broadcast — with a preview, the fixed HTTPS link and the HTML code to embed it anywhere.</span>
         <span class="pill">Open ↗</span>
@@ -107,8 +106,8 @@
 
   <footer class="foot">
     <div class="wrap foot-inner">
-      <img src="fip-logo.png" alt="International Padel Federation" />
-      <span>FIP Gold Bucharest 2026 · live production</span>
+      <img src="frp-logo-light.png" alt="Federația Română de Padel" />
+      <span>FRP broadcasting · live production</span>
     </div>
   </footer>
 

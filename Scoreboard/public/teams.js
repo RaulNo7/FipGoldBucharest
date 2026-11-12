@@ -12,8 +12,11 @@
   let renderPending = false;
 
   const client = PadelClient.connect({
-    onState: (s) => {
+    onState: (s, msg) => {
       state = s;
+      // An import changed the roster: reload it.
+      if (msg && msg.roster && rosterRev !== null && msg.roster.rev !== rosterRev) loadRoster();
+      if (msg && msg.roster) rosterRev = msg.roster.rev;
       renderAll();
     },
     onStatus: (status) => {
@@ -22,15 +25,19 @@
     },
   });
 
-  fetch('/api/teams')
-    .then((r) => r.json())
-    .then((data) => {
-      roster = data;
-      renderAll();
-    })
-    .catch(() => {
-      $('#menList').textContent = 'Could not load the entry list (data/teams.json).';
-    });
+  let rosterRev = null;
+  function loadRoster() {
+    fetch('/api/teams')
+      .then((r) => r.json())
+      .then((data) => {
+        roster = data;
+        renderAll();
+      })
+      .catch(() => {
+        $('#rosterCards').textContent = 'Could not load the teams list.';
+      });
+  }
+  loadRoster();
 
   function isActive(t) {
     const reg = state && state.teams_registry;
@@ -62,7 +69,9 @@
   // Known country codes for the code editor's suggestions.
   const ccList = document.createElement('datalist');
   ccList.id = 'ccList';
-  Object.keys(C.ISO3_TO_ISO2 || {}).sort().forEach((code) => {
+  // 2-letter ISO codes first (what padeltour.ro uses), then the old 3-letter FIP codes.
+  const ISO2_COMMON = ['RO', 'MD', 'ES', 'IT', 'FR', 'DE', 'BG', 'HU', 'UA', 'PT', 'GB', 'NL', 'BE', 'AT', 'CH', 'PL', 'GR', 'RS', 'TR', 'AR', 'BR', 'MA', 'US', 'SE', 'DK'];
+  ISO2_COMMON.concat(Object.keys(C.ISO3_TO_ISO2 || {}).sort()).forEach((code) => {
     const o = document.createElement('option');
     o.value = code;
     ccList.appendChild(o);
@@ -77,14 +86,14 @@
     input.className = 'rp-cc-input';
     input.maxLength = 3;
     input.setAttribute('list', 'ccList');
-    input.setAttribute('aria-label', 'Country code (3 letters)');
+    input.setAttribute('aria-label', 'Country code (2 or 3 letters)');
     input.value = playerCountry(t, i);
     let done = false;
     const finish = (save) => {
       if (done) return;
       done = true;
       const value = input.value.trim().toUpperCase();
-      if (save && /^[A-Z]{3}$/.test(value) && value !== playerCountry(t, i)) {
+      if (save && /^[A-Z]{2,3}$/.test(value) && value !== playerCountry(t, i)) {
         client.send({ type: 'setPlayerCountry', teamId: t.id, player: i, country: value });
         ccEl.textContent = value;
       }
@@ -108,8 +117,7 @@
       return;
     }
     renderPending = false;
-    renderCategory('men', $('#menList'), $('#menCount'));
-    renderCategory('women', $('#womenList'), $('#womenCount'));
+    renderCards();
   }
 
   function endEdit() {
@@ -148,24 +156,47 @@
     input.select();
   }
 
-  function renderCategory(category, container, countEl) {
-    const teams = roster.teams.filter((t) => t.category === category);
-    const activeCount = teams.filter(isActive).length;
-    countEl.textContent = activeCount + ' / ' + teams.length + ' active';
-
-    container.innerHTML = '';
-    for (const section of ['main_draw', 'qualifying']) {
-      const group = teams
-        .filter((t) => t.section === section)
-        .sort((a, b) => a.position - b.position);
-      if (!group.length) continue;
-
-      const h = document.createElement('div');
-      h.className = 'group-title';
-      h.textContent = section === 'main_draw' ? 'Main draw' : 'Qualifying';
-      container.appendChild(h);
-
-      group.forEach((t) => container.appendChild(teamRow(t)));
+  /** One card per division (imported) or per men/women (entry list), each with its groups. */
+  function renderCards() {
+    const box = $('#rosterCards');
+    box.innerHTML = '';
+    const groups = C.rosterGroups(roster.teams);
+    if (!groups.length) {
+      const empty = document.createElement('div');
+      empty.className = 'card';
+      empty.textContent = 'No teams yet — import them on the Admin tab (Import players).';
+      box.appendChild(empty);
+      return;
+    }
+    const cards = new Map();
+    for (const g of groups) {
+      if (!cards.has(g.card)) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const head = document.createElement('div');
+        head.className = 'card-head';
+        const h2 = document.createElement('h2');
+        h2.textContent = g.card;
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        head.append(h2, badge);
+        const list = document.createElement('div');
+        list.className = 'roster';
+        card.append(head, list);
+        box.appendChild(card);
+        cards.set(g.card, { list, badge, teams: [], sections: 0 });
+      }
+      const c = cards.get(g.card);
+      c.teams.push(...g.teams);
+      c.sections++;
+      const title = document.createElement('div');
+      title.className = 'group-title';
+      title.textContent = g.sectionLabel + ' (' + g.teams.length + ')';
+      c.list.appendChild(title);
+      g.teams.forEach((t) => c.list.appendChild(teamRow(t)));
+    }
+    for (const c of cards.values()) {
+      c.badge.textContent = c.teams.filter(isActive).length + ' / ' + c.teams.length + ' active';
     }
   }
 
@@ -203,7 +234,7 @@
       const cc = document.createElement('span');
       cc.className = 'rp-cc' + (country !== origCountry ? ' edited' : '');
       cc.textContent = country;
-      cc.title = 'Click to change the country (3-letter code, e.g. POL)';
+      cc.title = 'Click to change the country (2-letter code, e.g. RO, or 3-letter, e.g. ROU)';
       cc.addEventListener('click', () => startCountryEdit(t, i, cc));
 
       const edit = document.createElement('button');

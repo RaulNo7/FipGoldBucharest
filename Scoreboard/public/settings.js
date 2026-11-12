@@ -33,6 +33,166 @@
   $('#copyIntroUrlBtn').addEventListener('click', () => copyField($('#introUrl'), $('#copyIntroUrlBtn')));
   $('#openIntroBtn').addEventListener('click', () => window.open($('#introUrl').value, '_blank'));
 
+  // ---- Import players (padeltour.ro link, or a pasted list) ----
+  // read -> preview -> "keep or replace?" -> apply. The server does the reading.
+  const IMP_URL_KEY = 'importLastUrl';
+  const DEFAULT_CATS = ['Masculin 1', 'Masculin 2', 'Feminin 1'];
+  let impPending = null; // preview returned by /api/import/read
+  try {
+    $('#impUrl').value = localStorage.getItem(IMP_URL_KEY) || '';
+  } catch (_) { /* no storage */ }
+
+  const impStatus = (text, kind) => {
+    const el = $('#impStatus');
+    el.textContent = text || '';
+    el.className = 'hint imp-status' + (kind ? ' ' + kind : '');
+  };
+  const postJson = (path, body) =>
+    fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then((r) => r.json().then((j) => (r.ok ? j : Promise.reject(new Error(j.error || 'Request failed.')))));
+
+  $('#impLoadBtn').addEventListener('click', () => {
+    const link = $('#impUrl').value.trim();
+    if (!link) return $('#impUrl').focus();
+    try {
+      localStorage.setItem(IMP_URL_KEY, link);
+    } catch (_) { /* no storage */ }
+    impStatus('Loading the categories…');
+    $('#impLoadBtn').disabled = true;
+    fetch('/api/import/categories?url=' + encodeURIComponent(link))
+      .then((r) => r.json().then((j) => (r.ok ? j : Promise.reject(new Error(j.error || 'Could not load the page.')))))
+      .then((info) => {
+        const box = $('#impCats');
+        box.innerHTML = '';
+        const title = document.createElement('div');
+        title.className = 'imp-tournament';
+        title.textContent = info.tournament || 'Tournament';
+        box.appendChild(title);
+        const defaults = (info.defaults || DEFAULT_CATS).map((s) => s.toLowerCase());
+        for (const c of info.categories) {
+          const label = document.createElement('label');
+          label.className = 'check imp-cat';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = c.name;
+          cb.checked = defaults.includes(c.name.toLowerCase());
+          const cap = c.maxPairs != null ? ` · ${c.maxPairs} pairs` : '';
+          label.append(cb, document.createTextNode(` ${c.name}${cap}`));
+          box.appendChild(label);
+        }
+        box.hidden = false;
+        $('#impReadRow').hidden = false;
+        $('#impPreview').hidden = true;
+        impStatus(`${info.categories.length} categories found. Tick the ones to import and press Read players.`);
+      })
+      .catch((err) => impStatus(err.message, 'error'))
+      .finally(() => ($('#impLoadBtn').disabled = false));
+  });
+
+  function startRead(body, label) {
+    impStatus(label);
+    $('#impReadBtn').disabled = true;
+    $('#impPasteBtn').disabled = true;
+    $('#impPreview').hidden = true;
+    postJson('/api/import/read', body)
+      .then((preview) => {
+        impPending = preview;
+        showPreview(preview);
+        askKeepOrReplace(preview);
+      })
+      .catch((err) => impStatus(err.message, 'error'))
+      .finally(() => {
+        $('#impReadBtn').disabled = false;
+        $('#impPasteBtn').disabled = false;
+      });
+  }
+
+  $('#impReadBtn').addEventListener('click', () => {
+    const categories = $$('#impCats input[type=checkbox]:checked').map((cb) => cb.value);
+    if (!categories.length) return impStatus('Tick at least one category.', 'error');
+    startRead(
+      { url: $('#impUrl').value.trim(), categories, includeWaiting: $('#impWaiting').checked },
+      `Reading ${categories.length} categor${categories.length === 1 ? 'y' : 'ies'} from padeltour.ro… (about 2 seconds each)`
+    );
+  });
+
+  $('#impPasteBtn').addEventListener('click', () => {
+    const text = $('#impPasteText').value;
+    const division = $('#impPasteDiv').value.trim();
+    if (!division) return $('#impPasteDiv').focus();
+    if (!text.trim()) return $('#impPasteText').focus();
+    startRead(
+      { paste: { text, division, gender: $('#impPasteGender').value }, includeWaiting: $('#impWaiting').checked },
+      'Reading the pasted list…'
+    );
+  });
+
+  function showPreview(p) {
+    const box = $('#impPreview');
+    box.innerHTML = '';
+    const table = document.createElement('table');
+    table.className = 'imp-table';
+    table.innerHTML = '<thead><tr><th>Category</th><th>On the site</th><th>Accepted</th><th>Waiting list</th><th>To import</th><th></th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    for (const c of p.categories) {
+      const tr = document.createElement('tr');
+      const notes = [];
+      if (c.error) notes.push(c.error);
+      if (c.noCountry) notes.push(`${c.noCountry} player${c.noCountry === 1 ? '' : 's'} without a country`);
+      if (c.incomplete) notes.push(`${c.incomplete} entr${c.incomplete === 1 ? 'y' : 'ies'} without a partner skipped`);
+      const cells = [c.name, c.registered == null ? '—' : c.registered, c.error ? '—' : c.accepted, c.error ? '—' : c.waiting, c.error ? 0 : c.imported, notes.join(' · ')];
+      cells.forEach((v, i) => {
+        const td = document.createElement('td');
+        td.textContent = String(v);
+        if (i === 5) td.className = c.error ? 'imp-note error' : 'imp-note';
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    box.appendChild(table);
+    box.hidden = false;
+    impStatus(`${p.teams} pair${p.teams === 1 ? '' : 's'} read from “${p.tournament}”.` + (p.missing && p.missing.length ? ` Not on the page: ${p.missing.join(', ')}.` : ''));
+  }
+
+  function askKeepOrReplace(p) {
+    const ex = p.existing || {};
+    const fresh = ex.newIfKept == null ? p.teams : ex.newIfKept;
+    const already = p.teams - fresh;
+    const pairs = (n) => `${n} pair${n === 1 ? '' : 's'}`;
+    $('#impModalText').textContent = ex.teams
+      ? `The app has ${ex.teams} team${ex.teams === 1 ? '' : 's'} now${ex.tournament ? ` (${ex.tournament})` : ''}. ` +
+        `Keep them and add ${fresh ? `the ${pairs(fresh)} that ${fresh === 1 ? 'is' : 'are'} not there yet` : 'nothing (all are there already)'}` +
+        `${already ? ` — ${pairs(already)} already in the same division ${already === 1 ? 'is' : 'are'} skipped` : ''}, ` +
+        `or replace them with the ${pairs(p.teams)} just read? Replacing also clears the eliminations and the name/country corrections made on the Teams tab.`
+      : `The app has no teams yet. Import the ${pairs(p.teams)}?`;
+    $('#impModal').hidden = false;
+    $('#impKeepBtn').focus();
+  }
+
+  function finishImport(mode) {
+    $('#impModal').hidden = true;
+    if (!mode || !impPending) {
+      impStatus('Import cancelled — nothing was changed.');
+      return;
+    }
+    postJson('/api/import/apply', { token: impPending.token, mode })
+      .then((r) => {
+        impPending = null;
+        const how = r.mode === 'replace' ? 'Teams replaced' : 'Teams kept';
+        impStatus(`${how}: ${r.added} pair${r.added === 1 ? '' : 's'} added${r.skipped ? `, ${r.skipped} already there` : ''} — ${r.total} teams now. The Teams and Score settings tabs are updated.`, 'ok');
+      })
+      .catch((err) => impStatus(err.message, 'error'));
+  }
+  $('#impKeepBtn').addEventListener('click', () => finishImport('keep'));
+  $('#impReplaceBtn').addEventListener('click', () => {
+    if (confirm('Replace all teams with the imported ones? Eliminations and corrections are cleared.')) finishImport('replace');
+  });
+  $('#impCancelBtn').addEventListener('click', () => finishImport(null));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('#impModal').hidden) finishImport(null);
+  });
+
   // ---- Info bar (bottom announcements bar): settings + its URLs ----
   // The settings are announcement-bar settings on the server (annSettings);
   // this card is the only place they are edited.

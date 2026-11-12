@@ -163,7 +163,7 @@ label.radio .dur-unit {
 
 .icon-btn.danger:hover {
   border-color: var(--red);
-  color: #ff8d80;
+  color: #ff6b7d;
 }
 
 /* On/off switch */
@@ -173,7 +173,7 @@ label.radio .dur-unit {
   height: 28px;
   border-radius: 14px;
   border: none;
-  background: #3a5273;
+  background: #2c4680;
   cursor: pointer;
   transition: background 0.2s;
 }

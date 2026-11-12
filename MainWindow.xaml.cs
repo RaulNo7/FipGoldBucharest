@@ -101,7 +101,7 @@ public partial class MainWindow : Window
         _trayIcon = new Forms.NotifyIcon
         {
             Icon = trayIconImage,
-            Text = "FIP Gold Bucharest 2026",
+            Text = "FRP broadcasting",
             Visible = true,
             ContextMenuStrip = new Forms.ContextMenuStrip()
         };

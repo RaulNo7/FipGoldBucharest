@@ -18,6 +18,8 @@
   client = PadelClient.connect({
     onState: (s, msg) => {
       state = s;
+      if (msg && msg.roster && rosterRev !== null && msg.roster.rev !== rosterRev) loadRoster(); // an import changed it
+      if (msg && msg.roster) rosterRev = msg.roster.rev;
       render(s, msg);
     },
     onStatus: (status) => {
@@ -30,24 +32,22 @@
     client.send(obj);
   }
 
-  // ---- entry-list roster ----
-  fetch('/api/teams')
-    .then((r) => r.json())
-    .then((data) => {
-      roster = data;
-      buildPickers();
-      if (state) renderSidePreviews(state);
-    })
-    .catch(() => {
-      $$('.side-pick label').forEach((l) => l.classList.add('error'));
-    });
+  // ---- roster (imported on the Admin tab, or the bundled entry list) ----
+  let rosterRev = null;
+  function loadRoster() {
+    fetch('/api/teams')
+      .then((r) => r.json())
+      .then((data) => {
+        roster = data;
+        buildPickers();
+        if (state) renderSidePreviews(state);
+      })
+      .catch(() => {
+        $$('.side-pick label').forEach((l) => l.classList.add('error'));
+      });
+  }
+  loadRoster();
 
-  const GROUPS = [
-    { category: 'men', section: 'main_draw', label: 'Men — Main draw' },
-    { category: 'men', section: 'qualifying', label: 'Men — Qualifying' },
-    { category: 'women', section: 'main_draw', label: 'Women — Main draw' },
-    { category: 'women', section: 'qualifying', label: 'Women — Qualifying' },
-  ];
 
   function isActive(t) {
     const reg = state && state.teams_registry;
@@ -83,10 +83,8 @@
       const sel = $(`[data-team-select="${side}"]`);
       const current = sel.value;
       sel.innerHTML = '<option value="">— pick a team —</option>';
-      for (const g of GROUPS) {
-        const teams = roster.teams
-          .filter((t) => t.category === g.category && t.section === g.section)
-          .sort((a, b) => a.position - b.position);
+      for (const g of C.rosterGroups(roster.teams)) {
+        const teams = g.teams;
         if (!teams.length) continue;
         const og = document.createElement('optgroup');
         og.label = g.label;

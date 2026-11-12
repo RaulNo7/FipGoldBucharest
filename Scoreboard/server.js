@@ -7,6 +7,7 @@ const path = require('path');
 const { createWsHub } = require('./src/wsserver');
 const scoring = require('./src/scoring');
 const { ObsClient } = require('./src/obsclient');
+const padeltour = require('./src/padeltour');
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -22,14 +23,33 @@ const MAX_HISTORY = 100;
 // Tournament entry list (static seed data shipped with the app)
 // ---------------------------------------------------------------------------
 
+// The roster: an imported one (roster.json next to the match state, written
+// by the Admin tab's "Import players") wins over the entry list bundled with
+// the app (data/teams.json).
 const TEAMS_FILE = path.join(__dirname, 'data', 'teams.json');
-let teamsData = { tournament: 'FIP Gold Bucharest 2026', teams: [] };
-try {
-  teamsData = JSON.parse(fs.readFileSync(TEAMS_FILE, 'utf8'));
-} catch (err) {
-  console.error('Could not load data/teams.json:', err.message);
+const ROSTER_FILE = path.join(path.dirname(STATE_FILE), 'roster.json');
+let teamsData = { tournament: '', teams: [] };
+let teamById = new Map();
+let rosterRev = 0; // bumps on every import: pages reload their team lists when it moves
+
+function setRoster(data) {
+  teamsData = { tournament: '', ...data, teams: Array.isArray(data && data.teams) ? data.teams : [] };
+  teamById = new Map(teamsData.teams.map((t) => [t.id, t]));
+  rosterRev++;
 }
-const teamById = new Map((teamsData.teams || []).map((t) => [t.id, t]));
+
+(function loadRoster() {
+  for (const file of [ROSTER_FILE, TEAMS_FILE]) {
+    try {
+      if (!fs.existsSync(file)) continue;
+      setRoster(JSON.parse(fs.readFileSync(file, 'utf8')));
+      return;
+    } catch (err) {
+      console.error(`Could not load ${path.basename(file)}:`, err.message);
+    }
+  }
+  setRoster({ tournament: '', teams: [] });
+})();
 
 /** The pair's players with any name/country corrections from the live registry applied (original* = entry list). */
 function rosterPlayers(rec) {
@@ -169,12 +189,24 @@ publicHub.onMessage((socket, text) => {
 function publicStateMessage() {
   // Same as the LAN message minus the client count. The OBS/break status is
   // needed by the (key-protected) Media page and contains nothing sensitive.
-  return JSON.stringify({ type: 'state', state, obs: obsStatusPayload(), announcements: annPayload() });
+  return JSON.stringify({ type: 'state', state, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload() });
 }
 
 function stateMessage() {
   // `obs` is transient status for the admin UI — never persisted, never secret.
-  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload(), announcements: annPayload() });
+  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload() });
+}
+
+/** Roster version + tournament name: pages reload /api/teams when `rev` changes. */
+function rosterPayload() {
+  const src = teamsData.source && typeof teamsData.source === 'object' ? teamsData.source : {};
+  return {
+    rev: rosterRev,
+    tournament: teamsData.tournament || '',
+    shortName: teamsData.shortName || '',
+    // the tournament page the roster came from (home page "Tournament" tile)
+    url: typeof src.padeltour === 'string' && /^https:\/\/(www\.)?padeltour\.ro\//.test(src.padeltour) ? src.padeltour.replace(/[?#].*$/, '') : '',
+  };
 }
 
 function broadcastState() {
@@ -837,6 +869,182 @@ setTimeout(replayHousekeeping, 3000);
 setInterval(replayHousekeeping, 15000);
 
 // ---------------------------------------------------------------------------
+// Import players (Admin tab): padeltour.ro link or pasted list -> roster.json
+// ---------------------------------------------------------------------------
+// Two steps so the operator can decide with the numbers in front of them:
+//   read  -> the pairs are fetched and kept here as a pending import (token)
+//   apply -> mode "replace" (new roster, eliminations/corrections cleared) or
+//            "keep" (existing teams stay, new pairs are added, already-present
+//            pairs of the same division are skipped)
+
+const DEFAULT_IMPORT_CATEGORIES = ['Masculin 1', 'Masculin 2', 'Feminin 1'];
+const importState = { busy: false, pending: null };
+
+function shortTournamentName(name) {
+  return String(name || '').split(/\s+[—–]\s+/)[0].trim();
+}
+
+function readJsonBody(req, limit = 2e6) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (c) => {
+      body += c;
+      if (body.length > limit) {
+        reject(new Error('Request too large.'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(body || '{}'));
+      } catch (_) {
+        reject(new Error('Bad request.'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function sendJson(res, status, obj) {
+  res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+  res.end(JSON.stringify(obj));
+}
+
+/** Read step. src: { url, categories, includeWaiting } or { paste: { text, division, gender }, includeWaiting }. */
+async function readImport(src) {
+  const includeWaiting = src.includeWaiting !== false;
+  let result;
+  if (src.paste) {
+    const division = String(src.paste.division || '').trim() || 'Imported';
+    const parsed = padeltour.parseRegistrations(padeltour.textToLines(src.paste.text));
+    if (!parsed.found || !parsed.pairs.length) {
+      throw new Error('No pairs found in the pasted text. Copy the whole registrations list of one category (Ctrl+A, Ctrl+C on the page).');
+    }
+    result = {
+      name: String(src.paste.tournament || '').trim() || teamsData.tournament || 'Imported tournament',
+      url: '',
+      missing: [],
+      categories: [{ name: division, gender: String(src.paste.gender || ''), registered: parsed.registered, capacity: parsed.capacity, pairs: parsed.pairs, incomplete: parsed.incomplete, error: null }],
+    };
+  } else {
+    result = await padeltour.readTournament({ url: src.url, categories: src.categories && src.categories.length ? src.categories : DEFAULT_IMPORT_CATEGORIES });
+  }
+  const teams = [];
+  for (const cat of result.categories) teams.push(...padeltour.toTeams(cat, { includeWaiting }));
+  if (!teams.length) {
+    const why = result.categories.map((c) => c.error).filter(Boolean).join(' ');
+    throw new Error(why || 'No pairs were found.');
+  }
+  const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  importState.pending = { token, name: result.name, url: result.url, teams, createdAt: Date.now() };
+  // With "keep", pairs already in the same division are skipped: say how many are really new.
+  const existingKeys = new Set(teamsData.teams.map((t) => (t.division || '') + '|' + padeltour.pairKey(t.players)));
+  const newIfKept = teams.filter((t) => !existingKeys.has((t.division || '') + '|' + padeltour.pairKey(t.players))).length;
+  return {
+    token,
+    tournament: result.name,
+    missing: result.missing || [],
+    categories: result.categories.map((c) => {
+      const accepted = c.pairs.filter((p) => !p.waiting).length;
+      return {
+        name: c.name,
+        registered: c.registered,
+        read: c.pairs.length,
+        accepted,
+        waiting: c.pairs.length - accepted,
+        imported: includeWaiting ? c.pairs.length : accepted,
+        incomplete: c.incomplete,
+        noCountry: c.pairs.reduce((n, p) => n + p.players.filter((q) => !q.country).length, 0),
+        error: c.error,
+      };
+    }),
+    teams: teams.length,
+    existing: { teams: teamsData.teams.length, tournament: teamsData.tournament || '', newIfKept },
+  };
+}
+
+/** Apply step: write roster.json and switch the live roster. */
+function applyImport(token, mode) {
+  const p = importState.pending;
+  if (!p || p.token !== token) throw new Error('This import is no longer pending — read the list again.');
+  if (mode !== 'keep' && mode !== 'replace') throw new Error('Choose keep or replace.');
+  let teams;
+  let added = 0;
+  let skipped = 0;
+  if (mode === 'replace') {
+    teams = p.teams;
+    added = teams.length;
+    // Eliminations and name/country corrections belong to the old roster.
+    state.teams_registry = {};
+  } else {
+    teams = teamsData.teams.slice();
+    const ids = new Set(teams.map((t) => t.id));
+    const keys = new Set(teams.map((t) => (t.division || '') + '|' + padeltour.pairKey(t.players)));
+    for (const t of p.teams) {
+      const key = (t.division || '') + '|' + padeltour.pairKey(t.players);
+      if (keys.has(key)) {
+        skipped++;
+        continue;
+      }
+      let id = t.id;
+      for (let n = 2; ids.has(id); n++) id = `${t.id}-${n}`;
+      ids.add(id);
+      keys.add(key);
+      teams.push({ ...t, id });
+      added++;
+    }
+  }
+  const roster = {
+    tournament: p.name,
+    shortName: shortTournamentName(p.name),
+    source: { padeltour: p.url || null, importedAt: new Date().toISOString(), mode },
+    teams,
+  };
+  fs.writeFileSync(ROSTER_FILE, JSON.stringify(roster, null, 2));
+  setRoster(roster);
+  importState.pending = null;
+  persist();
+  broadcastState();
+  return { ok: true, mode, added, skipped, total: teams.length, tournament: roster.tournament };
+}
+
+/** /api/import/* on the main port (the Admin page is app-only; never on the public port). */
+function handleImportRequest(req, res, pathname, url) {
+  if (pathname === '/api/import/categories' && req.method === 'GET') {
+    padeltour
+      .fetchTournament(url.searchParams.get('url'))
+      .then((info) =>
+        sendJson(res, 200, {
+          tournament: info.name,
+          categories: info.categories.map((c) => ({ name: c.name, gender: c.gender, maxPairs: c.maxPairs, wildcards: c.wildcards })),
+          defaults: DEFAULT_IMPORT_CATEGORIES,
+        }))
+      .catch((err) => sendJson(res, 400, { error: err.message }));
+    return true;
+  }
+  if (pathname === '/api/import/read' && req.method === 'POST') {
+    if (importState.busy) {
+      sendJson(res, 409, { error: 'An import is already being read — wait a moment.' });
+      return true;
+    }
+    importState.busy = true;
+    readJsonBody(req)
+      .then((src) => readImport(src))
+      .then((preview) => sendJson(res, 200, preview))
+      .catch((err) => sendJson(res, 400, { error: err.message }))
+      .finally(() => (importState.busy = false));
+    return true;
+  }
+  if (pathname === '/api/import/apply' && req.method === 'POST') {
+    readJsonBody(req)
+      .then((b) => sendJson(res, 200, applyImport(b.token, b.mode)))
+      .catch((err) => sendJson(res, 400, { error: err.message }));
+    return true;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Announcements (bottom ticker bar, /ticker)
 // ---------------------------------------------------------------------------
 // Edited on the Announcements tab (/announcements). Kept apart from the match
@@ -1201,6 +1409,9 @@ function handleMainRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   let pathname = decodeURIComponent(url.pathname);
 
+  // Import players (Admin tab). Not in KEYED_PATHS, so the public port never forwards here.
+  if (pathname.startsWith('/api/import/') && handleImportRequest(req, res, pathname, url)) return;
+
   // REST fallback for posting commands (useful for stream decks / hotkey apps).
   if (req.method === 'POST' && pathname === '/api/command') {
     let body = '';
@@ -1373,7 +1584,7 @@ server.on('upgrade', (req, socket) => {
 server.listen(PORT, HOST, () => {
   const lan = firstLanAddress();
   console.log('');
-  console.log('  🎾  FIP Gold Bucharest 2026 — score server is running');
+  console.log('  🎾  FRP broadcasting — score server is running');
   console.log('  ----------------------------------------');
   console.log(`  Admin panel : http://localhost:${PORT}/admin`);
   console.log(`  OBS overlay : http://localhost:${PORT}/overlay`);

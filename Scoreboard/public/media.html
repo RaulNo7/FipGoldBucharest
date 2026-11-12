@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FIP Gold Bucharest 2026 — Media</title>
+  <title>FRP broadcasting — Media</title>
   <link rel="stylesheet" href="admin.css" />
   <link rel="stylesheet" href="media.css" />
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">🎾 FIP Gold Bucharest 2026 <span class="brand-sub">Media</span></div>
+    <div class="brand"><img class="brand-logo" src="frp-mark.png" alt="" /> FRP broadcasting <span class="brand-sub">Media</span></div>
     <div class="topbar-right">
       <span id="connDot" class="conn-dot" title="connection"></span>
       <span id="connText" class="conn-text">connecting…</span>
@@ -43,6 +43,7 @@
       <div class="video-row">
         <select id="replaySelect" aria-label="Saved replay"></select>
         <button class="btn btn-play" id="playReplayBtn">▶ Play</button>
+        <button class="btn btn-stop" id="stopReplayBtn" disabled title="Stop the replay and go back to the live scene">■ Cancel</button>
       </div>
       <p class="hint" id="replayStatus">…</p>
       <p class="hint"><b>Replay</b> saves the last seconds of the stream from OBS's replay buffer into <b id="replayDir">…</b> and plays the clip straight away on the replay scene; the dropdown keeps the <b>last 10 clips</b> (newest first) so the best points can be shown again during a pause with <b>Play</b>. The scorebug is hidden for the whole replay (the REPLAY cover takes its place) and comes back, if it was showing, when OBS switches back to the live scene at the end of the clip. The clip length and the folder are set in the settings card below.</p>

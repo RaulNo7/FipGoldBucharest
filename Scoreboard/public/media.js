@@ -107,6 +107,8 @@
     if (file) send({ type: 'playReplay', file });
   });
   $('#cancelReplayBtn').addEventListener('click', () => send({ type: 'cancelCommercials' }));
+  // Cancel next to Play: stops the replay on air and goes back to the live scene (score comes back).
+  $('#stopReplayBtn').addEventListener('click', () => send({ type: 'cancelCommercials' }));
 
   // ---- broadcast controls ----
   $('#introBtn').addEventListener('click', () => {
@@ -242,6 +244,8 @@
     saveBtn.disabled = running || !!rp.saving || !rp.enabled;
     saveBtn.classList.toggle('is-playing', !!rp.saving || replayPlaying);
     $('#cancelReplayBtn').disabled = !replayPlaying;
+    $('#stopReplayBtn').disabled = !replayPlaying;
+    $('#stopReplayBtn').classList.toggle('is-armed', replayPlaying);
     $('#playReplayBtn').disabled = running || !!rp.saving || !$('#replaySelect').value;
     $('#playReplayBtn').classList.toggle('is-playing', replayPlaying);
     $('#replaySelect').disabled = running || !!rp.saving;

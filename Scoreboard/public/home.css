@@ -4,11 +4,11 @@
 :root {
   --black: #0a0a0a;
   --ink: #141414;
-  --court: #1b4d89;
-  --court-deep: #0e2d54;
-  --gold: #c9a227;
-  --gold-bright: #e7c35a;
-  --gold-soft: #f3e6be;
+  --court: #002b7f;
+  --court-deep: #001a4d;
+  --gold: #fcd116;
+  --gold-bright: #ffe14d;
+  --gold-soft: #fff4c2;
   --grey: #8a8a8a;
   --line: #e4e2dd;
   --paper: #f4f3f0;
@@ -95,7 +95,7 @@ a {
   content: '▶';
   margin-right: 6px;
   font-size: 10px;
-  color: #ff3b30;
+  color: #ce1126;
   vertical-align: 1px;
 }
 
@@ -120,7 +120,7 @@ a {
   color: var(--white);
   padding: 72px 0 56px;
   background:
-    radial-gradient(900px 420px at 85% 10%, rgba(27, 77, 137, 0.65), transparent 65%),
+    radial-gradient(900px 420px at 85% 10%, rgba(0, 43, 127, 0.65), transparent 65%),
     linear-gradient(180deg, var(--court-deep) 0%, var(--black) 100%);
 }
 
@@ -207,7 +207,7 @@ a {
 
 .fact-site:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(231, 195, 90, 0.4);
+  box-shadow: 0 10px 24px rgba(252, 209, 22, 0.4);
 }
 
 /* FIP event tile: court blue, links to the federation's official event page */
@@ -224,12 +224,12 @@ a {
 
 .fact-fip:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(27, 77, 137, 0.45);
+  box-shadow: 0 10px 24px rgba(0, 43, 127, 0.45);
 }
 
 /* YouTube Live tile: red, clickable, only while a stream link is set */
 .fact-yt {
-  background: #ff3b30;
+  background: #ce1126;
   color: var(--white);
   text-decoration: none;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -241,7 +241,7 @@ a {
 
 .fact-yt:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(255, 59, 48, 0.35);
+  box-shadow: 0 10px 24px rgba(206, 17, 38, 0.35);
 }
 
 /* ---- Live score (under the fact tiles) ---- */
@@ -353,7 +353,7 @@ a {
 
 .score-games {
   background: var(--gold);
-  color: var(--white);
+  color: #061433;
 }
 
 .score-points {
@@ -851,4 +851,26 @@ main .lead.small b {
   .brand {
     font-size: 19px;
   }
+}
+
+/* FRP brand: Romanian-flag stripe + logo */
+.top {
+  border-bottom: 4px solid transparent;
+  border-image: linear-gradient(90deg, #002B7F 0 33.34%, #FCD116 33.34% 66.67%, #CE1126 66.67% 100%) 1;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-logo {
+  width: 38px;
+  height: 38px;
+  flex: none;
+}
+
+.foot img {
+  height: 48px;
 }

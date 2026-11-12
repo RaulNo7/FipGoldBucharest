@@ -5,10 +5,10 @@
 :root {
   --font: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
   --font-names: 'Bahnschrift SemiCondensed', 'Bahnschrift', 'Arial Narrow', 'Segoe UI', sans-serif;
-  --navy: #0b1b2e;
-  --navy-2: #13294a;
-  --gold: #d4a017;
-  --gold-light: #e8c158;
+  --navy: #061433;
+  --navy-2: #0e2251;
+  --gold: #fcd116;
+  --gold-light: #ffe14d;
   --white: #ffffff;
   --muted: #9fb1c4;
 }
@@ -130,4 +130,10 @@ body {
 .ticker-dots span.on {
   background: var(--gold-light);
   transform: scale(1.3);
+}
+
+/* FRP brand: Romanian-flag stripe + logo */
+.ticker {
+  border-top: 0.14em solid transparent;
+  border-image: linear-gradient(90deg, #002B7F 0 33.34%, #FCD116 33.34% 66.67%, #CE1126 66.67% 100%) 1;
 }

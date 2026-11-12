@@ -1,17 +1,17 @@
-/* Referee remote — FIP Gold Bucharest 2026 navy/gold theme. */
+/* Referee remote — FRP broadcasting theme (Romanian flag colours). */
 :root {
-  --bg: #0b1b2e;
-  --card: #142943;
-  --card2: #1b3454;
-  --border: #2b4568;
+  --bg: #061433;
+  --card: #0B1D45;
+  --card2: #12275a;
+  --border: #1e3a78;
   --text: #ffffff;
   --muted: #9fb1c4;
   --green: #22c55e;
   --green-press: #16a34a;
-  --gold: #d4a017;
-  --gold-light: #e8c158;
-  --blue: #2e6ca4;
-  --red: #e53935;
+  --gold: #fcd116;
+  --gold-light: #ffe14d;
+  --blue: #002b7f;
+  --red: #ce1126;
   --radius: 14px;
 }
 
@@ -36,7 +36,7 @@ button { touch-action: manipulation; user-select: none; -webkit-user-select: non
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  background: rgba(11, 27, 46, .95);
+  background: rgba(6, 20, 51, .95);
   border-bottom: 2px solid var(--gold);
   backdrop-filter: blur(6px);
 }
@@ -87,7 +87,7 @@ button { touch-action: manipulation; user-select: none; -webkit-user-select: non
   color: var(--muted);
 }
 .badge.live { background: var(--green); color: #06110a; }
-.badge.finished { background: var(--gold); color: #10202f; }
+.badge.finished { background: var(--gold); color: #061433; }
 
 /* ---- live preview (mini scorebug: 2 blocks x 2 player rows) ---- */
 .preview { display: flex; flex-direction: column; gap: 5px; }
@@ -167,7 +167,7 @@ button { touch-action: manipulation; user-select: none; -webkit-user-select: non
   align-items: center;
   justify-content: center;
   background: var(--gold);
-  color: #fff;
+  color: #061433;
   font-weight: 800;
   font-size: 15px;
   border-left: 1px solid rgba(255, 255, 255, .14);
@@ -178,7 +178,7 @@ button { touch-action: manipulation; user-select: none; -webkit-user-select: non
   align-items: center;
   justify-content: center;
   background: #fff;
-  color: #10202f;
+  color: #061433;
   font-weight: 900;
   font-size: 15px;
 }
@@ -275,7 +275,7 @@ button { touch-action: manipulation; user-select: none; -webkit-user-select: non
 .btn.step { width: 44px; padding: 10px 0; font-size: 18px; line-height: 1; }
 .step-val { min-width: 24px; text-align: center; font-weight: 800; font-size: 17px; }
 .adj-row .btn.serve { width: 100%; padding: 10px; color: var(--muted); }
-.btn.serve.active { background: var(--gold); border-color: var(--gold); color: #10202f; }
+.btn.serve.active { background: var(--gold); border-color: var(--gold); color: #061433; }
 
 .serve-pair { display: flex; gap: 6px; }
 .btn.serve-player {
@@ -296,3 +296,21 @@ button { touch-action: manipulation; user-select: none; -webkit-user-select: non
 
 .hint { margin: 12px 2px 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
 .hint b { color: var(--text); }
+
+/* FRP brand: Romanian-flag stripe + logo */
+.topbar {
+  border-bottom: 3px solid transparent;
+  border-image: linear-gradient(90deg, #002B7F 0 33.34%, #FCD116 33.34% 66.67%, #CE1126 66.67% 100%) 1;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-logo {
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
