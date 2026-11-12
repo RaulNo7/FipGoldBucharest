@@ -32,7 +32,7 @@
 
     // No title set on Score settings: the imported tournament's name, else the channel name.
     const roster = (msg && msg.roster) || {};
-    titleEl.textContent = d.title || (roster.shortName || roster.tournament || 'FRP broadcasting').toUpperCase();
+    titleEl.textContent = d.title || (roster.shortName || roster.tournament || 'FRP Live').toUpperCase();
     subtitleEl.textContent = d.subtitle || '';
     subtitleEl.hidden = !d.subtitle;
 

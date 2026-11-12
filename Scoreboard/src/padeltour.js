@@ -26,7 +26,7 @@ const path = require('path');
 
 const ALLOWED_HOST = /(^|\.)padeltour\.ro$/i;
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) FRP-broadcasting-importer';
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) FRP-Live-importer';
 
 /** Accepts only https://(www.)padeltour.ro/... links; returns a URL or throws. */
 function checkUrl(raw) {
@@ -183,7 +183,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function openEdgeSession() {
   const edge = findEdge();
   if (!edge) throw new Error('Microsoft Edge was not found on this PC — use "Paste the list" instead.');
-  const profile = path.join(os.tmpdir(), 'frp-broadcasting-edge-import');
+  const profile = path.join(os.tmpdir(), 'frp-live-edge-import');
   const portFile = path.join(profile, 'DevToolsActivePort');
   try {
     fs.unlinkSync(portFile);

@@ -121,7 +121,7 @@
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="18,0,6,0">
                                     <Image Source="pack://application:,,,/frp-mark.png" Height="34" Width="34" Margin="0,0,10,0"
                                            RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center" />
-                                    <TextBlock Text="FRP broadcasting" FontSize="20" FontWeight="Bold"
+                                    <TextBlock Text="FRP Live" FontSize="20" FontWeight="Bold"
                                                Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <TabPanel IsItemsHost="True" Background="Transparent" VerticalAlignment="Bottom" />

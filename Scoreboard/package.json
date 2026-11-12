@@ -1,7 +1,7 @@
 {
-  "name": "frp-broadcasting-scoreboard",
+  "name": "frp-live-scoreboard",
   "version": "1.0.0",
-  "description": "FRP broadcasting (Federația Română de Padel) — real-time padel scoreboard overlay for OBS with team roster, referee remote and control panel. Zero runtime dependencies.",
+  "description": "FRP Live (Federația Română de Padel) — real-time padel scoreboard overlay for OBS with team roster, referee remote and control panel. Zero runtime dependencies.",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {

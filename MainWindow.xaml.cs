@@ -101,7 +101,7 @@ public partial class MainWindow : Window
         _trayIcon = new Forms.NotifyIcon
         {
             Icon = trayIconImage,
-            Text = "FRP broadcasting",
+            Text = "FRP Live",
             Visible = true,
             ContextMenuStrip = new Forms.ContextMenuStrip()
         };

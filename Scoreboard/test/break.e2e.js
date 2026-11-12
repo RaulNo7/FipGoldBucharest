@@ -189,7 +189,7 @@ function cleanupAndExit() {
   assert(home.status === 200 && /id="youtubeLink"/.test(await home.text()) && (await pub('/home.css')).status === 200, 'public port serves the main page');
   assert((await pub('/scorebug')).status === 200 && (await pub('/scorebug.js')).status === 200, 'public port serves the scorebug page (embed code)');
   assert((await pub('/settings')).status === 404 && (await pub('/settings.js')).status === 404, 'public port never serves the app-only Admin page');
-  assert((await fetch(`http://127.0.0.1:${SB_PORT}/settings`)).status === 200 && /FRP broadcasting — Home/.test(await (await fetch(`http://127.0.0.1:${SB_PORT}/`)).text()), 'LAN port serves the Admin page and the main page');
+  assert((await fetch(`http://127.0.0.1:${SB_PORT}/settings`)).status === 200 && /FRP Live — Home/.test(await (await fetch(`http://127.0.0.1:${SB_PORT}/`)).text()), 'LAN port serves the Admin page and the main page');
   const keyedHome = await pub('/?key=testkey');
   assert(keyedHome.status === 200 && /^key=testkey/.test(keyedHome.headers.get('set-cookie') || ''), 'main page opened with the key sets the key cookie');
   assert((await pub('/overlay.js')).status === 200 && (await pub('/flags/ro.svg')).status === 200, 'public port serves the widget assets');

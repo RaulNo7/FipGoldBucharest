@@ -34,7 +34,7 @@
       `<iframe src="${src}"\n` +
       `        width="${w}" height="${h}" frameborder="0" scrolling="no"\n` +
       `        style="border:0;background:transparent" allowtransparency="true"\n` +
-      `        title="FRP broadcasting - live score"></iframe>`;
+      `        title="FRP Live - live score"></iframe>`;
     const link = $('#embedLink');
     link.href = src;
     link.textContent = src;

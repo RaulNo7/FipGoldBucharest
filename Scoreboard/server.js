@@ -1666,7 +1666,7 @@ server.on('upgrade', (req, socket) => {
 server.listen(PORT, HOST, () => {
   const lan = firstLanAddress();
   console.log('');
-  console.log('  🎾  FRP broadcasting — score server is running');
+  console.log('  🎾  FRP Live — score server is running');
   console.log('  ----------------------------------------');
   console.log(`  Admin panel : http://localhost:${PORT}/admin`);
   console.log(`  OBS overlay : http://localhost:${PORT}/overlay`);

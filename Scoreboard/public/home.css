@@ -153,20 +153,12 @@ a {
   margin-bottom: 22px;
 }
 
-.hero h1 {
-  font-family: var(--display);
-  font-weight: 400;
-  font-size: clamp(56px, 9vw, 112px);
-  line-height: 0.92;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
 
 .facts {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  margin-top: 34px;
+  margin-top: 8px;
 }
 
 .fact {
@@ -753,9 +745,6 @@ main .lead.small b {
     margin-bottom: 18px;
   }
 
-  .hero h1 {
-    font-size: clamp(40px, 12.5vw, 56px);
-  }
 
   /* tiles stack on phones */
   .facts {

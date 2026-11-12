@@ -9,8 +9,8 @@
     <AssemblyName>FipGoldBucharest</AssemblyName>
     <RootNamespace>FipGoldBucharest</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <AssemblyTitle>FRP broadcasting</AssemblyTitle>
-    <Product>FRP broadcasting</Product>
+    <AssemblyTitle>FRP Live</AssemblyTitle>
+    <Product>FRP Live</Product>
   </PropertyGroup>
 
   <ItemGroup>
