@@ -101,10 +101,9 @@
     },
   });
 
-  /** Hero tag + "Tournament" tile from the roster imported on the Admin tab (padeltour.ro). */
+  /** "Tournament" tile from the roster imported on the Admin tab (padeltour.ro). */
   function applyTournament(roster) {
     const name = (roster && (roster.shortName || roster.tournament)) || '';
-    $('#heroTag').textContent = '● FEDERAȚIA ROMÂNĂ DE PADEL' + (name ? ' · ' + name.toUpperCase() : '');
     const tile = $('#tournamentFact');
     const url = (roster && roster.url) || '';
     tile.hidden = !url;

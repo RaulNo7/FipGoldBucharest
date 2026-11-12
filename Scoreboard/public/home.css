@@ -118,7 +118,7 @@ a {
   position: relative;
   overflow: hidden;
   color: var(--white);
-  padding: 72px 0 56px;
+  padding: 44px 0 56px;
   background:
     radial-gradient(900px 420px at 85% 10%, rgba(0, 43, 127, 0.65), transparent 65%),
     linear-gradient(180deg, var(--court-deep) 0%, var(--black) 100%);
@@ -140,25 +140,12 @@ a {
   z-index: 1;
 }
 
-.tag {
-  display: inline-block;
-  background: var(--gold-bright);
-  color: var(--black);
-  font-family: var(--head);
-  font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  padding: 7px 14px;
-  border-radius: 999px;
-  margin-bottom: 22px;
-}
 
 
 .facts {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  margin-top: 8px;
 }
 
 .fact {
@@ -736,14 +723,9 @@ main .lead.small b {
   }
 
   .hero {
-    padding: 40px 0 34px;
+    padding: 26px 0 34px;
   }
 
-  .tag {
-    font-size: 11px;
-    padding: 6px 12px;
-    margin-bottom: 18px;
-  }
 
 
   /* tiles stack on phones */
@@ -751,7 +733,6 @@ main .lead.small b {
     display: grid;
     grid-template-columns: 1fr;
     gap: 10px;
-    margin-top: 26px;
   }
 
   .fact {
