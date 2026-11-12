@@ -1734,6 +1734,16 @@ if (PUBLIC_PORT) {
       res.end('Bad request');
       return;
     }
+    // www.<domain> -> <domain> (e.g. www.frplive.ro -> frplive.ro), keeping the path and
+    // query, so there is one address and the ?key= cookie lands on the bare domain.
+    const host = String(req.headers.host || '').split(':')[0].toLowerCase();
+    if (host.startsWith('www.') && host.length > 4) {
+      const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'http' ? 'http' : 'https';
+      const isRead = req.method === 'GET' || req.method === 'HEAD';
+      res.writeHead(isRead ? 301 : 308, { Location: `${proto}://${host.slice(4)}${req.url}`, 'Cache-Control': 'max-age=86400' });
+      res.end();
+      return;
+    }
     // Any page opened with a valid ?key= (the main page included) stores the key
     // in a cookie so the operator pages and their requests pass afterwards.
     if (url.searchParams.get('key') && hasRefereeKey(url, req)) {
