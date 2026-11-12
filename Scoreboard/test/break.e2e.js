@@ -21,6 +21,7 @@ const { createWsHub } = require('../src/wsserver');
 const SB_PORT = 8231;
 const OBS_PORT = 8232;
 const PUBLIC_PORT = 8233;
+const ATEM_PORT = 8234; // fake ATEM switcher (UDP)
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fipgold-e2e-'));
 const stateFile = path.join(tmp, 'state.json');
@@ -41,6 +42,9 @@ fs.writeFileSync(
     replayDir: path.join(tmp, 'Replay'),
     replayScene: 'REPLAY',
     replaySource: 'Replay',
+    atemHost: '127.0.0.1',
+    atemCourtInput: 1,
+    atemInterviewInput: 2,
   })
 );
 
@@ -56,6 +60,9 @@ let replayBufferActive = false;
 let replaySaves = 0;
 let lastReplayPath = '';
 const profileParams = {};
+const sceneItemCalls = []; // SetSceneItemEnabled: "scene/item=on|off"
+const muteCalls = []; // SetInputMute: "input=muted|on"
+const missingSources = new Set(); // names the mock OBS does not know
 const obsRecDir = path.join(tmp, 'obs-videos');
 fs.mkdirSync(obsRecDir);
 
@@ -78,7 +85,21 @@ hub.onMessage((sock, text) => {
     if (requestType === 'SetCurrentProgramScene') sceneSwitches.push(requestData.sceneName);
     if (requestType === 'GetInputSettings') responseData = { inputSettings: { local_file: mediaFile } };
     if (requestType === 'GetVideoSettings') responseData = { baseWidth: 1280, baseHeight: 720 };
-    if (requestType === 'GetSceneItemId') responseData = { sceneItemId: 7 };
+    if (requestType === 'GetSceneItemId') {
+      if (missingSources.has(requestData.sourceName)) {
+        hub.sendText(sock, JSON.stringify({ op: 7, d: { requestType, requestId, requestStatus: { result: false, code: 600, comment: 'No source was found by the name of ' + requestData.sourceName } } }));
+        return;
+      }
+      responseData = { sceneItemId: 7 };
+    }
+    if (requestType === 'SetSceneItemEnabled') sceneItemCalls.push(requestData.sceneName + '/' + requestData.sceneItemId + '=' + (requestData.sceneItemEnabled ? 'on' : 'off'));
+    if (requestType === 'SetInputMute') {
+      if (missingSources.has(requestData.inputName)) {
+        hub.sendText(sock, JSON.stringify({ op: 7, d: { requestType, requestId, requestStatus: { result: false, code: 600, comment: 'No source was found by the name of ' + requestData.inputName } } }));
+        return;
+      }
+      muteCalls.push(requestData.inputName + '=' + (requestData.inputMuted ? 'muted' : 'on'));
+    }
     if (requestType === 'SetSceneItemTransform') transformCalls.push(requestData.sceneItemTransform);
     if (requestType === 'SetInputSettings') {
       mediaFile = requestData.inputSettings.local_file;
@@ -118,7 +139,7 @@ obsSrv.listen(OBS_PORT);
 // ---- scoreboard server under test -----------------------------------------
 const child = spawn(process.execPath, ['server.js'], {
   cwd: path.join(__dirname, '..'),
-  env: { ...process.env, PORT: String(SB_PORT), PUBLIC_PORT: String(PUBLIC_PORT), STATE_FILE: stateFile },
+  env: { ...process.env, PORT: String(SB_PORT), PUBLIC_PORT: String(PUBLIC_PORT), STATE_FILE: stateFile, ATEM_PORT: String(ATEM_PORT) },
   stdio: 'ignore',
 });
 
@@ -581,6 +602,64 @@ function cleanupAndExit() {
   const mediaHtml = await (await fetch(`http://127.0.0.1:${SB_PORT}/media`)).text();
   const adminHtml = await (await fetch(`http://127.0.0.1:${SB_PORT}/settings`)).text();
   assert(!/id="obsEnabled"/.test(mediaHtml) && /id="obsEnabled"/.test(adminHtml) && adminHtml.indexOf('Commercial break settings') > adminHtml.indexOf('<h2>Info bar</h2>'), 'Commercial break settings: on the Admin tab after Info bar, no longer on the Media tab');
+
+  // ---- Interview button (Media tab): ATEM camera + score + OBS sources and mics ----
+  const fakeSwitcher = await require('./fake-atem').fakeAtem({ port: ATEM_PORT });
+  const ivWait = async (want) => {
+    for (let i = 0; i < 40; i++) {
+      const iv = (await firstMessage(SB_PORT)).obs.interview;
+      if (iv && iv.active === want && !iv.busy) return iv;
+      await sleep(150);
+    }
+    return (await firstMessage(SB_PORT)).obs.interview;
+  };
+  await cmd({ type: 'setDisplay', display: { scoreVisible: true } });
+  sceneItemCalls.length = 0;
+  muteCalls.length = 0;
+  await cmd({ type: 'interview', on: true });
+  let iv = await ivWait(true);
+  st = await api('/api/state');
+  assert(iv.active === true && !iv.error, 'interview: on, no errors (' + JSON.stringify(iv) + ')');
+  assert(fakeSwitcher.log.program === 2 && fakeSwitcher.log.commands.some((c) => c.name === 'CPgI' && c.input === 2), 'interview: ATEM cut to the interview camera (input 2)');
+  assert(st.display.scoreVisible === false, 'interview: score hidden');
+  assert(sceneItemCalls.join() === 'LIVE/7=off', 'interview: "Youtube Comments" hidden in the live scene (' + sceneItemCalls.join() + ')');
+  assert(muteCalls.join() === 'Headset Mic=muted,DJI Mic=on', 'interview: headset mic muted, DJI mic on (' + muteCalls.join() + ')');
+
+  sceneItemCalls.length = 0;
+  muteCalls.length = 0;
+  await cmd({ type: 'interview', on: false });
+  iv = await ivWait(false);
+  st = await api('/api/state');
+  assert(iv.active === false && !iv.error && fakeSwitcher.log.program === 1, 'back to court: ATEM back on the court camera (input 1)');
+  assert(st.display.scoreVisible === true && sceneItemCalls.join() === 'LIVE/7=on' && muteCalls.join() === 'Headset Mic=on,DJI Mic=muted', 'back to court: score, comments and headset mic back, DJI mic off');
+
+  // score that was off before the interview stays off afterwards
+  await cmd({ type: 'setDisplay', display: { scoreVisible: false } });
+  await cmd({ type: 'interview', on: true });
+  await ivWait(true);
+  await cmd({ type: 'interview', on: false });
+  await ivWait(false);
+  assert((await api('/api/state')).display.scoreVisible === false, 'back to court: a score that was hidden before stays hidden');
+
+  // a missing OBS source and an unreachable ATEM are reported, the other steps still run
+  fakeSwitcher.close();
+  missingSources.add('Headset Mic');
+  muteCalls.length = 0;
+  await cmd({ type: 'interview', on: true });
+  iv = await ivWait(true);
+  assert(iv.active === true && /ATEM: no answer/.test(iv.error || '') && /"Headset Mic": .*No source/.test(iv.error || '') && muteCalls.join() === 'DJI Mic=on', 'interview: unreachable ATEM and a missing source are listed, the DJI mic still goes on (' + iv.error + ')');
+  missingSources.clear();
+  await cmd({ type: 'interview', on: false });
+  await ivWait(false);
+
+  // Admin tab: ATEM settings validated; test endpoint only on the LAN port
+  assert((await postJ('/api/obs-settings', { atemHost: 'not an ip' })).status === 400, 'interview settings: a malformed ATEM IP is refused');
+  const savedIv = await postJ('/api/obs-settings', { atemHost: '127.0.0.1', atemCourtInput: '3', atemInterviewInput: 99, interviewHide: ' Youtube Comments ,  Logo RPT ' });
+  const cfgIv = await api('/api/obs-settings');
+  assert(savedIv.status === 200 && cfgIv.atemCourtInput === 3 && cfgIv.atemInterviewInput === 2 && cfgIv.interviewHide === 'Youtube Comments, Logo RPT', 'interview settings: inputs clamped, source list tidied (' + [cfgIv.atemCourtInput, cfgIv.atemInterviewInput, cfgIv.interviewHide].join(' | ') + ')');
+  assert((await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/atem-test`, { method: 'POST' })).status !== 200 && (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/atem-find`, { method: 'POST' })).status !== 200, 'atem-test / atem-find: never reachable on the public port');
+  const mediaPage = await (await fetch(`http://127.0.0.1:${SB_PORT}/media`)).text();
+  assert(/id="interviewBtn"/.test(mediaPage) && /id="atemHost"/.test(adminHtml), 'interview: button on the Media tab, settings on the Admin tab');
 
   cleanupAndExit();
 })().catch((err) => {

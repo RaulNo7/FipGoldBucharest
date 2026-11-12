@@ -8,6 +8,7 @@ const { createWsHub } = require('./src/wsserver');
 const scoring = require('./src/scoring');
 const { ObsClient } = require('./src/obsclient');
 const padeltour = require('./src/padeltour');
+const atem = require('./src/atem');
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -259,6 +260,15 @@ const DEFAULT_OBS_SETTINGS = {
   replayDir: '', // '' = auto: the app's Replay folder (see defaultReplayDir)
   replayScene: 'REPLAY',
   replaySource: 'Replay',
+  // Interview button (Media tab): cut the ATEM Mini to the interview camera,
+  // hide the score and the listed OBS sources of the live scene, mute the
+  // headset mic and open the DJI mic; pressing it again puts everything back.
+  atemHost: '', // the ATEM's IP address on the LAN ('' = skip the camera switch)
+  atemCourtInput: 1, // ATEM input with the court camera (1 = HDMI 1)
+  atemInterviewInput: 2, // ATEM input with the interview camera
+  interviewHide: 'Youtube Comments', // OBS sources in the live scene to hide (comma-separated)
+  interviewMute: 'Headset Mic', // OBS audio inputs to mute during the interview
+  interviewUnmute: 'DJI Mic', // OBS audio inputs to turn on during the interview
   // Individual spots for the Media tab: each temporarily swaps the media
   // source's file, plays through the same break routine, then restores the
   // merged break video configured in OBS.
@@ -399,6 +409,12 @@ function obsStatusPayload() {
     lastError: breakState.lastError || obs.lastError || null,
     youtubeUrl: obsSettings.youtubeUrl || '', // for the website menu ("YouTube Live"); updates live on save
     settingsRev: obsSettingsRev, // bumps on every save: the Media tab reloads its video/replay lists
+    interview: {
+      active: interviewState.active,
+      busy: interviewState.busy,
+      error: interviewState.error,
+      atem: !!obsSettings.atemHost,
+    },
     replay: {
       enabled: !!obsSettings.replayEnabled,
       seconds: obsSettings.replaySeconds,
@@ -1236,6 +1252,86 @@ function handleAnnouncementCommand(cmd) {
   return true;
 }
 
+// ---- Interview button ----
+const interviewState = { active: false, busy: false, error: null, scoreWasVisible: true };
+
+const nameList = (v) => String(v || '').split(',').map((x) => x.trim()).filter(Boolean);
+const atemInput = (v, dflt) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= 1 && n <= 40 ? n : dflt;
+};
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+/** Shows / hides a source of an OBS scene. */
+async function setSceneSourceEnabled(sceneName, sourceName, enabled) {
+  const { sceneItemId } = await obs.request('GetSceneItemId', { sceneName, sourceName });
+  await obs.request('SetSceneItemEnabled', { sceneName, sceneItemId, sceneItemEnabled: enabled });
+}
+
+/**
+ * on = true: interview camera on the ATEM, score + listed sources hidden, headset
+ * mic muted, DJI mic on. on = false: the reverse (the score comes back only if it
+ * was on before). Every step runs even when an earlier one fails; failures are
+ * listed in interviewState.error for the Media tab.
+ */
+async function setInterview(on) {
+  if (interviewState.busy || interviewState.active === on) return;
+  interviewState.busy = true;
+  interviewState.error = null;
+  broadcastState();
+  const problems = [];
+  const step = async (label, fn) => {
+    try {
+      await fn();
+    } catch (err) {
+      problems.push(`${label}: ${err.message}`);
+    }
+  };
+
+  // 1. ATEM camera
+  if (obsSettings.atemHost) {
+    const input = on ? atemInput(obsSettings.atemInterviewInput, 2) : atemInput(obsSettings.atemCourtInput, 1);
+    await step('ATEM', () => atem.setProgramInput(obsSettings.atemHost, input));
+  } else {
+    problems.push('ATEM: no IP address set (Admin tab → Interview button)');
+  }
+
+  // 2. score (top left)
+  if (on) {
+    interviewState.scoreWasVisible = !(state.display && state.display.scoreVisible === false);
+    handleCommand({ type: 'setDisplay', display: { scoreVisible: false } });
+  } else if (interviewState.scoreWasVisible) {
+    handleCommand({ type: 'setDisplay', display: { scoreVisible: true } });
+  }
+
+  // 3-5. OBS: comments widget, headset mic, DJI mic
+  let obsOk = true;
+  await step('OBS', async () => {
+    try {
+      await connectObs();
+    } catch (err) {
+      obsOk = false;
+      throw err;
+    }
+  });
+  if (obsOk) {
+    for (const name of nameList(obsSettings.interviewHide)) {
+      await step(`"${name}"`, () => setSceneSourceEnabled(obsSettings.liveScene, name, !on));
+    }
+    for (const name of nameList(obsSettings.interviewMute)) {
+      await step(`"${name}"`, () => obs.request('SetInputMute', { inputName: name, inputMuted: on }));
+    }
+    for (const name of nameList(obsSettings.interviewUnmute)) {
+      await step(`"${name}"`, () => obs.request('SetInputMute', { inputName: name, inputMuted: !on }));
+    }
+  }
+
+  interviewState.active = on;
+  interviewState.busy = false;
+  interviewState.error = problems.length ? problems.join(' · ') : null;
+  broadcastState();
+}
+
 /** Connect to OBS and ask its version; resolves { ok, obsVersion?, error? } (also broadcast as the OBS status). */
 function testObsConnection() {
   return (async () => {
@@ -1344,6 +1440,12 @@ function handleCommand(cmd) {
     if (!clip) return;
     if (breakState.phase === 'countdown') cancelBreak();
     if (breakState.phase !== 'running') runReplayClip(path.join(replayDir(), name));
+    return;
+  }
+
+  // Media tab interview button: on = true starts it, false goes back to the court.
+  if (cmd.type === 'interview') {
+    setInterview(cmd.on === true);
     return;
   }
 
@@ -1548,6 +1650,36 @@ function handleMainRequest(req, res) {
 
   // Every announcement, drafts included, for the editor (the broadcast only carries the active ones).
   // Test the OBS connection and get the answer back (Admin tab; never forwarded from the public port).
+  // Admin tab: ask the ATEM at ?host= (or the saved one) for its name and inputs.
+  if (pathname === '/api/atem-test' && req.method === 'POST') {
+    const host = (url.searchParams.get('host') || obsSettings.atemHost || '').trim();
+    const reply = (obj) => {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+      res.end(JSON.stringify(obj));
+    };
+    if (!IPV4.test(host)) {
+      reply({ ok: false, error: 'enter the ATEM IP address first' });
+      return;
+    }
+    atem.atemInfo(host).then(
+      (info) => reply({ ok: true, host, ...info }),
+      (err) => reply({ ok: false, host, error: err.message }),
+    );
+    return;
+  }
+
+  // Admin tab: look for ATEMs on the PC's own networks (every /24 it is on).
+  if (pathname === '/api/atem-find' && req.method === 'POST') {
+    const prefixes = [...new Set(Object.values(require('os').networkInterfaces()).flat()
+      .filter((a) => a && a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.'))
+      .map((a) => a.address.split('.').slice(0, 3).join('.')))];
+    Promise.all(prefixes.map((p) => atem.findAtems(p))).then((lists) => {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+      res.end(JSON.stringify({ networks: prefixes.map((p) => p + '.x'), found: lists.flat() }));
+    });
+    return;
+  }
+
   if (pathname === '/api/obs-test' && req.method === 'POST') {
     testObsConnection().then((r) => {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
@@ -1600,6 +1732,17 @@ function handleMainRequest(req, res) {
             clean.replaySeconds = Math.min(600, Math.round(Number(incoming.replaySeconds)));
           }
           if (typeof incoming.youtubeUrl === 'string') clean.youtubeUrl = sanitizeLink(incoming.youtubeUrl);
+          if (typeof incoming.atemHost === 'string') {
+            const host = incoming.atemHost.trim();
+            if (host && !IPV4.test(host)) throw new Error('bad ATEM IP');
+            clean.atemHost = host;
+          }
+          for (const k of ['atemCourtInput', 'atemInterviewInput']) {
+            if (incoming[k] !== undefined) clean[k] = atemInput(incoming[k], clean[k]);
+          }
+          for (const k of ['interviewHide', 'interviewMute', 'interviewUnmute']) {
+            if (typeof incoming[k] === 'string') clean[k] = nameList(incoming[k]).join(', ');
+          }
           for (const k of ['autoDelaySeconds', 'maxBreakSeconds']) {
             const n = Number(incoming[k]);
             if (Number.isFinite(n) && n >= 0) clean[k] = Math.round(n);

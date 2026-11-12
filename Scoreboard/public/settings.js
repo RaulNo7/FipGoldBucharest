@@ -371,6 +371,50 @@
   });
   $$('[data-copy]').forEach((b) => b.addEventListener('click', () => copyField($('#' + b.dataset.copy), b)));
 
+  // ---- Interview button (ATEM + OBS) ----
+  const IV_FIELDS = ['atemHost', 'atemCourtInput', 'atemInterviewInput', 'interviewHide', 'interviewMute', 'interviewUnmute'];
+  const atemStatus = (text) => ($('#atemStatus').textContent = text);
+  fetch('/api/obs-settings')
+    .then((r) => r.json())
+    .then((cfg) => IV_FIELDS.forEach((k) => ($('#' + k).value = cfg[k] == null ? '' : cfg[k])))
+    .catch(() => {});
+  $('#saveInterviewBtn').addEventListener('click', () => {
+    const body = {};
+    IV_FIELDS.forEach((k) => (body[k] = $('#' + k).value.trim()));
+    fetch('/api/obs-settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then((r) => {
+        flash($('#saveInterviewBtn'), r.ok ? 'Saved!' : 'Failed');
+        if (!r.ok) atemStatus('Not saved - the ATEM IP must look like 192.168.88.240 (or be empty).');
+      })
+      .catch(() => flash($('#saveInterviewBtn'), 'Failed'));
+  });
+  $('#atemTestBtn').addEventListener('click', () => {
+    const host = $('#atemHost').value.trim();
+    atemStatus('Asking the ATEM…');
+    fetch('/api/atem-test?host=' + encodeURIComponent(host), { method: 'POST' })
+      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) return atemStatus('✗ ' + r.error);
+        const name = (id) => (r.inputs && r.inputs[id] ? r.inputs[id].long : 'input ' + id);
+        atemStatus(`✓ ${r.product || 'ATEM'} at ${r.host} - on air now: ${name(r.programInput)} (${r.programInput}). Court = ${name($('#atemCourtInput').value)}, interview = ${name($('#atemInterviewInput').value)}.`);
+      })
+      .catch(() => atemStatus('✗ the score server did not answer'));
+  });
+  $('#atemFindBtn').addEventListener('click', () => {
+    atemStatus('Looking for the ATEM on this network…');
+    fetch('/api/atem-find', { method: 'POST' })
+      .then((r) => r.json())
+      .then((r) => {
+        if (!r.found.length) {
+          return atemStatus(`No ATEM found on ${r.networks.join(', ') || 'this PC'}. Check the network cable; the ATEM's IP is set with Blackmagic ATEM Setup (USB).`);
+        }
+        const typed = $('#atemHost').value.trim();
+        if (!r.found.includes(typed)) $('#atemHost').value = r.found[0]; // the typed address does not answer
+        atemStatus(`Found: ${r.found.join(', ')}${typed && !r.found.includes(typed) ? ` (nothing answers at ${typed})` : ''} - press Test, then Save.`);
+      })
+      .catch(() => atemStatus('✗ the score server did not answer'));
+  });
+
   // ---- YouTube live stream link (website menu entry) ----
   $('#saveYoutubeBtn').addEventListener('click', () => {
     fetch('/api/obs-settings', {

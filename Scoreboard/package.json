@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/scoring.test.js && node test/padeltour.test.js",
+    "test": "node test/scoring.test.js && node test/padeltour.test.js && node test/atem.test.js",
     "test:e2e": "node test/break.e2e.js"
   },
   "engines": {

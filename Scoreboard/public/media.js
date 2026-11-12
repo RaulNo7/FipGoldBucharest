@@ -124,6 +124,12 @@
     const visible = !state || !state.display || state.display.scoreVisible !== false;
     send({ type: 'setDisplay', display: { scoreVisible: !visible } });
   });
+  // Interview: one press sets everything up, the next one goes back to the court.
+  $('#interviewBtn').addEventListener('click', () => {
+    const iv = (latestObs && latestObs.interview) || {};
+    if (iv.busy) return;
+    send({ type: 'interview', on: !iv.active });
+  });
   $('#playAdsBtn').addEventListener('click', () => {
     if (confirm('Switch the stream to the commercials now?')) send({ type: 'playCommercials' });
   });
@@ -153,6 +159,20 @@
     breakBtn.disabled = running;
     breakBtn.classList.toggle('is-last', !running && o.lastCommercial === 'BREAK');
     breakBtn.classList.toggle('is-playing', running && (o.playlist || o.currentCommercial === 'BREAK'));
+
+    // Interview button + its status line.
+    const iv = o.interview || {};
+    const ivBtn = $('#interviewBtn');
+    ivBtn.textContent = iv.busy ? (iv.active ? '🎾 Going back…' : '🎤 Setting up…') : iv.active ? '🎾 Back to court' : '🎤 Interview';
+    ivBtn.classList.toggle('is-on', !!iv.active);
+    ivBtn.disabled = !!iv.busy;
+    const ivText = $('#interviewStatus');
+    let ivMsg = '';
+    if (iv.active) ivMsg = 'Interview on: interview camera, score and comments hidden, headset mic off, DJI mic on.';
+    if (iv.error) ivMsg += (ivMsg ? ' ' : '') + 'Not done — ' + iv.error;
+    ivText.textContent = ivMsg;
+    ivText.hidden = !ivMsg;
+    ivText.classList.toggle('warn', !!iv.error);
 
     let text;
     if (o.phase === 'countdown') {

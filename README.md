@@ -57,6 +57,18 @@ If padeltour.ro changes its page layout the reader may need an update (`Scoreboa
 
 Settings are stored server-side in `%AppData%\FipGoldBucharest\obs-settings.json` (never broadcast to referee phones). If OBS is unreachable, scoring keeps working and the error is shown in the card.
 
+## Interview button (Media tab)
+
+**🎤 Interview** switches the stream to a post-match interview in one press, and **🎾 Back to court** undoes it:
+
+1. cuts the **ATEM Mini** to the interview camera (and back to the court camera) over the network: the ATEM needs an Ethernet cable to the same router as this PC (USB carries only video/sound). Set its IP on the Admin tab → *Interview button* (**Find** looks for it on the PC's network, **Test** shows its inputs);
+2. hides the score (top left); it comes back only if it was on before;
+3. hides the OBS sources listed in the card (default `Youtube Comments`) in the live scene;
+4. mutes the headset mic (OBS audio source `Headset Mic` — add it in OBS as an *Audio Input Capture* with the headset selected);
+5. turns the `DJI Mic` on (and off again afterwards).
+
+Every step runs even if another fails; what could not be done is shown under the button. The ATEM is controlled with its own UDP protocol (`src/atem.js`, port 9910, no extra packages).
+
 ## Public HTTPS URL (internet tunnel, fixed address)
 
 The score server also listens on a **read-only port** (main port + 1, i.e. **8081** by default; `PUBLIC_PORT` env to change, `0` to disable). It serves only `/overlay`, `/tv`, `/intro`, their assets, `GET /api/state` and a broadcast-only WebSocket — no control pages, no commands, no settings. Expose **only this port** to the internet through a tunnel with a fixed hostname:

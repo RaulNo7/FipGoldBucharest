@@ -186,6 +186,39 @@
     </div>
 
     <div class="card">
+      <div class="card-head"><h2>Interview button</h2></div>
+      <div class="config-grid align-end">
+        <label>ATEM Mini IP address (network cable to the same router as this PC)
+          <span class="row gap key-row">
+            <input type="text" id="atemHost" placeholder="e.g. 192.168.88.240" inputmode="decimal" />
+            <button class="btn btn-ghost" id="atemFindBtn" type="button" title="Look for the ATEM on this PC's network">Find</button>
+            <button class="btn btn-ghost" id="atemTestBtn" type="button">Test</button>
+          </span>
+        </label>
+        <span class="row gap">
+          <label>Court camera (ATEM input)
+            <input type="number" id="atemCourtInput" min="1" max="8" step="1" />
+          </label>
+          <label>Interview camera (ATEM input)
+            <input type="number" id="atemInterviewInput" min="1" max="8" step="1" />
+          </label>
+        </span>
+        <label>Hide during the interview (OBS sources in the live scene, comma-separated)
+          <input type="text" id="interviewHide" placeholder="Youtube Comments" />
+        </label>
+        <label>Mute during the interview (OBS audio sources)
+          <input type="text" id="interviewMute" placeholder="Headset Mic" />
+        </label>
+        <label>Turn on during the interview (OBS audio sources)
+          <input type="text" id="interviewUnmute" placeholder="DJI Mic" />
+        </label>
+        <span class="row gap"><button class="btn btn-ghost" id="saveInterviewBtn" type="button">Save</button></span>
+      </div>
+      <p class="hint" id="atemStatus"></p>
+      <p class="hint">The <b>🎤 Interview</b> button on the Media tab cuts the ATEM to the interview camera, hides the score (top left) and the sources above, mutes the headset mic and turns the DJI mic on. Pressing it again (<b>🎾 Back to court</b>) puts it all back. Names must match OBS exactly. ATEM inputs: 1–4 = HDMI 1–4.</p>
+    </div>
+
+    <div class="card">
       <div class="card-head"><h2>Court TV display</h2></div>
       <div class="row gap url-row">
         <input type="text" id="tvUrl" readonly />
