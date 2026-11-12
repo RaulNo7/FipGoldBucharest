@@ -746,8 +746,49 @@ async function waitForFileToSettle(file, timeoutMs = 8000) {
 }
 
 /** Save the last N seconds from OBS and move the clip into the replay folder. Returns the clip path. */
+/** Characters Windows does not allow in file names, and runs of spaces. */
+function fileSafe(s) {
+  return String(s || '')
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Title of a replay clip from the match on air:
+ *   "Ion Popa_Dan Marin vs Ana Rusu_Luis Vega 6-4 2-1 (30-15) 12-11-2026 10꞉45"
+ * (players of each pair joined by "_", completed sets, current games and
+ * points, then the date dd-mm-yyyy and the time HH꞉mm - written with the
+ * modifier-letter colon U+A789, since a real ":" is not allowed in Windows file
+ * names; the Media tab shows it as ":"). Without players: "Replay <date> <time>".
+ */
+function replayTitle(st, now = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const when = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(now.getHours())}꞉${pad(now.getMinutes())}`; // "꞉" (U+A789) looks like ":", which Windows forbids in file names
+  const pair = (t) => ((st.teams && st.teams[t] && st.teams[t].players) || [])
+    .map((p) => fileSafe(typeof p === 'string' ? p : p && p.name))
+    .filter(Boolean)
+    .join('_');
+  const a = pair(0);
+  const b = pair(1);
+  if (!a && !b) return `Replay ${when}`;
+  const score = (st.sets || []).map((s) => `${s.a || 0}-${s.b || 0}`);
+  if (st.status !== 'finished') {
+    const g = st.games || [0, 0];
+    score.push(`${g[0]}-${g[1]}`);
+    const pts = st.points || [0, 0];
+    const label = (i) => (st.inTiebreak ? String(pts[i]) : scoring.pointLabel(pts, i, st.config || {}));
+    score.push(`(${label(0)}-${label(1)})`);
+  }
+  // keep the whole name well under Windows' 255-character limit
+  const names = `${a || '?'} vs ${b || '?'}`.slice(0, 150).trim();
+  return fileSafe(`${names} ${score.join(' ')} ${when}`);
+}
+
 async function saveReplayClip() {
   await ensureReplayBuffer();
+  // The title describes the moment Replay was pressed, not when OBS finished writing.
+  const title = replayTitle(state);
   let before = '';
   try { before = (await obs.request('GetLastReplayBufferReplay')).savedReplayPath || ''; } catch (_) { /* none yet */ }
   await obs.request('SaveReplayBuffer');
@@ -765,10 +806,10 @@ async function saveReplayClip() {
 
   const dir = replayDir();
   fs.mkdirSync(dir, { recursive: true });
-  const ext = path.extname(saved);
-  let dest = path.join(dir, path.basename(saved));
-  if (path.resolve(path.dirname(saved)) !== path.resolve(dir)) {
-    for (let n = 2; fs.existsSync(dest); n++) dest = path.join(dir, `${path.basename(saved, ext)} (${n})${ext}`);
+  const ext = path.extname(saved) || '.mp4';
+  let dest = path.join(dir, title + ext);
+  if (path.resolve(saved) !== path.resolve(dest)) {
+    for (let n = 2; fs.existsSync(dest); n++) dest = path.join(dir, `${title} (${n})${ext}`);
     try {
       fs.renameSync(saved, dest);
     } catch (_) {

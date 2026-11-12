@@ -403,7 +403,16 @@ function cleanupAndExit() {
   st = await api('/api/state');
   assert(st.display.scoreVisible === true, 'replay: the scorebug comes back after the clip');
   const clips = fs.existsSync(replayDir) ? fs.readdirSync(replayDir) : [];
-  assert(clips.length === 1 && /^Replay 2026-09-15 10-30-01\.mp4$/.test(clips[0]) && !fs.existsSync(lastReplayPath), 'replay: the saved clip was moved into the replay folder (got: ' + clips.join(', ') + ')');
+  // Title: "<p1>_<p2> vs <p3>_<p4> <sets/games/(points)> dd-mm-yyyy HH꞉mm" (U+A789 instead of ":").
+  const names = (t) => st.teams[t].players.map((p) => p.name).join('_');
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const today = new Date();
+  const datePart = `${pad2(today.getDate())}-${pad2(today.getMonth() + 1)}-${today.getFullYear()} `;
+  const titled = clips[0] || '';
+  assert(
+    clips.length === 1 && titled.startsWith(`${names(0)} vs ${names(1)} `) && titled.includes(datePart) && /\d{2}-\d{2}-\d{4} \d{2}꞉\d{2}\.mp4$/.test(titled) && !/[<>:"|?*]/.test(titled) && !fs.existsSync(lastReplayPath),
+    'replay: the clip is moved into the replay folder and titled "players vs players score dd-mm-yyyy HH꞉mm" (got: ' + clips.join(', ') + ')'
+  );
   assert(inputSettingsCalls.length === 1 && inputSettingsCalls[0] === path.join(replayDir, clips[0] || ''), 'replay: the clip was loaded into the replay media source (got: ' + inputSettingsCalls.join(' | ') + ')');
   assert(JSON.stringify(sceneSwitches) === JSON.stringify(['REPLAY', 'LIVE']), 'replay: scenes switched to REPLAY and back to LIVE (got: ' + sceneSwitches.join(', ') + ')');
   let list = await api('/api/replays');
@@ -415,7 +424,10 @@ function cleanupAndExit() {
   await waitFor(backToLive, 15000);
   await sleep(500);
   list = await api('/api/replays');
-  assert(list.replays.length === 2 && /10-30-02/.test(list.replays[0].name), 'replay: the newest clip is listed first (got: ' + list.replays.map((r) => r.name).join(', ') + ')');
+  assert(
+    list.replays.length === 2 && (list.replays[0].name === titled.replace(/\.mp4$/, ' (2).mp4') || (list.replays[0].name !== titled && list.replays[1].name === titled)),
+    'replay: the newest clip is listed first; a second clip with the same title gets " (2)" (got: ' + list.replays.map((r) => r.name).join(', ') + ')'
+  );
   sceneSwitches.length = 0;
   mediaPolls = 0;
   inputSettingsCalls.length = 0;
@@ -429,7 +441,7 @@ function cleanupAndExit() {
   await sleep(500);
   st = await api('/api/state');
   assert(st.display.scoreVisible === false, 'playReplay: a score that was already hidden stays hidden afterwards');
-  assert(inputSettingsCalls.length === 1 && /10-30-01\.mp4$/.test(inputSettingsCalls[0]) && JSON.stringify(sceneSwitches) === JSON.stringify(['REPLAY', 'LIVE']), 'playReplay: the chosen clip plays on the replay scene, then back to LIVE (got: ' + inputSettingsCalls.join(' | ') + ' / ' + sceneSwitches.join(', ') + ')');
+  assert(inputSettingsCalls.length === 1 && inputSettingsCalls[0] === path.join(replayDir, list.replays[1].name) && JSON.stringify(sceneSwitches) === JSON.stringify(['REPLAY', 'LIVE']), 'playReplay: the chosen clip plays on the replay scene, then back to LIVE (got: ' + inputSettingsCalls.join(' | ') + ' / ' + sceneSwitches.join(', ') + ')');
 
   // ---- Announcements (bottom bar) ----
   const ann = () => api('/api/announcements');

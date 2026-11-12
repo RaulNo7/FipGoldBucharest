@@ -234,10 +234,10 @@ button { touch-action: manipulation; user-select: none; -webkit-user-select: non
   color: #06110a;
   font-size: 18px;
   font-weight: 800;
-  padding: 18px 8px;
+  padding: 9.7px 8px; /* 25% lower than before (63 -> 47 px) */
 }
 .btn.point:active { background: var(--green-press); }
-.btn.unpoint { color: var(--muted); background: transparent; }
+.btn.unpoint { color: var(--muted); background: transparent; padding-top: 6.6px; padding-bottom: 6.6px; /* 25% lower (43 -> 32 px) */ }
 
 .toolbar {
   display: flex;

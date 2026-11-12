@@ -86,7 +86,11 @@
           const opt = document.createElement('option');
           opt.value = c.name;
           const when = c.time ? new Date(c.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
-          opt.textContent = `${i + 1}. ${c.name}${when ? '  (' + when + ')' : ''}`;
+          // Titled clips ("A_B vs C_D 6-4 (30-15) 12-11-2026 10꞉45.mp4"): show the time with a real ":"
+          // (the file name uses the look-alike U+A789) and no extension; older clips keep their saved time.
+          const title = c.name.replace(/\.[a-z0-9]+$/i, '').replace(/꞉/g, ':');
+          const dated = /\d{2}-\d{2}-\d{4} \d{2}:\d{2}/.test(title);
+          opt.textContent = `${i + 1}. ${title}${when && !dated ? '  (' + when + ')' : ''}`;
           sel.appendChild(opt);
         });
         // Keep the operator's pick if it is still listed, else the newest clip.
