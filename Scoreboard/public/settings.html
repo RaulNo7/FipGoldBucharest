@@ -211,19 +211,18 @@
 
     <div class="card">
       <div class="card-head"><h2>Internet access (tunnel)</h2></div>
-      <div class="config-grid">
+      <div class="config-grid align-end tunnel-grid">
         <label>Public hostname (Cloudflare / Tailscale)
           <input type="text" id="publicHostname" placeholder="scorebug.example.com" />
         </label>
         <label>Access key (empty = referee / score settings / teams / media pages on the LAN only)
-          <span class="row gap">
+          <span class="row gap key-row">
             <input type="text" id="refereeKey" placeholder="secret" />
             <button class="btn btn-ghost" id="genKeyBtn" type="button">Generate</button>
+            <button class="btn btn-ghost" id="copyKeyBtn" data-copy="refereeKey" type="button" title="Copy the access key">Copy</button>
+            <button class="btn btn-ghost" id="saveInternetBtn" type="button">Save</button>
           </span>
         </label>
-      </div>
-      <div class="row gap wrap actions">
-        <button class="btn btn-ghost" id="saveInternetBtn">Save</button>
       </div>
       <div class="row gap url-row"><span class="url-label">Main page</span><input type="text" id="pubHomeUrl" readonly /><button class="btn btn-ghost" data-copy="pubHomeUrl">Copy</button></div>
       <div class="row gap url-row"><span class="url-label">Scorebug (FIP)</span><input type="text" id="pubOverlayUrl" readonly /><button class="btn btn-ghost" data-copy="pubOverlayUrl">Copy</button></div>

@@ -386,6 +386,32 @@ input[type='checkbox'] {
   }
 }
 
+/* fields whose labels wrap to different heights still line their boxes up */
+.config-grid.align-end {
+  align-items: end;
+}
+
+/* Internet access card: hostname | key + Generate, Copy, Save on one line */
+.tunnel-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+}
+
+.key-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.key-row .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .tunnel-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* a field that takes the whole row of a .config-grid */
 .config-grid .full {
   grid-column: 1 / -1;

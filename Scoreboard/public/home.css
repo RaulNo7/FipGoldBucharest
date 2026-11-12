@@ -365,6 +365,11 @@ main {
   padding: 36px 24px 64px;
 }
 
+/* .wrap resets the padding to 0 24px - keep room above the footer */
+main.wrap {
+  padding-bottom: 48px;
+}
+
 main h2 {
   font-family: var(--display);
   font-weight: 400;
@@ -476,6 +481,43 @@ main h2 {
 .card.locked .pill {
   background: var(--gold-bright);
   color: var(--black);
+}
+
+/* Control section: five smaller cards on one row */
+.grid-compact {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.grid-compact .card {
+  padding: 16px;
+  gap: 6px;
+}
+
+.grid-compact .card-kicker {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.grid-compact .card-title {
+  font-size: 26px;
+}
+
+.grid-compact .card-text {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.grid-compact .pill {
+  font-size: 12px;
+  padding: 7px 13px;
+  margin-top: 4px;
+}
+
+@media (max-width: 960px) {
+  .grid-compact {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
 }
 
 /* ---- Scorebug page ---- */
@@ -782,6 +824,10 @@ main .lead.small b {
 
   main {
     padding: 28px 18px 48px;
+  }
+
+  main.wrap {
+    padding-bottom: 36px;
   }
 
   main h2 {
