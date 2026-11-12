@@ -314,3 +314,54 @@ button { touch-action: manipulation; user-select: none; -webkit-user-select: non
   height: 28px;
   flex: none;
 }
+
+.brand-sub {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* Inside the desktop app the logo + name are in the window's tab bar:
+   the page header shows only the page name, larger. */
+.in-app .brand-logo,
+.in-app .brand-name {
+  display: none;
+}
+
+.in-app .brand-sub {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--accent-light, #ffe14d);
+}
+
+/* Keep-the-screen-on indicator (wakelock.js) */
+.wake-chip {
+  margin-right: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.15));
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.wake-chip.on {
+  border-color: rgba(252, 209, 22, 0.55);
+  color: #ffe14d;
+}
+
+.wake-chip.off {
+  border-color: rgba(206, 17, 38, 0.7);
+  background: rgba(206, 17, 38, 0.18);
+  color: #fff;
+}
+
+.wake-chip[hidden] {
+  display: none;
+}

@@ -309,6 +309,7 @@ label.check {
 }
 
 input[type='text'],
+input[type='password'],
 input[type='time'],
 input[type='url'],
 input[type='number'],
@@ -635,4 +636,18 @@ label.imp-cat {
 /* The hidden attribute always wins over a display set by a class (.row, .modal, .imp-cats...). */
 [hidden] {
   display: none !important;
+}
+
+/* Inside the desktop app the logo + name are in the window's tab bar:
+   the page header shows only the page name, larger. */
+.in-app .brand-logo,
+.in-app .brand-name {
+  display: none;
+}
+
+.in-app .brand-sub {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--accent-light, #ffe14d);
 }

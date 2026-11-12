@@ -19,6 +19,8 @@
 
   <ItemGroup>
     <Resource Include="app.ico" />
+    <!-- FRP mark next to the tabs (MainWindow); the same file the web pages use -->
+    <Resource Include="Scoreboard\public\frp-mark.png" Link="frp-mark.png" />
     <Content Include="Scoreboard\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

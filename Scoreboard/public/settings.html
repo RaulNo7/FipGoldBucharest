@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FRP broadcasting — Admin</title>
   <link rel="stylesheet" href="admin.css" />
+  <script>if (window.chrome && window.chrome.webview) { document.documentElement.classList.add('in-app'); }</script>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><img class="brand-logo" src="frp-mark.png" alt="" /> FRP broadcasting <span class="brand-sub">Admin</span></div>
+    <div class="brand"><img class="brand-logo" src="frp-mark.png" alt="" /> <span class="brand-name">FRP broadcasting</span> <span class="brand-sub">Admin</span></div>
     <div class="topbar-right"><span class="conn-text">this page is available only inside the app / venue network</span></div>
   </header>
 
@@ -126,6 +127,62 @@
       </div>
       <p class="hint">The <b>From outside</b> link goes through the internet tunnel (public hostname in the Internet access card below) — use it for an OBS on another network or to give the bar to FIP. Like the scorebug it needs no key.</p>
       <p class="hint">In OBS: add this URL as a <b>Browser Source</b> in the <b>LIVE</b> scene, sized <b>exactly like your canvas</b> (1920 × 1080), on top of the other sources. The bar is opaque, so a copy of the same source in the <b>REPLAY</b> scene (Paste (Duplicate), same transform) also covers the bar that is recorded inside the replay clips. Add <b>?scale=0.9</b> for a thinner bar.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Commercial break settings</h2></div>
+      <div class="config-grid">
+        <label class="check"><input type="checkbox" id="obsEnabled" /> Auto break after a match ends</label>
+        <label>Delay after match end (seconds)
+          <input type="number" id="obsDelay" min="0" max="600" step="5" />
+        </label>
+        <label>Break content
+          <select id="obsBreakMode">
+            <option value="playlist">All commercial spots, one after another</option>
+            <option value="file">The media source's own file (one merged video)</option>
+          </select>
+        </label>
+        <label>Max break length per video (seconds)
+          <input type="number" id="obsMaxBreak" min="5" max="3600" step="5" />
+        </label>
+        <label>OBS WebSocket URL
+          <input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455" />
+        </label>
+        <label>OBS WebSocket password
+          <input type="password" id="obsPassword" />
+        </label>
+        <label>Live scene
+          <input type="text" id="obsLiveScene" />
+        </label>
+        <label>Commercials scene
+          <input type="text" id="obsAdsScene" />
+        </label>
+        <label>Commercials media source
+          <input type="text" id="obsMediaSource" />
+        </label>
+        <label>Commercials folder
+          <input type="text" id="obsAdsDir" placeholder="(auto: the app's Commercials folder)" />
+        </label>
+        <label class="check"><input type="checkbox" id="rpEnabled" /> Instant replay (keeps OBS's replay buffer running)</label>
+        <label>Replay length (seconds)
+          <input type="number" id="rpSeconds" min="5" max="600" step="5" />
+        </label>
+        <label>Replay scene
+          <input type="text" id="rpScene" />
+        </label>
+        <label>Replay media source
+          <input type="text" id="rpSource" />
+        </label>
+        <label>Replay folder
+          <input type="text" id="rpDir" placeholder="(auto: the app's Replay folder)" />
+        </label>
+      </div>
+      <div class="row gap wrap actions">
+        <button class="btn btn-ghost" id="saveObsBtn">Save settings</button>
+        <button class="btn btn-ghost" id="testObsBtn">Test connection</button>
+      </div>
+      <p class="hint imp-status" id="obsTestResult"></p>
+      <p class="hint">In OBS: enable <b>Tools → WebSocket Server Settings</b>, and create the commercials scene containing one Media Source (any video file — the app loads the spots into it one by one) with "Restart playback when source becomes active" ticked. For replays: enable the <b>Replay Buffer</b> in OBS (Settings → Output → Recording) and create the replay scene with one Media Source of the name above; the app starts the buffer, sets its length and moves each saved clip into the replay folder. The connection result shows right under the buttons (and in the Broadcast card of the Media tab).</p>
     </div>
 
     <div class="card">

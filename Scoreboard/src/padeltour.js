@@ -281,7 +281,8 @@ async function openEdgeSession() {
       },
       /** Value of a JavaScript expression in the current page (e.g. 'document.body.innerText'). */
       async evaluate(expression) {
-        const r = await call('Runtime.evaluate', { expression, returnByValue: true });
+        // awaitPromise: an expression returning a promise resolves to its value
+        const r = await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
         return r && r.result ? r.result.value : undefined;
       },
       async close() {

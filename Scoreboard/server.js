@@ -350,6 +350,7 @@ function sanitizeCommercials(list) {
 }
 
 const obs = new ObsClient();
+let obsSettingsRev = 0;
 const breakState = {
   phase: 'idle', countdownEndsAt: null, timer: null, abort: false, lastError: null,
   currentCommercial: null, // spot id (or 'BREAK') while running
@@ -397,6 +398,7 @@ function obsStatusPayload() {
     playlistTotal: breakState.playlistTotal,
     lastError: breakState.lastError || obs.lastError || null,
     youtubeUrl: obsSettings.youtubeUrl || '', // for the website menu ("YouTube Live"); updates live on save
+    settingsRev: obsSettingsRev, // bumps on every save: the Media tab reloads its video/replay lists
     replay: {
       enabled: !!obsSettings.replayEnabled,
       seconds: obsSettings.replaySeconds,
@@ -1234,16 +1236,21 @@ function handleAnnouncementCommand(cmd) {
   return true;
 }
 
+/** Connect to OBS and ask its version; resolves { ok, obsVersion?, error? } (also broadcast as the OBS status). */
 function testObsConnection() {
-  (async () => {
+  return (async () => {
+    let result;
     try {
       await connectObs();
-      await obs.request('GetVersion');
+      const v = await obs.request('GetVersion');
       breakState.lastError = null;
+      result = { ok: true, obsVersion: v && v.obsVersion, websocketVersion: v && v.obsWebSocketVersion };
     } catch (err) {
       breakState.lastError = err.message;
+      result = { ok: false, error: err.message };
     }
     broadcastState();
+    return result;
   })();
 }
 
@@ -1404,6 +1411,8 @@ const MIME = {
   '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
 };
 
 function safeJoin(base, target) {
@@ -1430,7 +1439,7 @@ function versionAssets(html) {
   });
 }
 
-function serveFile(res, filePath) {
+function serveFile(res, filePath, req) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -1438,6 +1447,28 @@ function serveFile(res, filePath) {
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
+    // Video files answer byte-range requests: Safari (iPhone) will not play a
+    // <video> whose server ignores "Range" (it asks for bytes=0-1 first).
+    if (ext === '.mp4' || ext === '.webm') {
+      const m = /^bytes=(\d*)-(\d*)$/.exec((req && req.headers && req.headers.range) || '');
+      const size = data.length;
+      const headers = { 'Content-Type': MIME[ext], 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' };
+      if (m && (m[1] || m[2])) {
+        let start = m[1] ? Number(m[1]) : Math.max(0, size - Number(m[2]));
+        let end = m[1] && m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
+        if (start >= size || start > end) {
+          res.writeHead(416, { 'Content-Range': `bytes */${size}` });
+          res.end();
+          return;
+        }
+        res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 });
+        res.end(data.subarray(start, end + 1));
+        return;
+      }
+      res.writeHead(200, { ...headers, 'Content-Length': size });
+      res.end(data);
+      return;
+    }
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': 'no-cache',
@@ -1516,6 +1547,15 @@ function handleMainRequest(req, res) {
   }
 
   // Every announcement, drafts included, for the editor (the broadcast only carries the active ones).
+  // Test the OBS connection and get the answer back (Admin tab; never forwarded from the public port).
+  if (pathname === '/api/obs-test' && req.method === 'POST') {
+    testObsConnection().then((r) => {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+      res.end(JSON.stringify(r));
+    });
+    return;
+  }
+
   if (pathname === '/api/announcements') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
     res.end(JSON.stringify({ rev: annRev, serverNow: Date.now(), settings: announcements.settings, items: announcements.items }));
@@ -1568,6 +1608,7 @@ function handleMainRequest(req, res) {
           if (spots) clean.commercials = spots;
           if (incoming.breakMode === 'playlist' || incoming.breakMode === 'file') clean.breakMode = incoming.breakMode;
           obsSettings = clean;
+          obsSettingsRev++;
           saveObsSettings();
           obs.close(); // reconnect with the new url/password on next use
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1608,7 +1649,7 @@ function handleMainRequest(req, res) {
     res.end('Forbidden');
     return;
   }
-  serveFile(res, filePath);
+  serveFile(res, filePath, req);
 }
 
 const server = http.createServer(handleMainRequest);
@@ -1649,7 +1690,7 @@ const PUBLIC_PAGES = {
   '/': 'home.html', '/home': 'home.html', '/scorebug': 'scorebug.html',
   '/overlay': 'overlay.html', '/tv': 'tv.html', '/intro': 'intro.html', '/ticker': 'ticker.html',
 };
-const PUBLIC_ASSET = /^\/(home|scorebug|overlay|tv|intro|ticker)\.(html|css|js)$|^\/(mobile|admin|teams|media|announcements)\.(css|js)$|^\/(client|countries)\.js$|^\/fip-logo\.png$|^\/flags\/[a-z]{2}\.svg$/;
+const PUBLIC_ASSET = /^\/(home|scorebug|overlay|tv|intro|ticker)\.(html|css|js)$|^\/(mobile|admin|teams|media|announcements)\.(css|js)$|^\/(client|countries|wakelock)\.js$|^\/(fip-logo|frp-logo|frp-logo-light|frp-mark)\.png$|^\/wakelock\.(mp4|webm)$|^\/flags\/[a-z]{2}\.svg$/;
 
 // Operator pages (referee, admin, teams, media) and the APIs they use: only
 // with the access key, given as ?key=... or as the cookie set when a page was
@@ -1733,7 +1774,7 @@ if (PUBLIC_PORT) {
     if (PUBLIC_ASSET.test(pathname)) {
       const filePath = safeJoin(PUBLIC_DIR, pathname);
       if (filePath) {
-        serveFile(res, filePath);
+        serveFile(res, filePath, req);
         return;
       }
     }

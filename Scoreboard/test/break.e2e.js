@@ -169,6 +169,22 @@ function cleanupAndExit() {
   // Public read-only port: widget pages only, commands rejected, WS is broadcast-only.
   const pub = (p, opts) => fetch(`http://127.0.0.1:${PUBLIC_PORT}${p}`, opts);
   assert((await pub('/overlay')).status === 200, 'public port serves /overlay');
+  // Every image the public pages (and the keyed referee page) reference must be served
+  // through the tunnel too - the FRP logo once was not (broken image on phones).
+  for (const page of ['/', '/scorebug', '/mobile?key=testkey']) {
+    const html = await (await pub(page)).text();
+    const imgs = [...new Set([...html.matchAll(/<img[^>]+src="([^"]+)"/g)].map((m) => m[1]).filter((s) => !/^(https?:|data:)/.test(s)))];
+    const bad = [];
+    for (const src of imgs) if ((await pub('/' + src.replace(/^\//, ''))).status !== 200) bad.push(src);
+    assert(imgs.length > 0 && bad.length === 0, `public port serves every image of ${page} (${imgs.join(', ')}${bad.length ? '; missing: ' + bad.join(', ') : ''})`);
+  }
+  // Referee page keeps the phone screen on: script + fallback videos through the tunnel,
+  // and the videos answer byte ranges (Safari plays nothing otherwise).
+  const refHtml = await (await pub('/mobile?key=testkey')).text();
+  assert(/src="\/wakelock\.js(\?v=\d+)?"/.test(refHtml) && /id="wakeChip"/.test(refHtml) && (await pub('/wakelock.js')).status === 200, 'referee page loads wakelock.js (keep the screen on) through the public port');
+  const rng = await pub('/wakelock.mp4', { headers: { Range: 'bytes=0-1' } });
+  const whole = await pub('/wakelock.webm');
+  assert(rng.status === 206 && /^bytes 0-1\/\d+$/.test(rng.headers.get('content-range') || '') && (await rng.arrayBuffer()).byteLength === 2 && whole.status === 200 && whole.headers.get('content-type') === 'video/webm' && whole.headers.get('accept-ranges') === 'bytes', 'wake-lock fallback videos: served with byte ranges (206 for bytes=0-1) and video types');
   const home = await pub('/');
   assert(home.status === 200 && /id="youtubeLink"/.test(await home.text()) && (await pub('/home.css')).status === 200, 'public port serves the main page');
   assert((await pub('/scorebug')).status === 200 && (await pub('/scorebug.js')).status === 200, 'public port serves the scorebug page (embed code)');
@@ -548,6 +564,18 @@ function cleanupAndExit() {
   assert((await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/import/read`, { method: 'POST', body: '{}' })).status !== 200 && (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/import/categories?url=x`)).status !== 200, 'import: never reachable on the public port');
   const badLink = await fetch(`http://127.0.0.1:${SB_PORT}/api/import/categories?url=${encodeURIComponent('https://example.com/turnee/a/b')}`);
   assert(badLink.status === 400, 'import: only padeltour.ro links are accepted');
+
+  // ---- Commercial break settings on the Admin tab: connection test + settings version ----
+  const test = await postJ('/api/obs-test', {});
+  assert(test.status === 200 && test.body.ok === true, 'obs-test: the Admin tab gets the connection result back (' + JSON.stringify(test.body) + ')');
+  const revBefore = (await firstMessage(SB_PORT)).obs.settingsRev;
+  assert((await postJ('/api/obs-settings', { autoDelaySeconds: 2 })).status === 200, 'obs-settings: saved');
+  const revAfter = (await firstMessage(SB_PORT)).obs.settingsRev;
+  assert(typeof revBefore === 'number' && revAfter === revBefore + 1, 'obs-settings: a save bumps obs.settingsRev so the Media tab reloads its lists (' + revBefore + ' -> ' + revAfter + ')');
+  assert((await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/obs-test`, { method: 'POST' })).status !== 200, 'obs-test: never reachable on the public port');
+  const mediaHtml = await (await fetch(`http://127.0.0.1:${SB_PORT}/media`)).text();
+  const adminHtml = await (await fetch(`http://127.0.0.1:${SB_PORT}/settings`)).text();
+  assert(!/id="obsEnabled"/.test(mediaHtml) && /id="obsEnabled"/.test(adminHtml) && adminHtml.indexOf('Commercial break settings') > adminHtml.indexOf('<h2>Info bar</h2>'), 'Commercial break settings: on the Admin tab after Info bar, no longer on the Media tab');
 
   cleanupAndExit();
 })().catch((err) => {

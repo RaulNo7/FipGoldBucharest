@@ -68,6 +68,7 @@
 
   // ---- instant replay ----
   let replayCount = -1; // last `replay.count` seen: the list reloads when it changes
+  let settingsRev = -1; // last `obs.settingsRev` seen (saves on the Admin tab)
   function loadReplays() {
     fetch('/api/replays')
       .then((r) => r.json())
@@ -127,74 +128,6 @@
     if (confirm('Switch the stream to the commercials now?')) send({ type: 'playCommercials' });
   });
   $('#cancelAdsBtn').addEventListener('click', () => send({ type: 'cancelCommercials' }));
-
-  // ---- commercial break settings (stored server-side, never broadcast) ----
-  fetch('/api/obs-settings')
-    .then((r) => r.json())
-    .then((cfg) => {
-      $('#obsEnabled').checked = cfg.enabled !== false;
-      $('#obsDelay').value = cfg.autoDelaySeconds;
-      $('#obsBreakMode').value = cfg.breakMode === 'file' ? 'file' : 'playlist';
-      $('#obsUrl').value = cfg.url || '';
-      $('#obsPassword').value = cfg.password || '';
-      $('#obsLiveScene').value = cfg.liveScene || '';
-      $('#obsAdsScene').value = cfg.commercialsScene || '';
-      $('#obsMediaSource').value = cfg.mediaSource || '';
-      $('#obsAdsDir').value = cfg.commercialsDir || '';
-      $('#obsMaxBreak').value = cfg.maxBreakSeconds;
-      $('#rpEnabled').checked = cfg.replayEnabled !== false;
-      $('#rpSeconds').value = cfg.replaySeconds || 20;
-      $('#rpScene').value = cfg.replayScene || '';
-      $('#rpSource').value = cfg.replaySource || '';
-      $('#rpDir').value = cfg.replayDir || '';
-    })
-    .catch(() => {
-      $('#breakStatus').textContent = 'Could not load the OBS settings.';
-    });
-
-  $('#saveObsBtn').addEventListener('click', () => {
-    const body = {
-      enabled: $('#obsEnabled').checked,
-      autoDelaySeconds: +$('#obsDelay').value,
-      breakMode: $('#obsBreakMode').value,
-      url: $('#obsUrl').value.trim(),
-      password: $('#obsPassword').value,
-      liveScene: $('#obsLiveScene').value.trim(),
-      commercialsScene: $('#obsAdsScene').value.trim(),
-      mediaSource: $('#obsMediaSource').value.trim(),
-      commercialsDir: $('#obsAdsDir').value.trim(),
-      maxBreakSeconds: +$('#obsMaxBreak').value,
-      replayEnabled: $('#rpEnabled').checked,
-      replaySeconds: +$('#rpSeconds').value,
-      replayScene: $('#rpScene').value.trim(),
-      replaySource: $('#rpSource').value.trim(),
-      replayDir: $('#rpDir').value.trim(),
-    };
-    fetch('/api/obs-settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-      .then((r) => {
-        flash($('#saveObsBtn'), r.ok ? 'Saved!' : 'Failed');
-        if (r.ok) {
-          loadCommercials(); // the folders may have changed
-          loadReplays();
-        }
-      })
-      .catch(() => flash($('#saveObsBtn'), 'Failed'));
-  });
-
-  $('#testObsBtn').addEventListener('click', () => {
-    send({ type: 'obsTest' });
-    flash($('#testObsBtn'), 'Testing…');
-  });
-
-  function flash(btn, text) {
-    const old = btn.textContent;
-    btn.textContent = text;
-    setTimeout(() => (btn.textContent = old), 1200);
-  }
 
   // ---- render ----
   function render() {
@@ -256,7 +189,7 @@
     let rpText;
     if (rp.saving) rpText = 'Saving the replay from OBS…';
     else if (replayPlaying) rpText = `Replay "${rp.playing}" is on the stream…`;
-    else if (!rp.enabled) rpText = 'Instant replay is OFF (settings card below).';
+    else if (!rp.enabled) rpText = 'Instant replay is OFF (Admin tab → Commercial break settings).';
     else if (rp.bufferActive) rpText = `Ready — Replay puts the last ${rp.seconds} s on the stream.` + (rp.last ? ` Last clip: ${rp.last}.` : '');
     else rpText = 'Waiting for OBS — the replay buffer is not recording yet.';
     if (rp.error) rpText += ` — ${rp.error}`;
@@ -265,6 +198,15 @@
       const first = replayCount < 0;
       replayCount = rp.count;
       if (!first) loadReplays();
+    }
+    // Settings saved on the Admin tab (folders may have changed): reload both lists.
+    if (typeof o.settingsRev === 'number' && o.settingsRev !== settingsRev) {
+      const first = settingsRev < 0;
+      settingsRev = o.settingsRev;
+      if (!first) {
+        loadCommercials();
+        loadReplays();
+      }
     }
 
     // Video row: locked while anything is on air, green while its file plays.

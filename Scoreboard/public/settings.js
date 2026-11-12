@@ -235,6 +235,79 @@
   $('#copyIbPubUrlBtn').addEventListener('click', () => isUrl($('#ibPubUrl').value) && copyField($('#ibPubUrl'), $('#copyIbPubUrlBtn')));
   $('#openIbPubUrlBtn').addEventListener('click', () => openPreview($('#ibPubUrl').value));
 
+  // ---- Commercial break settings (OBS connection, scenes, commercials, instant replay) ----
+  // Stored server-side in obs-settings.json, never broadcast. The Media tab
+  // reloads its lists when they change (obs.settingsRev).
+  fetch('/api/obs-settings')
+    .then((r) => r.json())
+    .then((cfg) => {
+      $('#obsEnabled').checked = cfg.enabled !== false;
+      $('#obsDelay').value = cfg.autoDelaySeconds;
+      $('#obsBreakMode').value = cfg.breakMode === 'file' ? 'file' : 'playlist';
+      $('#obsUrl').value = cfg.url || '';
+      $('#obsPassword').value = cfg.password || '';
+      $('#obsLiveScene').value = cfg.liveScene || '';
+      $('#obsAdsScene').value = cfg.commercialsScene || '';
+      $('#obsMediaSource').value = cfg.mediaSource || '';
+      $('#obsAdsDir').value = cfg.commercialsDir || '';
+      $('#obsMaxBreak').value = cfg.maxBreakSeconds;
+      $('#rpEnabled').checked = cfg.replayEnabled !== false;
+      $('#rpSeconds').value = cfg.replaySeconds || 20;
+      $('#rpScene').value = cfg.replayScene || '';
+      $('#rpSource').value = cfg.replaySource || '';
+      $('#rpDir').value = cfg.replayDir || '';
+    })
+    .catch(() => {
+      $('#obsTestResult').textContent = 'Could not load the OBS settings.';
+    });
+
+  $('#saveObsBtn').addEventListener('click', () => {
+    const body = {
+      enabled: $('#obsEnabled').checked,
+      autoDelaySeconds: +$('#obsDelay').value,
+      breakMode: $('#obsBreakMode').value,
+      url: $('#obsUrl').value.trim(),
+      password: $('#obsPassword').value,
+      liveScene: $('#obsLiveScene').value.trim(),
+      commercialsScene: $('#obsAdsScene').value.trim(),
+      mediaSource: $('#obsMediaSource').value.trim(),
+      commercialsDir: $('#obsAdsDir').value.trim(),
+      maxBreakSeconds: +$('#obsMaxBreak').value,
+      replayEnabled: $('#rpEnabled').checked,
+      replaySeconds: +$('#rpSeconds').value,
+      replayScene: $('#rpScene').value.trim(),
+      replaySource: $('#rpSource').value.trim(),
+      replayDir: $('#rpDir').value.trim(),
+    };
+    fetch('/api/obs-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then((r) => flash($('#saveObsBtn'), r.ok ? 'Saved!' : 'Failed'))
+      .catch(() => flash($('#saveObsBtn'), 'Failed'));
+  });
+
+  $('#testObsBtn').addEventListener('click', () => {
+    const out = $('#obsTestResult');
+    out.className = 'hint imp-status';
+    out.textContent = 'Connecting to OBS…';
+    $('#testObsBtn').disabled = true;
+    fetch('/api/obs-test', { method: 'POST' })
+      .then((r) => r.json())
+      .then((r) => {
+        out.className = 'hint imp-status ' + (r.ok ? 'ok' : 'error');
+        out.textContent = r.ok
+          ? `Connected to OBS${r.obsVersion ? ' ' + r.obsVersion : ''}${r.websocketVersion ? ' (WebSocket ' + r.websocketVersion + ')' : ''}.`
+          : `Not connected: ${String(r.error || 'unknown error').trim()}${/[.?!]$/.test(String(r.error || '').trim()) ? '' : '.'} Save the settings first if you changed the URL or password.`;
+      })
+      .catch(() => {
+        out.className = 'hint imp-status error';
+        out.textContent = 'The score server did not answer.';
+      })
+      .finally(() => ($('#testObsBtn').disabled = false));
+  });
+
   // ---- court TV URL (LAN) + public port info ----
   fetch('/api/info')
     .then((r) => r.json())
