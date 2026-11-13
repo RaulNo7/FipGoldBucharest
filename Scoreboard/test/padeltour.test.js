@@ -178,13 +178,33 @@ function listHtml() {
     async evaluate() { return JSON.stringify({ text: profileText, title: 'Ion Popa — x', og: '/api/og/card?title=Ion+Popa&img=' + encodeURIComponent('https://x.supabase.co/storage/v1/object/public/avatars/1/avatar.jpg?t=5') + '&round=1' }); },
     async close() {},
   };
-  const pr = await P.readProfiles(['https://www.padeltour.ro/ion-popa-1a2b3c'], { session: fakeEdge });
+  const pr = await P.readProfiles(['https://www.padeltour.ro/ion-popa-1a2b3c'], { session: fakeEdge, settleMs: 5 });
   eq([pr[0].ok, pr[0].data.points, pr[0].photoUrl], [true, 5432, 'https://x.supabase.co/storage/v1/object/public/avatars/1/avatar.jpg?t=5'], "readProfiles: data + the player's own picture (named by the page's share preview)");
   const noPic = { ...fakeEdge, async evaluate() { return JSON.stringify({ text: profileText, title: 'Ion Popa — x', og: '/api/og/card?title=Ion+Popa&fallback=x' }); } };
-  eq((await P.readProfiles(['https://www.padeltour.ro/ion-popa-1a2b3c'], { session: noPic }))[0].photoUrl, '', "readProfiles: no own picture -> no photo (never a partner's avatar from the page)");
+  eq((await P.readProfiles(['https://www.padeltour.ro/ion-popa-1a2b3c'], { session: noPic, settleMs: 5 }))[0].photoUrl, '', "readProfiles: no own picture -> no photo (never a partner's avatar from the page)");
   eq([P.ownPhoto('https://www.padeltour.ro/api/og/card?img=https%3A%2F%2Fevil.com%2Fx.jpg'), P.ownPhoto('')], ['', ''], 'ownPhoto: only avatars from the profile storage');
   const empty = { ...fakeEdge, async evaluate() { return JSON.stringify({ text: 'nimic', title: '' }); } };
-  eq((await P.readProfiles(['https://www.padeltour.ro/x'], { session: empty }))[0].ok, false, 'readProfiles: a page without profile data is an error');
+  eq((await P.readProfiles(['https://www.padeltour.ro/x'], { session: empty, settleMs: 5 }))[0].ok, false, 'readProfiles: a page without profile data is an error');
+  // numbers still filling in on the first look (level missing, points counting up): wait for a stable page
+  let looks = 0;
+  const filling = { ...fakeEdge, async evaluate() {
+    looks++;
+    const t = looks === 1 ? profileText.replace('8,40\nGrand Master\n12', '12').replace('5.432', '1.200') : profileText;
+    return JSON.stringify({ text: t, title: 'Ion Popa — x', og: '' });
+  } };
+  const settled = (await P.readProfiles(['https://www.padeltour.ro/ion-popa-1a2b3c'], { session: filling, settleMs: 5 }))[0];
+  eq([settled.data.points, settled.data.level, settled.data.tier, looks >= 3], [5432, 8.4, 'Grand Master', true], 'readProfiles: reads only once the numbers stop changing');
+  // the PT level arriving after the rest has already settled
+  let looks2 = 0;
+  const lateLevel = { ...fakeEdge, async evaluate() {
+    looks2++;
+    const noLevel = profileText.split('\n').filter((l) => l !== '8,40' && l !== 'Grand Master').join('\n');
+    return JSON.stringify({ text: looks2 <= 4 ? noLevel : profileText, title: 'Ion Popa — x', og: '' });
+  } };
+  const late = (await P.readProfiles(['https://www.padeltour.ro/ion-popa-1a2b3c'], { session: lateLevel, settleMs: 5 }))[0];
+  eq([late.data.level, late.data.tier], [8.4, 'Grand Master'], 'readProfiles: waits for a PT level that arrives late');
+  const never = (await P.readProfiles(['https://www.padeltour.ro/ion-popa-1a2b3c'], { session: { ...lateLevel, async evaluate() { return JSON.stringify({ text: profileText.split('\n').filter((l) => l !== '8,40').join('\n'), title: 'Ion Popa — x', og: '' }); } }, settleMs: 5 }))[0];
+  eq([never.ok, never.data.level], [true, null], 'readProfiles: a profile without a PT level is still read (no endless wait)');
 
   console.log(`\n${passed} passed, ${failed} failed.\n`);
   process.exit(failed ? 1 : 0);

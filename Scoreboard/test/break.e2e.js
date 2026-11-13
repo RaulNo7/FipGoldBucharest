@@ -690,6 +690,10 @@ function cleanupAndExit() {
   assert((await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/profiles/refresh`, { method: 'POST', body: '{}' })).status !== 200 && (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/profiles/link`, { method: 'POST', body: '{}' })).status !== 200, 'player cards: reading / linking profiles is never reachable on the public port');
   assert((await postJ('/api/profiles/refresh', { teamIds: ['nope'] })).status === 409, 'player cards: refreshing an unknown team is refused');
 
+  const b1 = (await firstMessage(SB_PORT)).build;
+  const b2 = (await firstMessage(PUBLIC_PORT)).build;
+  assert(/^\d{10,}$/.test(b1 || '') && b1 === b2, 'overlays: every state message carries the page-files version (OBS pages reload after an app update)');
+
   // one presentation at a time: player card <-> match intro <-> score
   await cmd({ type: 'setDisplay', display: { scoreVisible: true } });
   await cmd({ type: 'setDisplay', display: { playerCard: '0-0' } });

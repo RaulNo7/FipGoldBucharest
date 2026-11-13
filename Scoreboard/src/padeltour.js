@@ -749,16 +749,33 @@ async function readProfiles(urls, opts = {}) {
         const shown = (h, re) => new RegExp('>\\s*' + re + '\\s*<', 'i').test(h);
         const html = await session.load(url, (h) => shown(h, 'Informații') || shown(h, 'Jucătorul nu a fost găsit\\.?'), opts.timeoutMs || 30000);
         if (!shown(html, 'Informații') && shown(html, 'Jucătorul nu a fost găsit\\.?')) throw new Error('profile not found');
-        if (!opts.session) await new Promise((r) => setTimeout(r, 800)); // let the last blocks render
         // The player's own picture is the one the page's share preview (og:image) names in
         // its img= parameter; it is absent when the player has none. Never take just any
         // avatar on the page: partners and opponents further down have theirs too.
-        const page = await session.evaluate(`JSON.stringify({
-          text: document.body ? document.body.innerText : '',
-          title: document.title,
-          og: (document.querySelector('meta[property="og:image"]') || {}).content || ''
-        })`);
-        const p = JSON.parse(page || '{}');
+        const snapshot = async () =>
+          JSON.parse(
+            (await session.evaluate(`JSON.stringify({
+              text: document.body ? document.body.innerText : '',
+              title: document.title,
+              og: (document.querySelector('meta[property="og:image"]') || {}).content || ''
+            })`)) || '{}'
+          );
+        // The numbers fill in (and count up) after the page appears: read only once the
+        // visible text has stopped changing between two looks.
+        const settle = opts.settleMs == null ? 700 : opts.settleMs;
+        let p = await snapshot();
+        for (let i = 0; i < 8; i++) {
+          await new Promise((r) => setTimeout(r, settle));
+          const again = await snapshot();
+          const same = again.text === p.text;
+          p = again;
+          if (same) break;
+        }
+        // The PT level arrives on its own, sometimes after the rest has settled: give it a few more looks.
+        for (let i = 0; i < 8 && parseProfileText(p.text, p.title).level == null; i++) {
+          await new Promise((r) => setTimeout(r, settle));
+          p = await snapshot();
+        }
         const data = parseProfileText(p.text, p.title);
         if (data.points == null && data.age == null && !data.rankings.length) throw new Error('the profile did not load');
         out.push({ url, ok: true, data, photoUrl: ownPhoto(p.og) });

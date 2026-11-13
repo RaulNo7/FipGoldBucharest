@@ -2,8 +2,13 @@
 (function (global) {
   'use strict';
 
-  function connect({ onState, onStatus }) {
+  /**
+   * reloadOnUpdate: reload the page when the server reports a newer version of the page files
+   * (for the OBS overlays, which otherwise keep showing the page they loaded first).
+   */
+  function connect({ onState, onStatus, reloadOnUpdate }) {
     let ws = null;
+    let firstBuild = null;
     let reconnectTimer = null;
     let closed = false;
 
@@ -31,6 +36,13 @@
           msg = JSON.parse(ev.data);
         } catch (_) {
           return;
+        }
+        if (msg.type === 'state' && msg.build) {
+          if (firstBuild === null) firstBuild = msg.build;
+          else if (reloadOnUpdate && msg.build !== firstBuild) {
+            location.reload();
+            return;
+          }
         }
         if (msg.type === 'state' && onState) onState(msg.state, msg);
       });

@@ -66,6 +66,7 @@
   let lastSeq = -1;
 
   PadelClient.connect({
+    reloadOnUpdate: true, // OBS keeps the page it loaded first: reload after an app update
     onState: render,
   });
 

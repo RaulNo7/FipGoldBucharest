@@ -25,7 +25,7 @@
   const scale = parseFloat(new URLSearchParams(location.search).get('scale'));
   if (scale > 0) root.style.transform = `translate(-50%, -50%) scale(${scale})`;
 
-  PadelClient.connect({ onState: render });
+  PadelClient.connect({ onState: render, reloadOnUpdate: true });
 
   function render(state, msg) {
     const d = state.display || {};

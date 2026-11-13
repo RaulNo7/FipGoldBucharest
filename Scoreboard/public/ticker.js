@@ -35,6 +35,7 @@
   let scrollAnim = null;
 
   PadelClient.connect({
+    reloadOnUpdate: true, // OBS keeps the page it loaded first: reload after an app update
     onState: (_state, msg) => {
       const ann = (msg && msg.announcements) || {};
       if (ann.settings) settings = ann.settings;

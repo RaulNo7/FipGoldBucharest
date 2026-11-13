@@ -357,15 +357,34 @@ publicHub.onMessage((socket, text) => {
   handleCommand(msg);
 });
 
+/**
+ * Version of the page files at start-up (newest modification time under public/ and src/).
+ * OBS browser sources never reload by themselves: the overlay pages reload when it changes.
+ */
+const PAGES_BUILD = (() => {
+  let newest = 0;
+  for (const dir of [PUBLIC_DIR, path.join(__dirname, 'src')]) {
+    try {
+      for (const f of fs.readdirSync(dir)) {
+        const st = fs.statSync(path.join(dir, f));
+        if (st.isFile() && st.mtimeMs > newest) newest = st.mtimeMs;
+      }
+    } catch (_) {
+      /* missing folder */
+    }
+  }
+  return String(Math.floor(newest));
+})();
+
 function publicStateMessage() {
   // Same as the LAN message minus the client count. The OBS/break status is
   // needed by the (key-protected) Media page and contains nothing sensitive.
-  return JSON.stringify({ type: 'state', state, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload(), cards: playerCardsPayload() });
+  return JSON.stringify({ type: 'state', state, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload(), cards: playerCardsPayload(), build: PAGES_BUILD });
 }
 
 function stateMessage() {
   // `obs` is transient status for the admin UI — never persisted, never secret.
-  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload(), cards: playerCardsPayload() });
+  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload(), cards: playerCardsPayload(), build: PAGES_BUILD });
 }
 
 /** Roster version + tournament name: pages reload /api/teams when `rev` changes. */
