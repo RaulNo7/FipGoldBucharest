@@ -100,6 +100,7 @@ function createDefaultState() {
       scoreVisible: true, // false while the stream shows commercials; the /tv page ignores it
       introVisible: false, // pre-match players presentation (the /intro overlay page)
       playerCard: null, // one player's card on the /intro page: '0-0' | '0-1' | '1-0' | '1-1' (team-player), null = none
+      playerCardSide: 'left', // where the card sits: 'left' | 'right' (the player stays visible on the other half)
       startTime: '', // scheduled start of the match, e.g. '14:30' — shown on the players intro
     },
     teams_registry: {}, // live Active/Eliminated flags per entry-list teamId ({ [id]: { active } }; missing = active)
@@ -567,6 +568,7 @@ function applyCommand(prev, cmd) {
       if (cmd.display && typeof cmd.display === 'object') {
         Object.assign(state.display, cmd.display);
         if (!/^[01]-[01]$/.test(String(state.display.playerCard))) state.display.playerCard = null;
+        if (state.display.playerCardSide !== 'right') state.display.playerCardSide = 'left';
         // The match intro, a player card and the scorebug never share the screen:
         // showing one hides the others (hiding one leaves the screen empty).
         if (cmd.display.scoreVisible === true) {

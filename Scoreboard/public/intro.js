@@ -53,7 +53,7 @@
 
     root.classList.toggle('hidden', d.introVisible !== true);
 
-    renderCard(d.playerCard, (msg && msg.cards) || {}, roster);
+    renderCard(d.playerCard, d.playerCardSide, (msg && msg.cards) || {}, roster);
   }
 
   // ---- one player's card ----
@@ -76,12 +76,14 @@
   window.addEventListener('resize', fitCard);
   fitCard();
 
-  function renderCard(key, cards, roster) {
+  function renderCard(key, side, cards, roster) {
     const card = key ? cards[key] : null;
     if (!card) {
       pc.classList.add('hidden'); // keeps the last content while it fades out
       return;
     }
+    // left or right edge of the frame (the player stays visible on the other half)
+    pc.classList.toggle("side-right", side === "right");
     const p = card.profile || null;
     pc.classList.toggle('no-data', !p);
 

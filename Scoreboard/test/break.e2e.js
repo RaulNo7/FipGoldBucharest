@@ -715,7 +715,16 @@ function cleanupAndExit() {
   assert(st.display.playerCard === null && st.display.scoreVisible === true, 'player cards: Show score clears the card');
   const introPage = await (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/intro`)).text();
   const mediaPage2 = await (await fetch(`http://127.0.0.1:${SB_PORT}/media`)).text();
-  assert(/id="pcard"/.test(introPage) && (mediaPage2.match(/data-pcard="[01]-[01]"/g) || []).length === 4 && /👥 Show match/.test(mediaPage2), 'player cards: card on the /intro page, Show match + 4 player buttons on the Media tab');
+  assert(/id="pcard"/.test(introPage) && (mediaPage2.match(/data-pcard="[01]-[01]" data-side="(left|right)"/g) || []).length === 8 && /👥 Show match/.test(mediaPage2), 'player cards: card on the /intro page; on the Media tab Show match + ◀ Left / Right ▶ for each of the 4 players');
+
+  // the card's side of the frame
+  await cmd({ type: 'setDisplay', display: { playerCard: '1-0', playerCardSide: 'right' } });
+  st = await api('/api/state');
+  assert(st.display.playerCard === '1-0' && st.display.playerCardSide === 'right', 'player cards: Right puts the card on the right of the frame');
+  await cmd({ type: 'setDisplay', display: { playerCard: '1-0', playerCardSide: 'middle' } });
+  st = await api('/api/state');
+  assert(st.display.playerCardSide === 'left', 'player cards: an unknown side falls back to the left');
+  await cmd({ type: 'setDisplay', display: { playerCard: null } });
 
   cleanupAndExit();
 })().catch((err) => {

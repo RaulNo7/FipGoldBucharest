@@ -126,12 +126,15 @@
     const visible = !state || !state.display || state.display.scoreVisible !== false;
     send({ type: 'setDisplay', display: { scoreVisible: !visible } });
   });
-  // Player cards: a press shows that player's card; the same button hides it, another switches to it.
+  // Player cards: ◀ Left / Right ▶ shows that player's card on that side of the frame; the same
+  // button hides it, the other side moves it, another player's button switches to that player.
   $$('[data-pcard]').forEach((b) =>
     b.addEventListener('click', () => {
       const key = b.dataset.pcard;
-      const on = !!(state && state.display && state.display.playerCard === key);
-      send({ type: 'setDisplay', display: { playerCard: on ? null : key } });
+      const side = b.dataset.side === 'right' ? 'right' : 'left';
+      const d = (state && state.display) || {};
+      const on = d.playerCard === key && (d.playerCardSide || 'left') === side;
+      send({ type: 'setDisplay', display: on ? { playerCard: null } : { playerCard: key, playerCardSide: side } });
     })
   );
 
@@ -156,21 +159,25 @@
       $('#toggleScoreBtn').textContent =
         state.display && state.display.scoreVisible === false ? 'Show score' : 'Hide score';
 
-      // the four player-card buttons, named after the players on court
+      // the four players: a name label + ◀ Left / Right ▶ (which side of the frame the card takes)
       const C = window.PadelCountries;
-      $$('[data-pcard]').forEach((b) => {
-        const key = b.dataset.pcard;
+      const d = state.display || {};
+      $$('.pcard-group').forEach((g) => {
+        const key = g.dataset.player;
         const [t, i] = key.split('-').map(Number);
         const player = ((state.teams[t] || {}).players || [])[i];
         const card = latestCards[key] || {};
         const name = C.playerName(player) || 'Player ' + (t * 2 + i + 1);
-        b.textContent = '🪪 ' + C.shortName(name);
-        const on = state.display && state.display.playerCard === key;
-        b.classList.toggle('is-on', !!on);
-        b.classList.toggle('no-data', !card.profile);
-        b.title = card.profile
-          ? `Show ${name}'s card (profile read ${new Date(card.profile.fetchedAt).toLocaleString('ro-RO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}). Press again to hide it.`
+        const label = g.querySelector('.pcard-name');
+        label.textContent = '🪪 ' + C.shortName(name);
+        label.title = card.profile
+          ? `${name} - profile read ${new Date(card.profile.fetchedAt).toLocaleString('ro-RO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
           : `No padeltour.ro profile read for ${name} yet (Teams tab → ⟳ Profiles) - the card shows only the name and flag.`;
+        g.classList.toggle('no-data', !card.profile);
+        g.classList.toggle('is-on', d.playerCard === key);
+        g.querySelectorAll('[data-pcard]').forEach((b) => {
+          b.classList.toggle('is-on', d.playerCard === key && (d.playerCardSide || 'left') === b.dataset.side);
+        });
       });
     }
 

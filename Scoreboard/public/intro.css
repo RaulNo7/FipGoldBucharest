@@ -159,38 +159,59 @@ body {
   background-position: top left;
 }
 
-/* ---- Player card (one player, Media tab buttons) ----
-   Laid out at 1920x1080 and scaled to the browser source by intro.js (--pc-scale). */
+/* ---- Player card (one player, Media tab ◀ / ▶ buttons) ----
+   Vertical, 560 px wide on a 1920x1080 frame, 360 px in from the left or right edge (class side-right;
+   the right card then clears the Romania Padel Tour logos in the top-right corner),
+   so the player stays visible on the other half of the video. Scaled by intro.js (--pc-scale). */
 .pcard {
   position: fixed;
-  left: 50%;
   top: 50%;
-  width: 1480px;
-  transform: translate(-50%, -50%) scale(var(--pc-scale, 1));
+  left: calc(360px * var(--pc-scale, 1));
+  width: 560px;
+  transform: translateY(-50%) scale(var(--pc-scale, 1));
+  transform-origin: left center;
   border-radius: 18px;
   overflow: hidden;
   background: var(--navy-deep);
   color: var(--white);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
-  transition: opacity 0.5s ease;
+  transition: opacity 0.45s ease, translate 0.45s ease;
   opacity: 1;
+  translate: 0 0;
 }
-.pcard.hidden { opacity: 0; pointer-events: none; }
+.pcard.side-right {
+  left: auto;
+  right: calc(360px * var(--pc-scale, 1));
+  transform-origin: right center;
+}
+.pcard.hidden { opacity: 0; pointer-events: none; translate: -40px 0; }
+.pcard.side-right.hidden { translate: 40px 0; }
+
 .pcard-flag { height: 6px; display: grid; grid-template-columns: 1fr 1fr 1fr; }
 .pcard-flag i:nth-child(1) { background: #002b7f; }
 .pcard-flag i:nth-child(2) { background: var(--gold); }
 .pcard-flag i:nth-child(3) { background: #ce1126; }
-.pcard-head {
-  display: flex; align-items: center; gap: 14px;
-  background: var(--header-bg); padding: 12px 28px;
-  font: 600 17px var(--font); letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
-}
-.pcard-head img { height: 26px; }
-.pcard-head b { color: var(--gold); font-weight: 700; }
-.pcard-head .sep { opacity: 0.5; }
 
-.pcard-main { display: grid; grid-template-columns: 250px 1fr auto; gap: 34px; align-items: center; padding: 26px 34px 22px; }
-.pc-photo { position: relative; width: 250px; height: 250px; }
+.pcard-head {
+  background: var(--header-bg);
+  padding: 12px 24px 12px;
+  font: 600 15px var(--font);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.pc-head-row { display: flex; align-items: center; gap: 12px; }
+.pc-brand { display: flex; align-items: center; gap: 10px; }
+.pc-brand img { height: 24px; }
+.pcard-head b { color: var(--gold); font-weight: 700; }
+.pcard-head .sep { opacity: 0.5; margin: 0 10px; }
+.pc-source { margin-left: auto; display: flex; align-items: center; }
+.pc-source .sep { margin: 0 10px; }
+.pc-event { margin-top: 6px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+
+.pcard-main { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 26px 28px 22px; }
+.pc-photo { position: relative; width: 210px; height: 210px; }
 .pc-face, .pc-initials {
   position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%;
   border: 5px solid var(--gold); box-shadow: 0 0 0 6px rgba(252, 209, 22, 0.18);
@@ -199,81 +220,64 @@ body {
 .pc-initials {
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(160deg, #12275a, #061433);
-  font: 700 92px var(--font-names); color: var(--gold);
+  font: 700 80px var(--font-names); color: var(--gold);
 }
+.pc-face[hidden], .pc-initials[hidden] { display: none; }
 .pc-flagdot {
-  position: absolute; right: 8px; bottom: 10px; width: 62px; height: 62px; border-radius: 50%;
+  position: absolute; right: 4px; bottom: 6px; width: 56px; height: 56px; border-radius: 50%;
   border: 4px solid #061433; background-size: cover; background-position: center;
 }
 .pc-flagdot.none { display: none; }
 
-.pc-name { font: 700 76px/0.95 var(--font-names); letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap; }
-.pc-name.long { font-size: 60px; }
-.pc-name.xlong { font-size: 48px; }
+.pc-name {
+  margin-top: 18px;
+  font: 700 64px/0.98 var(--font-names); letter-spacing: 0.02em; text-transform: uppercase;
+  text-wrap: balance;
+}
+.pc-name.long { font-size: 54px; }
+.pc-name.xlong { font-size: 46px; }
 .pc-name span { color: var(--gold); }
-.pc-facts { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px 26px; font-size: 25px; color: var(--muted); }
+.pc-facts { margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 20px; font-size: 22px; color: var(--muted); }
 .pc-facts b { color: var(--white); font-weight: 600; }
 .pc-facts .nat i {
-  display: inline-block; width: 34px; height: 23px; border-radius: 3px; margin-right: 6px; vertical-align: -3px;
+  display: inline-block; width: 30px; height: 20px; border-radius: 3px; margin-right: 6px; vertical-align: -2px;
   background-size: cover; background-position: center;
 }
-.pc-ranks { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 12px; }
+.pc-ranks { margin-top: 16px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .pc-ranks:empty { display: none; }
 .pc-rank {
-  display: flex; align-items: baseline; gap: 10px; background: var(--navy-alt);
-  border: 1px solid rgba(252, 209, 22, 0.35); border-radius: 10px; padding: 8px 16px; font-size: 22px;
+  display: flex; align-items: baseline; gap: 8px; background: var(--navy-alt);
+  border: 1px solid rgba(252, 209, 22, 0.35); border-radius: 10px; padding: 7px 14px; font-size: 20px;
 }
-.pc-rank b { font: 700 30px var(--font-names); color: var(--gold); }
-.pc-rank small { color: var(--muted); font-size: 19px; }
+.pc-rank b { font: 700 27px var(--font-names); color: var(--gold); }
+.pc-rank small { color: var(--muted); font-size: 17px; }
 
-.pc-big { display: grid; grid-template-columns: repeat(3, 190px); gap: 12px; }
-.pc-stat { background: var(--navy-alt); border-radius: 14px; padding: 16px 14px 14px; text-align: center; }
+.pc-big { margin-top: 20px; width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pc-stat { background: var(--navy-alt); border-radius: 14px; padding: 14px 8px 12px; text-align: center; }
 .pc-stat.gold { background: linear-gradient(160deg, var(--gold-light), var(--gold)); color: #061433; }
-.pc-stat .num { font: 700 64px/1 var(--font-names); }
-.pc-stat .lbl { margin-top: 8px; font: 600 15px var(--font); letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.8; }
-.pc-stat .tier { margin-top: 4px; font: 700 18px var(--font); color: var(--gold); }
+.pc-stat .num { font: 700 52px/1 var(--font-names); }
+.pc-stat .lbl { margin-top: 8px; font: 600 13px var(--font); letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.8; }
+.pc-stat .tier { margin-top: 4px; font: 700 16px var(--font); color: var(--gold); }
 .pc-stat .tier:empty { display: none; }
 
-.pc-strip { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(4, 12, 34, 0.55); }
-.pc-strip > div { padding: 14px 22px; display: flex; flex-direction: column; gap: 4px; border-left: 1px solid rgba(255, 255, 255, 0.08); }
-.pc-strip > div:first-child { border-left: 0; }
-.pc-strip .v { font: 700 34px var(--font-names); white-space: nowrap; }
-.pc-strip .v small { font: 600 18px var(--font); color: var(--muted); margin-left: 6px; }
-.pc-strip .k { font: 600 14px var(--font); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.pc-strip { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(4, 12, 34, 0.55); }
+.pc-strip > div { padding: 12px 22px; display: flex; flex-direction: column; gap: 3px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.pc-strip > div:nth-child(odd) { border-right: 1px solid rgba(255, 255, 255, 0.06); }
+.pc-strip > div:nth-child(-n + 2) { border-top: 0; }
+.pc-strip > .pc-form-cell { grid-column: 1 / -1; border-right: 0; }
+.pc-strip .v { font: 700 32px var(--font-names); white-space: nowrap; }
+.pc-strip .v small { font: 600 16px var(--font); color: var(--muted); margin-left: 6px; }
+.pc-strip .k { font: 600 13px var(--font); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 .pc-medals { display: flex; gap: 16px; }
 .pc-medals span { display: inline-flex; align-items: center; gap: 6px; }
-.pc-medals i { width: 18px; height: 18px; border-radius: 50%; display: inline-block; }
-.pc-form { display: flex; gap: 5px; margin-top: 6px; }
+.pc-medals i { width: 17px; height: 17px; border-radius: 50%; display: inline-block; }
+.pc-form { display: flex; gap: 6px; margin-top: 6px; }
 .pc-form i {
-  width: 22px; height: 22px; border-radius: 5px; background: #22c55e;
-  font: 700 13px/22px var(--font); text-align: center; font-style: normal; color: #052e14;
+  width: 30px; height: 26px; border-radius: 6px; background: #22c55e;
+  font: 700 14px/26px var(--font); text-align: center; font-style: normal; color: #052e14;
 }
 .pc-form i.l { background: #ce1126; color: #fff; }
 
 /* No profile read yet: name, flag and initials only. */
 .pcard.no-data .pc-big,
 .pcard.no-data .pc-strip { display: none; }
-.pcard.no-data .pcard-main { grid-template-columns: 250px 1fr; }
-
-/* [hidden] must win over the display rules above (photo vs initials) */
-.pc-face[hidden],
-.pc-initials[hidden] { display: none; }
-/* long names (over 15 letters) wrap onto two lines instead of pushing the numbers off the card */
-.pc-name.long,
-.pc-name.xlong { white-space: normal; text-wrap: balance; }
-.pc-name.long { font-size: 64px; }
-.pc-name.xlong { font-size: 56px; }
-
-/* top bar, right: where the numbers come from */
-.pc-source {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-/* same lettering as "FRP Live" on the left; the bar never wraps */
-.pcard-head { white-space: nowrap; flex-wrap: nowrap; }
-.pc-source b {
-  color: var(--gold);
-  font-weight: 700;
-}

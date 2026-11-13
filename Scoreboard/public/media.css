@@ -219,3 +219,37 @@
   border-color: var(--accent);
   color: var(--accent-fg);
 }
+
+/* player cards: name label + ◀ Left / Right ▶ under it */
+.pcard-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.pcard-group.is-on {
+  border-color: var(--accent);
+}
+.pcard-group.no-data {
+  border-style: dashed;
+}
+.pcard-name {
+  font-weight: 700;
+  font-size: 14px;
+  text-align: center;
+  white-space: nowrap;
+}
+.pcard-sides {
+  display: flex;
+  gap: 6px;
+}
+.pcard-sides .btn {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
