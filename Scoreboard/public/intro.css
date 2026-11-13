@@ -263,3 +263,17 @@ body {
 .pc-name.xlong { white-space: normal; text-wrap: balance; }
 .pc-name.long { font-size: 64px; }
 .pc-name.xlong { font-size: 56px; }
+
+/* top bar, right: where the numbers come from */
+.pc-source {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+/* same lettering as "FRP Live" on the left; the bar never wraps */
+.pcard-head { white-space: nowrap; flex-wrap: nowrap; }
+.pc-source b {
+  color: var(--gold);
+  font-weight: 700;
+}

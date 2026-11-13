@@ -723,6 +723,16 @@ function parseProfileText(text, title) {
   return out;
 }
 
+/** The profile owner's picture from the page's og:image link (…/api/og/card?…&img=<avatar url>), or ''. */
+function ownPhoto(ogImage) {
+  try {
+    const img = new URL(String(ogImage || ''), 'https://www.padeltour.ro').searchParams.get('img') || '';
+    return /^https:\/\/[^/]+\/storage\/v1\/object\/public\/avatars\//.test(img) ? img : '';
+  } catch (_) {
+    return '';
+  }
+}
+
 /**
  * Reads profiles in a headless Edge (the info block is filled in by the page's script).
  * urls: ['https://www.padeltour.ro/horia', ...]. opts: { session?, timeoutMs?, onProgress? }
@@ -740,16 +750,18 @@ async function readProfiles(urls, opts = {}) {
         const html = await session.load(url, (h) => shown(h, 'Informații') || shown(h, 'Jucătorul nu a fost găsit\\.?'), opts.timeoutMs || 30000);
         if (!shown(html, 'Informații') && shown(html, 'Jucătorul nu a fost găsit\\.?')) throw new Error('profile not found');
         if (!opts.session) await new Promise((r) => setTimeout(r, 800)); // let the last blocks render
+        // The player's own picture is the one the page's share preview (og:image) names in
+        // its img= parameter; it is absent when the player has none. Never take just any
+        // avatar on the page: partners and opponents further down have theirs too.
         const page = await session.evaluate(`JSON.stringify({
           text: document.body ? document.body.innerText : '',
           title: document.title,
-          photo: (document.querySelector('link[rel=preload][href*="/avatar."]') || {}).href
-            || (document.querySelector('img[src*="/avatar."]') || {}).src || ''
+          og: (document.querySelector('meta[property="og:image"]') || {}).content || ''
         })`);
         const p = JSON.parse(page || '{}');
         const data = parseProfileText(p.text, p.title);
         if (data.points == null && data.age == null && !data.rankings.length) throw new Error('the profile did not load');
-        out.push({ url, ok: true, data, photoUrl: /^https:\/\//.test(p.photo || '') ? p.photo : '' });
+        out.push({ url, ok: true, data, photoUrl: ownPhoto(p.og) });
       } catch (err) {
         out.push({ url, ok: false, error: err.message });
       }
@@ -781,4 +793,5 @@ module.exports = {
   profileUrl,
   parseProfileText,
   readProfiles,
+  ownPhoto,
 };

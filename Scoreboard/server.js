@@ -84,8 +84,22 @@ const profileJob = { busy: false };
 
 const slugOf = (profilePath) => String(profilePath || '').replace(/^\//, '').toLowerCase();
 
-function saveProfiles() {
-  fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
+/** Writes players.json (temp file + rename, a few tries: Windows may hold the file for a moment). */
+async function saveProfiles() {
+  const tmpFile = PROFILES_FILE + '.tmp';
+  for (let attempt = 1; ; attempt++) {
+    try {
+      fs.writeFileSync(tmpFile, JSON.stringify(profiles, null, 2));
+      fs.renameSync(tmpFile, PROFILES_FILE);
+      return;
+    } catch (err) {
+      if (attempt >= 5) {
+        console.error('Could not save players.json:', err.message);
+        throw new Error('the profiles were read but could not be saved (' + err.code + ') - press ⟳ again');
+      }
+      await new Promise((r) => setTimeout(r, 200 * attempt));
+    }
+  }
 }
 
 function saveRoster() {
@@ -176,15 +190,21 @@ async function refreshProfiles(teamIds) {
       }
       const slug = slugOf(new URL(j.url).pathname);
       let photo = (profiles[slug] && profiles[slug].photo) || '';
-      try {
-        photo = (await downloadPhoto(r.photoUrl, slug)) || photo;
-      } catch (err) {
-        console.error('Photo of', slug, err.message);
+      if (!r.photoUrl) {
+        // no picture on the profile (any more): the card shows initials
+        for (const e of ['jpg', 'png', 'webp']) fs.rmSync(path.join(PHOTOS_DIR, `${slug}.${e}`), { force: true });
+        photo = '';
+      } else {
+        try {
+          photo = (await downloadPhoto(r.photoUrl, slug)) || photo;
+        } catch (err) {
+          console.error('Photo of', slug, err.message);
+        }
       }
       profiles[slug] = { ...r.data, slug, url: j.url, photo, fetchedAt: new Date().toISOString() };
       results.push({ ...j, ok: true, fetchedAt: profiles[slug].fetchedAt });
     }
-    saveProfiles();
+    await saveProfiles();
   } finally {
     if (session) await session.close();
     profileJob.busy = false;

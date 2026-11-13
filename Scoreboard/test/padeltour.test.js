@@ -175,11 +175,14 @@ function listHtml() {
   // readProfiles with a stand-in browser
   const fakeEdge = {
     async load(url, isReady) { isReady('<h2>Informații</h2>'); return '<h2>Informații</h2>'; },
-    async evaluate() { return JSON.stringify({ text: profileText, title: 'Ion Popa — x', photo: 'https://x.supabase.co/storage/v1/object/public/avatars/1/avatar.jpg' }); },
+    async evaluate() { return JSON.stringify({ text: profileText, title: 'Ion Popa — x', og: '/api/og/card?title=Ion+Popa&img=' + encodeURIComponent('https://x.supabase.co/storage/v1/object/public/avatars/1/avatar.jpg?t=5') + '&round=1' }); },
     async close() {},
   };
   const pr = await P.readProfiles(['https://www.padeltour.ro/ion-popa-1a2b3c'], { session: fakeEdge });
-  eq([pr[0].ok, pr[0].data.points, pr[0].photoUrl.endsWith('/avatar.jpg')], [true, 5432, true], 'readProfiles: data + photo link from the rendered page');
+  eq([pr[0].ok, pr[0].data.points, pr[0].photoUrl], [true, 5432, 'https://x.supabase.co/storage/v1/object/public/avatars/1/avatar.jpg?t=5'], "readProfiles: data + the player's own picture (named by the page's share preview)");
+  const noPic = { ...fakeEdge, async evaluate() { return JSON.stringify({ text: profileText, title: 'Ion Popa — x', og: '/api/og/card?title=Ion+Popa&fallback=x' }); } };
+  eq((await P.readProfiles(['https://www.padeltour.ro/ion-popa-1a2b3c'], { session: noPic }))[0].photoUrl, '', "readProfiles: no own picture -> no photo (never a partner's avatar from the page)");
+  eq([P.ownPhoto('https://www.padeltour.ro/api/og/card?img=https%3A%2F%2Fevil.com%2Fx.jpg'), P.ownPhoto('')], ['', ''], 'ownPhoto: only avatars from the profile storage');
   const empty = { ...fakeEdge, async evaluate() { return JSON.stringify({ text: 'nimic', title: '' }); } };
   eq((await P.readProfiles(['https://www.padeltour.ro/x'], { session: empty }))[0].ok, false, 'readProfiles: a page without profile data is an error');
 
