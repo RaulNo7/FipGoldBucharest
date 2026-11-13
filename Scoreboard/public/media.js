@@ -4,6 +4,7 @@
 
   let state = null;
   let latestObs = null; // transient OBS/break status from the state broadcasts
+  let latestCards = {}; // player card data for the four players of the match ("0-0" ... "1-1")
   let spots = [];
 
   const $ = (sel) => document.querySelector(sel);
@@ -13,6 +14,7 @@
     onState: (s, msg) => {
       state = s;
       if (msg && msg.obs) latestObs = msg.obs;
+      if (msg && msg.cards) latestCards = msg.cards;
       render();
     },
     onStatus: (status) => {
@@ -124,6 +126,15 @@
     const visible = !state || !state.display || state.display.scoreVisible !== false;
     send({ type: 'setDisplay', display: { scoreVisible: !visible } });
   });
+  // Player cards: a press shows that player's card; the same button hides it, another switches to it.
+  $$('[data-pcard]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const key = b.dataset.pcard;
+      const on = !!(state && state.display && state.display.playerCard === key);
+      send({ type: 'setDisplay', display: { playerCard: on ? null : key } });
+    })
+  );
+
   // Interview: one press sets everything up, the next one goes back to the court.
   $('#interviewBtn').addEventListener('click', () => {
     const iv = (latestObs && latestObs.interview) || {};
@@ -140,10 +151,27 @@
     if (state) {
       const introOn = !!(state.display && state.display.introVisible);
       const introBtn = $('#introBtn');
-      introBtn.textContent = introOn ? '👥 Hide players' : '👥 Show players';
+      introBtn.textContent = introOn ? '👥 Hide match' : '👥 Show match';
       introBtn.classList.toggle('is-on', introOn);
       $('#toggleScoreBtn').textContent =
         state.display && state.display.scoreVisible === false ? 'Show score' : 'Hide score';
+
+      // the four player-card buttons, named after the players on court
+      const C = window.PadelCountries;
+      $$('[data-pcard]').forEach((b) => {
+        const key = b.dataset.pcard;
+        const [t, i] = key.split('-').map(Number);
+        const player = ((state.teams[t] || {}).players || [])[i];
+        const card = latestCards[key] || {};
+        const name = C.playerName(player) || 'Player ' + (t * 2 + i + 1);
+        b.textContent = '🪪 ' + C.shortName(name);
+        const on = state.display && state.display.playerCard === key;
+        b.classList.toggle('is-on', !!on);
+        b.classList.toggle('no-data', !card.profile);
+        b.title = card.profile
+          ? `Show ${name}'s card (profile read ${new Date(card.profile.fetchedAt).toLocaleString('ro-RO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}). Press again to hide it.`
+          : `No padeltour.ro profile read for ${name} yet (Teams tab → ⟳ Profiles) - the card shows only the name and flag.`;
+      });
     }
 
     const o = latestObs;

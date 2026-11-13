@@ -99,6 +99,7 @@ function createDefaultState() {
       showTitle: true,
       scoreVisible: true, // false while the stream shows commercials; the /tv page ignores it
       introVisible: false, // pre-match players presentation (the /intro overlay page)
+      playerCard: null, // one player's card on the /intro page: '0-0' | '0-1' | '1-0' | '1-1' (team-player), null = none
       startTime: '', // scheduled start of the match, e.g. '14:30' — shown on the players intro
     },
     teams_registry: {}, // live Active/Eliminated flags per entry-list teamId ({ [id]: { active } }; missing = active)
@@ -378,6 +379,7 @@ function applyCommand(prev, cmd) {
       if (state.status !== 'finished' && state.display) {
         state.display.scoreVisible = true;
         state.display.introVisible = false;
+        state.display.playerCard = null;
       }
       return awardPoint(state, t);
     }
@@ -564,10 +566,19 @@ function applyCommand(prev, cmd) {
     case 'setDisplay':
       if (cmd.display && typeof cmd.display === 'object') {
         Object.assign(state.display, cmd.display);
-        // The players intro and the scorebug never share the screen: showing
-        // one hides the other (hiding one leaves the screen empty).
-        if (cmd.display.scoreVisible === true) state.display.introVisible = false;
-        else if (cmd.display.introVisible === true) state.display.scoreVisible = false;
+        if (!/^[01]-[01]$/.test(String(state.display.playerCard))) state.display.playerCard = null;
+        // The match intro, a player card and the scorebug never share the screen:
+        // showing one hides the others (hiding one leaves the screen empty).
+        if (cmd.display.scoreVisible === true) {
+          state.display.introVisible = false;
+          state.display.playerCard = null;
+        } else if (cmd.display.introVisible === true) {
+          state.display.scoreVisible = false;
+          state.display.playerCard = null;
+        } else if (state.display.playerCard && cmd.display.playerCard) {
+          state.display.scoreVisible = false;
+          state.display.introVisible = false;
+        }
       }
       return state;
 
@@ -576,6 +587,7 @@ function applyCommand(prev, cmd) {
       if (state.display) {
         state.display.scoreVisible = true;
         state.display.introVisible = false;
+        state.display.playerCard = null;
       }
       return state;
 

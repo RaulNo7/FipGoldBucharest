@@ -20,6 +20,15 @@
   <main class="layout">
     <p class="hint intro-hint">Toggle a team to <b>Eliminated</b> after they lose their match. Eliminated teams stay visible here (greyed out) and cannot be picked for a match on the Score settings tab. Click a name (or <b>✎</b>) to correct it — spelling, or a replacement player — then press Enter; <b>↺</b> restores the entry-list name. Changes apply everywhere instantly (pickers, scorebug, players intro) and survive a restart.</p>
 
+    <div class="card" id="profilesCard">
+      <div class="card-head"><h2>Player cards (padeltour.ro)</h2></div>
+      <div class="row gap wrap">
+        <button class="btn btn-ghost" id="refreshMatchBtn" type="button">⟳ Profiles for the current match</button>
+        <span class="hint" id="profilesStatus"></span>
+      </div>
+      <p class="hint">Reads each player's padeltour.ro profile (photo, age, county, side, points, PT level, record, titles, form) for the <b>🪪 player cards</b> on the Media tab. Do it before the match — it takes a few seconds per pair and keeps working offline afterwards. <b>⟳</b> on a team reads just that pair. The chip next to a name shows when the profile was read; click it to set or change the player's profile link.</p>
+    </div>
+
     <div id="rosterCards"></div>
   </main>
 

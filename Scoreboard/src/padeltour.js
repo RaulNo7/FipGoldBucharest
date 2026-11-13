@@ -443,6 +443,7 @@ async function readTournament(opts) {
         try {
           lastCount = -1;
           const html = await session.load(categoryUrl(opts.url, cat.id), isReady, opts.timeoutMs || 30000);
+          if (parsed) attachProfiles(parsed.pairs, profileLinks(html));
           if (!parsed) {
             const p = parseRegistrations(htmlToLines(html));
             error = !p.found ? 'the list did not load in time' : expected && p.capacity !== expected ? `the page showed another category (${p.capacity} instead of ${expected})` : 'the list kept changing';
@@ -536,8 +537,225 @@ function toTeams(cat, opts = {}) {
       wildcard: !!pr.wildcard,
       active: true,
       teamPoints: pr.pairPoints,
-      players: pr.players.map((p) => ({ name: p.name, country: p.country, ranking: null, rankingPoints: p.points })),
+      players: pr.players.map((p) => ({
+        name: p.name,
+        country: p.country,
+        ranking: null,
+        rankingPoints: p.points,
+        ...(p.profile ? { profile: p.profile } : {}), // '/slug' of the player's padeltour.ro profile
+      })),
     });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// 5. Player profiles (padeltour.ro/<slug>) for the on-stream player cards
+// ---------------------------------------------------------------------------
+
+/** Site pages whose links are not player profiles. */
+const NOT_PROFILES = new Set([
+  'acasa', 'turnee', 'clasamente', 'regiuni', 'cluburi', 'liga', 'piata', 'regulament', 'termeni',
+  'aderare', 'app', 'confidentialitate', 'cookies', 'americano', 'auth', 'club', 'padel',
+]);
+
+/** normalized player name -> '/slug', from the name links of a rendered registrations list. */
+function profileLinks(html) {
+  const map = new Map();
+  const re = /<a\b[^>]*\bhref="(\/[a-z0-9][a-z0-9-]{0,80})"[^>]*>([\s\S]*?)<\/a>/gi;
+  for (const m of String(html || '').matchAll(re)) {
+    if (NOT_PROFILES.has(m[1].slice(1).toLowerCase())) continue;
+    const name = decodeEntities(m[2].replace(/<[^>]+>/g, ' '))
+      .replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const key = normName(name);
+    if (key && /[a-z]/.test(key) && !map.has(key)) map.set(key, m[1]);
+  }
+  return map;
+}
+
+/** Puts `profile` ('/slug') on every parsed player whose name has a link. */
+function attachProfiles(pairs, links) {
+  for (const pr of pairs || []) {
+    for (const p of pr.players || []) {
+      const link = links.get(normName(p.name));
+      if (link) p.profile = link;
+    }
+  }
+}
+
+/** '/slug', 'padeltour.ro/slug' or the full link -> 'https://www.padeltour.ro/slug' (null when it is not a profile link). */
+function profileUrl(raw) {
+  let s = String(raw || '').trim();
+  if (!s) return null;
+  if (s.startsWith('/')) s = 'https://www.padeltour.ro' + s;
+  if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+  let u;
+  try {
+    u = new URL(s);
+  } catch (_) {
+    return null;
+  }
+  const slug = u.pathname.replace(/\/+$/, '').slice(1);
+  if (!ALLOWED_HOST.test(u.hostname) || !/^[a-z0-9][a-z0-9-]{0,80}$/i.test(slug) || NOT_PROFILES.has(slug.toLowerCase())) return null;
+  return 'https://www.padeltour.ro/' + slug.toLowerCase();
+}
+
+const num = (s) => {
+  const m = String(s || '').replace(/\s/g, '').match(/^-?[\d.]+(,\d+)?$/);
+  return m ? Number(m[0].replace(/\./g, '').replace(',', '.')) : null;
+};
+
+/**
+ * Profile data from the visible text of a rendered profile page (document.body.innerText)
+ * and its <title> ("Nedelcu Horia — jucător de padel, ..."). Values are read by
+ * their labels, so a layout change on the site does not mix them up.
+ */
+function parseProfileText(text, title) {
+  const lines = textToLines(text);
+  const at = (re, from = 0) => {
+    for (let i = from; i < lines.length; i++) if (re.test(lines[i])) return i;
+    return -1;
+  };
+  const out = {
+    name: String(title || '').split(/\s+[—–-]\s+/)[0].trim(),
+    points: null, level: null, tier: '', tournaments: null, wins: null, losses: null, winsWo: 0, lossesWo: 0, winRate: null,
+    age: null, nationality: '', country: '', county: '', side: '', club: '',
+    rankings: [], titles: { gold: 0, silver: 0, bronze: 0 }, form: [], setWinRate: null, setsWon: null, setsLost: null,
+  };
+
+  // Hero stats: 6.826 / PUNCTE TOTALE / 11,09 / Elite / 7 / TURNEE JUCATE / 39 / VICTORII / [+1 prin WO] / 3 / ÎNFRÂNGERI / ...
+  const pts = at(/^puncte totale$/i);
+  if (pts > 0) {
+    out.points = num(lines[pts - 1]);
+    if (/^\d+,\d+$/.test(lines[pts + 1] || '')) {
+      out.level = num(lines[pts + 1]);
+      if (lines[pts + 2] && num(lines[pts + 2]) == null) out.tier = lines[pts + 2];
+    }
+  }
+  const before = (re) => {
+    const i = at(re, Math.max(0, pts));
+    return i > 0 ? num(lines[i - 1]) : null;
+  };
+  const woAfter = (re) => {
+    const i = at(re, Math.max(0, pts));
+    const m = i >= 0 && (lines[i + 1] || '').match(/^\+(\d+) prin WO$/i);
+    return m ? Number(m[1]) : 0;
+  };
+  out.tournaments = before(/^turnee jucate$/i);
+  out.wins = before(/^victorii$/i);
+  out.losses = before(/^înfrângeri$/i);
+  out.winsWo = woAfter(/^victorii$/i);
+  out.lossesWo = woAfter(/^înfrângeri$/i);
+  const wr = at(/^win rate$/i, Math.max(0, pts));
+  if (wr > 0) out.winRate = num((lines[wr - 1] || '').replace('%', ''));
+
+  // Badge: "<TIER> · 11,09" then the club (when the player has one)
+  const badge = at(/^[\p{L} ]+ · \d+,\d+$/u);
+  if (badge >= 0 && lines[badge + 1] && !/^vârstă$/i.test(lines[badge + 1])) out.club = lines[badge + 1];
+
+  // INFORMAȚII: Vârstă / 30 ani / Naționalitate / 🇷🇴 / România / Județ / Constanța / Poziție joc / ◀ Stânga
+  const info = at(/^informații$/i);
+  if (info >= 0) {
+    const end = at(/^clasamente pe categorii$|^titluri$/i, info);
+    const sect = lines.slice(info + 1, end > info ? end : info + 14);
+    const val = (re) => {
+      const i = sect.findIndex((l) => re.test(l));
+      return i >= 0 ? sect[i + 1] || '' : '';
+    };
+    const age = val(/^vârstă$/i).match(/^(\d+)\s*ani$/i);
+    if (age) out.age = Number(age[1]);
+    const n = sect.findIndex((l) => /^naționalitate$/i.test(l));
+    if (n >= 0) {
+      if (FLAG.test(sect[n + 1] || '')) {
+        out.country = flagToIso2(sect[n + 1]);
+        out.nationality = sect[n + 2] || '';
+      } else out.nationality = sect[n + 1] || '';
+    }
+    out.county = val(/^(județ|raion)$/i);
+    out.side = val(/^poziție joc$/i).replace(/[◀▶]/g, '').trim();
+  }
+
+  // CLASAMENTE PE CATEGORII: #1 / Masculin 1 / 8 turnee / 4500 pts, repeated
+  const rk = at(/^clasamente pe categorii$/i);
+  if (rk >= 0) {
+    for (let i = rk + 1; i + 3 < lines.length && /^#\d+$/.test(lines[i]); i += 4) {
+      const t = (lines[i + 2].match(/^(\d+)\s*turne(?:e|u)$/i) || [])[1]; // "8 turnee", "1 turneu"
+      const p = (lines[i + 3].match(/^([\d.]+)\s*pts$/i) || [])[1];
+      out.rankings.push({ rank: Number(lines[i].slice(1)), category: lines[i + 1], tournaments: t ? Number(t) : null, points: p ? num(p) : null });
+    }
+  }
+
+  // TITLURI: 9 / AUR / 0 / ARGINT / 2 / BRONZ
+  const tl = at(/^titluri$/i);
+  if (tl >= 0) {
+    const medal = (re) => {
+      const i = at(re, tl);
+      return i > tl && i < tl + 8 ? num(lines[i - 1]) || 0 : 0;
+    };
+    out.titles = { gold: medal(/^aur$/i), silver: medal(/^argint$/i), bronze: medal(/^bronz$/i) };
+  }
+
+  // Formă recentă: Tendință ultimele 10 meciuri / 10–0 / V / Î / ...
+  const fr = at(/^formă recentă$/i);
+  if (fr >= 0) {
+    for (let i = fr + 1; i < Math.min(lines.length, fr + 16); i++) {
+      if (/^[VÎ]$/.test(lines[i])) out.form.push(lines[i] === 'V' ? 'W' : 'L');
+      else if (out.form.length) break;
+    }
+  }
+
+  // Set win rate: Procent seturi câștigate / 91% / 75–7 seturi
+  const sw = at(/^set win rate$/i);
+  if (sw >= 0) {
+    for (let i = sw + 1; i < Math.min(lines.length, sw + 5); i++) {
+      const pct = lines[i].match(/^(\d+)%$/);
+      if (pct && out.setWinRate == null) out.setWinRate = Number(pct[1]);
+      const sets = lines[i].match(/^(\d+)\s*[–-]\s*(\d+)\s*seturi$/i);
+      if (sets) {
+        out.setsWon = Number(sets[1]);
+        out.setsLost = Number(sets[2]);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Reads profiles in a headless Edge (the info block is filled in by the page's script).
+ * urls: ['https://www.padeltour.ro/horia', ...]. opts: { session?, timeoutMs?, onProgress? }
+ * Returns [{ url, ok, data?, photoUrl?, error? }] in the same order.
+ */
+async function readProfiles(urls, opts = {}) {
+  const session = opts.session || (await openEdgeSession());
+  const out = [];
+  try {
+    for (const url of urls) {
+      if (opts.onProgress) opts.onProgress(url);
+      try {
+        // Only text shown on the page counts (">…<"): the page's script also carries these words as labels.
+        const shown = (h, re) => new RegExp('>\\s*' + re + '\\s*<', 'i').test(h);
+        const html = await session.load(url, (h) => shown(h, 'Informații') || shown(h, 'Jucătorul nu a fost găsit\\.?'), opts.timeoutMs || 30000);
+        if (!shown(html, 'Informații') && shown(html, 'Jucătorul nu a fost găsit\\.?')) throw new Error('profile not found');
+        if (!opts.session) await new Promise((r) => setTimeout(r, 800)); // let the last blocks render
+        const page = await session.evaluate(`JSON.stringify({
+          text: document.body ? document.body.innerText : '',
+          title: document.title,
+          photo: (document.querySelector('link[rel=preload][href*="/avatar."]') || {}).href
+            || (document.querySelector('img[src*="/avatar."]') || {}).src || ''
+        })`);
+        const p = JSON.parse(page || '{}');
+        const data = parseProfileText(p.text, p.title);
+        if (data.points == null && data.age == null && !data.rankings.length) throw new Error('the profile did not load');
+        out.push({ url, ok: true, data, photoUrl: /^https:\/\//.test(p.photo || '') ? p.photo : '' });
+      } catch (err) {
+        out.push({ url, ok: false, error: err.message });
+      }
+    }
+  } finally {
+    if (!opts.session) await session.close();
   }
   return out;
 }
@@ -557,4 +775,10 @@ module.exports = {
   divisionCode,
   categoryOf,
   toTeams,
+  normName,
+  profileLinks,
+  attachProfiles,
+  profileUrl,
+  parseProfileText,
+  readProfiles,
 };

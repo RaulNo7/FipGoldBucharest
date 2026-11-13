@@ -209,3 +209,47 @@
     display: none;
   }
 }
+
+/* padeltour.ro profile chip next to each player + the per-pair refresh */
+.rp-prof {
+  margin-left: 6px;
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rp-prof.linked {
+  border-style: solid;
+}
+.rp-prof.read {
+  border-style: solid;
+  border-color: rgba(34, 197, 94, 0.55);
+  color: var(--fg);
+}
+.prof-refresh {
+  padding: 6px 10px;
+}
+.prof-refresh.is-playing {
+  animation: profPulse 0.9s ease-in-out infinite;
+}
+@keyframes profPulse {
+  50% { opacity: 0.45; }
+}
+#profilesStatus.warn {
+  color: var(--orange);
+}
+
+/* right column: ⟳ profiles on top, Active / Eliminated under it */
+.roster-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.roster-actions .btn {
+  width: 100%;
+}

@@ -48,6 +48,15 @@ fs.writeFileSync(
   })
 );
 
+// A padeltour.ro profile read earlier (players.json + photos/), for the player-card tests.
+fs.writeFileSync(path.join(tmp, 'players.json'), JSON.stringify({
+  'test-player': { slug: 'test-player', url: 'https://www.padeltour.ro/test-player', name: 'Test Player', points: 1234, level: 7.5, tier: 'Master',
+    age: 33, county: 'Cluj', side: 'Stânga', rankings: [{ rank: 2, category: 'Masculin 2', tournaments: 3, points: 900 }],
+    titles: { gold: 1, silver: 0, bronze: 0 }, form: ['W', 'L'], photo: 'test-player.jpg', fetchedAt: '2026-11-13T08:00:00.000Z' },
+}));
+fs.mkdirSync(path.join(tmp, 'photos'));
+fs.writeFileSync(path.join(tmp, 'photos', 'test-player.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]));
+
 // ---- mock obs-websocket v5 server -----------------------------------------
 const sceneSwitches = [];
 let mediaPolls = 0; // polls since the current file was loaded (drives PLAYING -> ENDED)
@@ -660,6 +669,49 @@ function cleanupAndExit() {
   assert((await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/atem-test`, { method: 'POST' })).status !== 200 && (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/atem-find`, { method: 'POST' })).status !== 200, 'atem-test / atem-find: never reachable on the public port');
   const mediaPage = await (await fetch(`http://127.0.0.1:${SB_PORT}/media`)).text();
   assert(/id="interviewBtn"/.test(mediaPage) && /id="atemHost"/.test(adminHtml), 'interview: button on the Media tab, settings on the Admin tab');
+
+  // ---- Player cards (Media tab) from padeltour.ro profiles ----
+  st = await api('/api/state');
+  const team0 = st.teams[0].teamId;
+  const linkBad = await postJ('/api/profiles/link', { teamId: team0, player: 0, url: 'https://example.com/test-player' });
+  assert(linkBad.status === 400, 'player cards: only padeltour.ro profile links are accepted');
+  const linkOk = await postJ('/api/profiles/link', { teamId: team0, player: 0, url: 'padeltour.ro/test-player' });
+  assert(linkOk.status === 200 && linkOk.body.profile === '/test-player', 'player cards: a profile link can be set by hand (' + JSON.stringify(linkOk.body) + ')');
+  const teamsNow2 = await api('/api/teams');
+  const rec0 = teamsNow2.teams.find((t) => t.id === team0);
+  assert(rec0.players[0].profile === '/test-player' && rec0.players[0].profileAt === '2026-11-13T08:00:00.000Z' && rec0.players[0].hasPhoto === true, 'player cards: the Teams tab sees the link and when the profile was read');
+  const cards = (await firstMessage(SB_PORT)).cards;
+  assert(cards && cards['0-0'].profile && cards['0-0'].profile.points === 1234 && /^\/player-photo\/test-player\.jpg\?v=\d+$/.test(cards['0-0'].profile.photo) && cards['0-1'].profile === null, 'player cards: the state message carries the four players\' card data (' + JSON.stringify(cards && cards['0-0'] && cards['0-0'].profile && cards['0-0'].profile.photo) + ')');
+  assert((await firstMessage(PUBLIC_PORT)).cards['0-0'].profile.name === 'Test Player', 'player cards: the card data also reaches the public port (the /intro page)');
+  const photo = await fetch(`http://127.0.0.1:${SB_PORT}/player-photo/test-player.jpg`);
+  const photoPub = await fetch(`http://127.0.0.1:${PUBLIC_PORT}/player-photo/test-player.jpg`);
+  assert(photo.status === 200 && photo.headers.get('content-type') === 'image/jpeg' && photoPub.status === 200, 'player cards: the saved photo is served (LAN and public port)');
+  assert((await fetch(`http://127.0.0.1:${SB_PORT}/player-photo/..%2Fplayers.json`)).status === 404 && (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/player-photo/x.svg`)).status === 404, 'player cards: nothing but saved photos under /player-photo/');
+  assert((await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/profiles/refresh`, { method: 'POST', body: '{}' })).status !== 200 && (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/profiles/link`, { method: 'POST', body: '{}' })).status !== 200, 'player cards: reading / linking profiles is never reachable on the public port');
+  assert((await postJ('/api/profiles/refresh', { teamIds: ['nope'] })).status === 409, 'player cards: refreshing an unknown team is refused');
+
+  // one presentation at a time: player card <-> match intro <-> score
+  await cmd({ type: 'setDisplay', display: { scoreVisible: true } });
+  await cmd({ type: 'setDisplay', display: { playerCard: '0-0' } });
+  st = await api('/api/state');
+  assert(st.display.playerCard === '0-0' && st.display.scoreVisible === false && st.display.introVisible === false, 'player cards: a card hides the score');
+  await cmd({ type: 'setDisplay', display: { playerCard: '1-1' } });
+  st = await api('/api/state');
+  assert(st.display.playerCard === '1-1', 'player cards: another player\'s button switches the card');
+  await cmd({ type: 'setDisplay', display: { introVisible: true } });
+  st = await api('/api/state');
+  assert(st.display.playerCard === null && st.display.introVisible === true, 'player cards: Show match replaces the card');
+  await cmd({ type: 'setDisplay', display: { playerCard: '0-1' } });
+  await cmd({ type: 'setDisplay', display: { playerCard: 'x' } });
+  st = await api('/api/state');
+  assert(st.display.playerCard === null, 'player cards: an unknown card id clears it');
+  await cmd({ type: 'setDisplay', display: { playerCard: '0-0' } });
+  await cmd({ type: 'setDisplay', display: { scoreVisible: true } });
+  st = await api('/api/state');
+  assert(st.display.playerCard === null && st.display.scoreVisible === true, 'player cards: Show score clears the card');
+  const introPage = await (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/intro`)).text();
+  const mediaPage2 = await (await fetch(`http://127.0.0.1:${SB_PORT}/media`)).text();
+  assert(/id="pcard"/.test(introPage) && (mediaPage2.match(/data-pcard="[01]-[01]"/g) || []).length === 4 && /👥 Show match/.test(mediaPage2), 'player cards: card on the /intro page, Show match + 4 player buttons on the Media tab');
 
   cleanupAndExit();
 })().catch((err) => {

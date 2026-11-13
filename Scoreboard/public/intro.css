@@ -158,3 +158,108 @@ body {
   background-repeat: no-repeat;
   background-position: top left;
 }
+
+/* ---- Player card (one player, Media tab buttons) ----
+   Laid out at 1920x1080 and scaled to the browser source by intro.js (--pc-scale). */
+.pcard {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 1480px;
+  transform: translate(-50%, -50%) scale(var(--pc-scale, 1));
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--navy-deep);
+  color: var(--white);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  transition: opacity 0.5s ease;
+  opacity: 1;
+}
+.pcard.hidden { opacity: 0; pointer-events: none; }
+.pcard-flag { height: 6px; display: grid; grid-template-columns: 1fr 1fr 1fr; }
+.pcard-flag i:nth-child(1) { background: #002b7f; }
+.pcard-flag i:nth-child(2) { background: var(--gold); }
+.pcard-flag i:nth-child(3) { background: #ce1126; }
+.pcard-head {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--header-bg); padding: 12px 28px;
+  font: 600 17px var(--font); letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
+}
+.pcard-head img { height: 26px; }
+.pcard-head b { color: var(--gold); font-weight: 700; }
+.pcard-head .sep { opacity: 0.5; }
+
+.pcard-main { display: grid; grid-template-columns: 250px 1fr auto; gap: 34px; align-items: center; padding: 26px 34px 22px; }
+.pc-photo { position: relative; width: 250px; height: 250px; }
+.pc-face, .pc-initials {
+  position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%;
+  border: 5px solid var(--gold); box-shadow: 0 0 0 6px rgba(252, 209, 22, 0.18);
+}
+.pc-face { object-fit: cover; }
+.pc-initials {
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(160deg, #12275a, #061433);
+  font: 700 92px var(--font-names); color: var(--gold);
+}
+.pc-flagdot {
+  position: absolute; right: 8px; bottom: 10px; width: 62px; height: 62px; border-radius: 50%;
+  border: 4px solid #061433; background-size: cover; background-position: center;
+}
+.pc-flagdot.none { display: none; }
+
+.pc-name { font: 700 76px/0.95 var(--font-names); letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap; }
+.pc-name.long { font-size: 60px; }
+.pc-name.xlong { font-size: 48px; }
+.pc-name span { color: var(--gold); }
+.pc-facts { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px 26px; font-size: 25px; color: var(--muted); }
+.pc-facts b { color: var(--white); font-weight: 600; }
+.pc-facts .nat i {
+  display: inline-block; width: 34px; height: 23px; border-radius: 3px; margin-right: 6px; vertical-align: -3px;
+  background-size: cover; background-position: center;
+}
+.pc-ranks { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 12px; }
+.pc-ranks:empty { display: none; }
+.pc-rank {
+  display: flex; align-items: baseline; gap: 10px; background: var(--navy-alt);
+  border: 1px solid rgba(252, 209, 22, 0.35); border-radius: 10px; padding: 8px 16px; font-size: 22px;
+}
+.pc-rank b { font: 700 30px var(--font-names); color: var(--gold); }
+.pc-rank small { color: var(--muted); font-size: 19px; }
+
+.pc-big { display: grid; grid-template-columns: repeat(3, 190px); gap: 12px; }
+.pc-stat { background: var(--navy-alt); border-radius: 14px; padding: 16px 14px 14px; text-align: center; }
+.pc-stat.gold { background: linear-gradient(160deg, var(--gold-light), var(--gold)); color: #061433; }
+.pc-stat .num { font: 700 64px/1 var(--font-names); }
+.pc-stat .lbl { margin-top: 8px; font: 600 15px var(--font); letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.8; }
+.pc-stat .tier { margin-top: 4px; font: 700 18px var(--font); color: var(--gold); }
+.pc-stat .tier:empty { display: none; }
+
+.pc-strip { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(4, 12, 34, 0.55); }
+.pc-strip > div { padding: 14px 22px; display: flex; flex-direction: column; gap: 4px; border-left: 1px solid rgba(255, 255, 255, 0.08); }
+.pc-strip > div:first-child { border-left: 0; }
+.pc-strip .v { font: 700 34px var(--font-names); white-space: nowrap; }
+.pc-strip .v small { font: 600 18px var(--font); color: var(--muted); margin-left: 6px; }
+.pc-strip .k { font: 600 14px var(--font); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.pc-medals { display: flex; gap: 16px; }
+.pc-medals span { display: inline-flex; align-items: center; gap: 6px; }
+.pc-medals i { width: 18px; height: 18px; border-radius: 50%; display: inline-block; }
+.pc-form { display: flex; gap: 5px; margin-top: 6px; }
+.pc-form i {
+  width: 22px; height: 22px; border-radius: 5px; background: #22c55e;
+  font: 700 13px/22px var(--font); text-align: center; font-style: normal; color: #052e14;
+}
+.pc-form i.l { background: #ce1126; color: #fff; }
+
+/* No profile read yet: name, flag and initials only. */
+.pcard.no-data .pc-big,
+.pcard.no-data .pc-strip { display: none; }
+.pcard.no-data .pcard-main { grid-template-columns: 250px 1fr; }
+
+/* [hidden] must win over the display rules above (photo vs initials) */
+.pc-face[hidden],
+.pc-initials[hidden] { display: none; }
+/* long names (over 15 letters) wrap onto two lines instead of pushing the numbers off the card */
+.pc-name.long,
+.pc-name.xlong { white-space: normal; text-wrap: balance; }
+.pc-name.long { font-size: 64px; }
+.pc-name.xlong { font-size: 56px; }

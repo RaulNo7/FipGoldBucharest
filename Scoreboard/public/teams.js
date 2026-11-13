@@ -39,6 +39,62 @@
   }
   loadRoster();
 
+  // ---- padeltour.ro profiles (player cards) ----
+  const profStatus = (text, warn) => {
+    const el = $('#profilesStatus');
+    el.textContent = text;
+    el.classList.toggle('warn', !!warn);
+  };
+  const shortDate = (iso) =>
+    new Date(iso).toLocaleString('ro-RO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+  function refreshProfiles(teamIds, btn) {
+    const ids = teamIds.filter(Boolean);
+    if (!ids.length) {
+      profStatus('No pairs are picked for the current match yet (Score settings tab).', true);
+      return;
+    }
+    const buttons = document.querySelectorAll('#refreshMatchBtn, .prof-refresh');
+    buttons.forEach((b) => (b.disabled = true));
+    if (btn) btn.classList.add('is-playing');
+    profStatus(`Reading ${ids.length * 2} profiles from padeltour.ro…`);
+    fetch('/api/profiles/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teamIds: ids }) })
+      .then((r) => (r.status === 404 ? Promise.reject(new Error('only inside the app / on the venue network')) : r.json()))
+      .then((r) => {
+        if (!r.ok) throw new Error(r.error || 'failed');
+        const bad = r.results.filter((x) => !x.ok);
+        const good = r.results.length - bad.length;
+        profStatus(
+          `✓ ${good} of ${r.results.length} profiles read.` + (bad.length ? ' Not read: ' + bad.map((x) => `${x.name} (${x.error})`).join(', ') : ''),
+          bad.length > 0
+        );
+        loadRoster();
+      })
+      .catch((err) => profStatus('✗ ' + err.message, true))
+      .finally(() => {
+        buttons.forEach((b) => (b.disabled = false));
+        if (btn) btn.classList.remove('is-playing');
+      });
+  }
+  $('#refreshMatchBtn').addEventListener('click', (e) =>
+    refreshProfiles(state ? [0, 1].map((t) => (state.teams[t] || {}).teamId) : [], e.currentTarget)
+  );
+
+  function editProfileLink(t, i) {
+    const p = (t.players || [])[i] || {};
+    const current = p.profile ? 'https://www.padeltour.ro' + p.profile : '';
+    const url = window.prompt(`padeltour.ro profile of ${p.name} (empty = none):`, current);
+    if (url === null) return;
+    fetch('/api/profiles/link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teamId: t.id, player: i, url }) })
+      .then((r) => (r.status === 404 ? Promise.reject(new Error('only inside the app / on the venue network')) : r.json()))
+      .then((r) => {
+        if (!r.ok) throw new Error(r.error || 'failed');
+        profStatus(r.profile ? `Link saved for ${p.name} - press ⟳ on the pair to read it.` : `Link removed for ${p.name}.`);
+        loadRoster();
+      })
+      .catch((err) => profStatus('✗ ' + err.message, true));
+  }
+
   function isActive(t) {
     const reg = state && state.teams_registry;
     if (reg && reg[t.id]) return reg[t.id].active !== false;
@@ -244,7 +300,16 @@
       edit.title = 'Edit the name';
       edit.addEventListener('click', () => startEdit(t, i, nm));
 
-      pr.append(flag, nm, cc, edit);
+      const prof = document.createElement('button');
+      prof.type = 'button';
+      prof.className = 'rp-prof' + (p.profileAt ? ' read' : p.profile ? ' linked' : '');
+      prof.textContent = p.profileAt ? '🪪 ' + shortDate(p.profileAt) : p.profile ? '🪪 not read' : '🪪 no link';
+      prof.title = p.profile
+        ? `padeltour.ro${p.profile}${p.profileAt ? ' - read ' + shortDate(p.profileAt) : ''}. Click to change the link.`
+        : 'No padeltour.ro profile link yet - ⟳ looks it up on the tournament page, or click to paste it.';
+      prof.addEventListener('click', () => editProfileLink(t, i));
+
+      pr.append(flag, nm, cc, edit, prof);
 
       if (edited) {
         const reset = document.createElement('button');
@@ -278,7 +343,18 @@
       client.send({ type: 'setTeamActive', teamId: t.id, active: !isActive(t) })
     );
 
-    row.append(pos, playersBox, badges, btn);
+    const refresh = document.createElement('button');
+    refresh.className = 'btn btn-ghost prof-refresh';
+    refresh.type = 'button';
+    refresh.textContent = '⟳';
+    refresh.title = "Read both players' padeltour.ro profiles (player cards)";
+    refresh.addEventListener('click', () => refreshProfiles([t.id], refresh));
+
+    const actions = document.createElement('div');
+    actions.className = 'roster-actions';
+    actions.append(refresh, btn);
+
+    row.append(pos, playersBox, badges, actions);
     return row;
   }
 })();

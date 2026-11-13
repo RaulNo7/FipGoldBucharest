@@ -41,6 +41,39 @@
     </div>
   </div>
 
+  <!-- One player's card (Media tab player buttons), filled from padeltour.ro profile data -->
+  <div id="pcard" class="pcard hidden">
+    <div class="pcard-flag"><i></i><i></i><i></i></div>
+    <div class="pcard-head">
+      <img src="frp-mark.png" alt="" />
+      <b>FRP Live</b><span class="sep">·</span><span id="pcTournament"></span><span class="sep" id="pcDivSep">·</span><span id="pcDivision"></span>
+    </div>
+    <div class="pcard-main">
+      <div class="pc-photo">
+        <img id="pcPhoto" class="pc-face" alt="" />
+        <span id="pcInitials" class="pc-initials"></span>
+        <span class="pc-flagdot" id="pcFlagDot"></span>
+      </div>
+      <div class="pc-who">
+        <div class="pc-name" id="pcName"></div>
+        <div class="pc-facts" id="pcFacts"></div>
+        <div class="pc-ranks" id="pcRanks"></div>
+      </div>
+      <div class="pc-big" id="pcBig">
+        <div class="pc-stat gold"><div class="num" id="pcPoints"></div><div class="lbl">Puncte totale</div></div>
+        <div class="pc-stat"><div class="num" id="pcLevel"></div><div class="lbl">Nivel PT</div><div class="tier" id="pcTier"></div></div>
+        <div class="pc-stat"><div class="num" id="pcWinRate"></div><div class="lbl">Win rate</div></div>
+      </div>
+    </div>
+    <div class="pc-strip" id="pcStrip">
+      <div><span class="v" id="pcTournaments"></span><span class="k">Turnee jucate</span></div>
+      <div><span class="v" id="pcWL"></span><span class="k" id="pcWLLabel">Victorii – Înfrângeri</span></div>
+      <div><span class="v pc-medals" id="pcTitles"></span><span class="k">Titluri</span></div>
+      <div><span class="v" id="pcSets"></span><span class="k" id="pcSetsLabel">Seturi câștigate</span></div>
+      <div><span class="k" id="pcFormLabel">Formă · ultimele 10</span><span class="pc-form" id="pcForm"></span></div>
+    </div>
+  </div>
+
   <script src="countries.js"></script>
   <script src="client.js"></script>
   <script src="intro.js"></script>

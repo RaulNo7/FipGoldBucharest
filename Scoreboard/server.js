@@ -67,6 +67,156 @@ function rosterPlayers(rec) {
 }
 
 // ---------------------------------------------------------------------------
+// Player profiles (padeltour.ro) for the on-stream player cards
+// ---------------------------------------------------------------------------
+// players.json keeps the last read of each profile (keyed by its slug), photos/
+// the players' pictures - read on demand from the Teams tab, then used offline.
+
+const PROFILES_FILE = path.join(path.dirname(STATE_FILE), 'players.json');
+const PHOTOS_DIR = path.join(path.dirname(STATE_FILE), 'photos');
+let profiles = {};
+try {
+  if (fs.existsSync(PROFILES_FILE)) profiles = JSON.parse(fs.readFileSync(PROFILES_FILE, 'utf8')) || {};
+} catch (err) {
+  console.error('Could not load players.json:', err.message);
+}
+const profileJob = { busy: false };
+
+const slugOf = (profilePath) => String(profilePath || '').replace(/^\//, '').toLowerCase();
+
+function saveProfiles() {
+  fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
+}
+
+function saveRoster() {
+  fs.writeFileSync(ROSTER_FILE, JSON.stringify(teamsData, null, 2));
+  setRoster(teamsData);
+}
+
+/** Downloads a profile picture into photos/<slug>.<ext>; returns the file name ('' when there is none). */
+async function downloadPhoto(url, slug) {
+  if (!url) return '';
+  let u;
+  try {
+    u = new URL(url);
+  } catch (_) {
+    return '';
+  }
+  if (u.protocol !== 'https:' || !/(^|\.)(supabase\.co|padeltour\.ro)$/i.test(u.hostname)) return '';
+  const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  const type = r.headers.get('content-type') || '';
+  if (!r.ok || !/^image\/(jpeg|png|webp)/i.test(type)) return '';
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (!buf.length || buf.length > 5e6) return '';
+  const ext = /png/i.test(type) ? 'png' : /webp/i.test(type) ? 'webp' : 'jpg';
+  fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+  for (const e of ['jpg', 'png', 'webp']) if (e !== ext) fs.rmSync(path.join(PHOTOS_DIR, `${slug}.${e}`), { force: true });
+  fs.writeFileSync(path.join(PHOTOS_DIR, `${slug}.${ext}`), buf);
+  return `${slug}.${ext}`;
+}
+
+/**
+ * Reads the padeltour.ro profiles of the given teams' players (Teams tab buttons).
+ * Players without a profile link get one from the tournament's registrations page
+ * first (rosters imported before the links were kept). Returns one line per player.
+ */
+async function refreshProfiles(teamIds) {
+  if (profileJob.busy) throw new Error('profiles are already being read - wait a moment');
+  const recs = [...new Set(teamIds)].map((id) => teamById.get(id)).filter(Boolean);
+  if (!recs.length) throw new Error('no such team');
+  profileJob.busy = true;
+  const results = [];
+  let session = null;
+  try {
+    session = await padeltour.openEdgeSession();
+
+    // 1. missing links: read the divisions' lists again (the names link to the profiles)
+    const src = teamsData.source && teamsData.source.padeltour;
+    const needLinks = recs.filter((r) => (r.players || []).some((p) => !p.profile));
+    if (needLinks.length && src) {
+      const divisions = [...new Set(needLinks.map((r) => r.division).filter(Boolean))];
+      try {
+        const read = await padeltour.readTournament({ url: src, categories: divisions, session });
+        const links = new Map();
+        for (const cat of read.categories) {
+          for (const pr of cat.pairs) for (const p of pr.players) if (p.profile) links.set(padeltour.normName(p.name), p.profile);
+        }
+        let changed = false;
+        for (const r of needLinks) {
+          for (const p of r.players) {
+            const link = !p.profile && links.get(padeltour.normName(p.name));
+            if (link) {
+              p.profile = link;
+              changed = true;
+            }
+          }
+        }
+        if (changed) saveRoster();
+      } catch (err) {
+        console.error('Profile links:', err.message);
+      }
+    }
+
+    // 2. the profiles themselves
+    const jobs = [];
+    for (const r of recs) {
+      (r.players || []).forEach((p, i) => {
+        const url = padeltour.profileUrl(p.profile);
+        if (url) jobs.push({ teamId: r.id, player: i, name: p.name, url });
+        else results.push({ teamId: r.id, player: i, name: p.name, ok: false, error: 'no padeltour.ro profile link' });
+      });
+    }
+    const read = jobs.length ? await padeltour.readProfiles(jobs.map((j) => j.url), { session }) : [];
+    for (let k = 0; k < jobs.length; k++) {
+      const j = jobs[k];
+      const r = read[k];
+      if (!r || !r.ok) {
+        results.push({ ...j, ok: false, error: (r && r.error) || 'not read' });
+        continue;
+      }
+      const slug = slugOf(new URL(j.url).pathname);
+      let photo = (profiles[slug] && profiles[slug].photo) || '';
+      try {
+        photo = (await downloadPhoto(r.photoUrl, slug)) || photo;
+      } catch (err) {
+        console.error('Photo of', slug, err.message);
+      }
+      profiles[slug] = { ...r.data, slug, url: j.url, photo, fetchedAt: new Date().toISOString() };
+      results.push({ ...j, ok: true, fetchedAt: profiles[slug].fetchedAt });
+    }
+    saveProfiles();
+  } finally {
+    if (session) await session.close();
+    profileJob.busy = false;
+    broadcastState();
+  }
+  return results;
+}
+
+/** What the player cards need for the four players of the current match ("0-0" ... "1-1"). */
+function playerCardsPayload() {
+  const out = {};
+  for (let t = 0; t < 2; t++) {
+    const team = (state.teams && state.teams[t]) || {};
+    const rec = team.teamId ? teamById.get(team.teamId) : null;
+    for (let i = 0; i < 2; i++) {
+      const sp = (team.players || [])[i] || {};
+      const rp = rec && rec.players ? rec.players[i] : null;
+      const prof = rp && rp.profile ? profiles[slugOf(rp.profile)] : null;
+      out[`${t}-${i}`] = {
+        name: sp.name || '',
+        country: sp.country || '',
+        division: (rec && rec.division) || '',
+        profile: prof
+          ? { ...prof, photo: prof.photo ? `/player-photo/${prof.photo}?v=${Date.parse(prof.fetchedAt) || 0}` : '' }
+          : null,
+      };
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // State + history
 // ---------------------------------------------------------------------------
 
@@ -190,12 +340,12 @@ publicHub.onMessage((socket, text) => {
 function publicStateMessage() {
   // Same as the LAN message minus the client count. The OBS/break status is
   // needed by the (key-protected) Media page and contains nothing sensitive.
-  return JSON.stringify({ type: 'state', state, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload() });
+  return JSON.stringify({ type: 'state', state, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload(), cards: playerCardsPayload() });
 }
 
 function stateMessage() {
   // `obs` is transient status for the admin UI — never persisted, never secret.
-  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload() });
+  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload(), cards: playerCardsPayload() });
 }
 
 /** Roster version + tournament name: pages reload /api/teams when `rev` changes. */
@@ -1613,12 +1763,59 @@ function handleMainRequest(req, res) {
   }
 
   // Entry-list roster with the LIVE active/eliminated flag and name corrections merged in.
+  // Teams tab: read the padeltour.ro profiles of these teams' players (headless Edge, a few seconds).
+  if (pathname === '/api/profiles/refresh' && req.method === 'POST') {
+    readJsonBody(req).catch(() => null).then((body) => {
+      const ids = body && Array.isArray(body.teamIds) ? body.teamIds.filter((x) => typeof x === 'string') : [];
+      refreshProfiles(ids).then(
+        (results) => sendJson(res, 200, { ok: true, results }),
+        (err) => sendJson(res, 409, { ok: false, error: err.message }),
+      );
+    });
+    return;
+  }
+
+  // Teams tab: set a player's profile link by hand ('' clears it).
+  if (pathname === '/api/profiles/link' && req.method === 'POST') {
+    readJsonBody(req).catch(() => null).then((body) => {
+      const rec = body && teamById.get(body.teamId);
+      const i = body && body.player === 1 ? 1 : 0;
+      const raw = String((body && body.url) || '').trim();
+      const url = raw ? padeltour.profileUrl(raw) : '';
+      if (!rec || !rec.players || !rec.players[i] || url === null) {
+        sendJson(res, 400, { ok: false, error: 'that is not a padeltour.ro profile link' });
+        return;
+      }
+      if (url) rec.players[i].profile = new URL(url).pathname;
+      else delete rec.players[i].profile;
+      saveRoster();
+      broadcastState();
+      sendJson(res, 200, { ok: true, profile: rec.players[i].profile || '' });
+    });
+    return;
+  }
+
+  // Player pictures saved by the profile reader (also on the public port, for the card page).
+  if (pathname.startsWith('/player-photo/')) {
+    const name = pathname.slice('/player-photo/'.length);
+    if (!/^[a-z0-9-]+\.(jpg|png|webp)$/.test(name)) {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    serveFile(res, path.join(PHOTOS_DIR, name), req);
+    return;
+  }
+
   if (pathname === '/api/teams') {
     const reg = (state && state.teams_registry) || {};
     const teams = (teamsData.teams || []).map((t) => ({
       ...t,
       active: reg[t.id] ? reg[t.id].active !== false : t.active !== false,
-      players: rosterPlayers(t),
+      players: rosterPlayers(t).map((p) => {
+        const prof = p.profile ? profiles[slugOf(p.profile)] : null;
+        return { ...p, profileAt: prof ? prof.fetchedAt : null, hasPhoto: !!(prof && prof.photo) };
+      }),
     }));
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ tournament: teamsData.tournament || '', teams }));
@@ -1917,6 +2114,10 @@ if (PUBLIC_PORT) {
     }
     if (pathname === '/scoring.js') {
       serveFile(res, path.join(__dirname, 'src', 'scoring.js'));
+      return;
+    }
+    if (/^\/player-photo\/[a-z0-9-]+\.(jpg|png|webp)$/.test(pathname)) {
+      handleMainRequest(req, res);
       return;
     }
     const page = PUBLIC_PAGES[pathname];

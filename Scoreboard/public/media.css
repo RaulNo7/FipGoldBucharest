@@ -191,3 +191,31 @@
 .hint.warn {
   color: var(--orange);
 }
+
+/* Broadcast card: second line = match intro + one card per player */
+.present-row {
+  margin-top: 10px;
+}
+.present-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+  margin: 0 4px;
+}
+.present-vs {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.btn.pcard-btn.no-data {
+  border-style: dashed;
+  opacity: 0.8;
+}
+
+/* the button whose presentation is on air (Hide match, a player's card): gold, readable */
+.btn.btn-ghost.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}

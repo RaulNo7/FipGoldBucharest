@@ -57,6 +57,24 @@ If padeltour.ro changes its page layout the reader may need an update (`Scoreboa
 
 Settings are stored server-side in `%AppData%\FipGoldBucharest\obs-settings.json` (never broadcast to referee phones). If OBS is unreachable, scoring keeps working and the error is shown in the card.
 
+## Player cards (Media tab)
+
+Under **Show score · Interview** the Media tab has a second line: **👥 Show match** and one **🪪 button per player** of the match. A player's button shows that player's card in the middle of the stream (the same OBS source as Show match, `/intro`); the same button hides it, another player's button switches to it, and the score/match intro and the cards never share the screen.
+
+The card is filled from the player's **padeltour.ro profile**:
+- **Identity:** photo, name, flag, nationality, county, age, side, club.
+- **Ranks:** category ranks.
+- **Numbers:** total points, PT level and tier, win rate.
+- **Record:** tournaments, wins–losses (walkovers too), titles, sets won.
+- **Form:** the last 10 matches.
+
+Profiles are read on demand on the **Teams** tab:
+- **⟳ Profiles for the current match**, or **⟳** on a pair.
+- It runs a headless Edge, a few seconds per pair, and stores the data in `players.json` and the pictures in `photos/` in the data folder. The stream then needs nothing from the internet.
+- The import keeps each player's profile link. Older rosters get theirs from the tournament page on the first ⟳, and the 🪪 chip next to a name sets a link by hand.
+
+Without a profile the card shows only the name, the flag and initials.
+
 ## Interview button (Media tab)
 
 **🎤 Interview** switches the stream to a post-match interview in one press, and **🎾 Back to court** undoes it:
