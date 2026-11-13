@@ -437,6 +437,11 @@ const DEFAULT_OBS_SETTINGS = {
   publicHostname: '', // e.g. scorebug.example.com (the tunnel hostname) - only used to build URLs in the admin panel
   refereeKey: '', // secret that unlocks the referee page + score commands on the public port (empty = LAN only)
   youtubeUrl: '', // live-stream link; when set, the website menu shows a "YouTube Live" entry (public, not secret)
+  // OBS browser source that shows the stream's YouTube chat: on saving the stream link the
+  // app points it at YouTube's pop-out chat for that video and gives it the FRP style.
+  chatSource: 'Youtube Comments',
+  chatSeconds: 10, // how long each comment stays in the OBS chat (0 = until it scrolls away)
+  chatPreviousUrl: '', // what that source showed before the app first took it over (e.g. StreamElements)
   // Folder holding the commercial videos ('' = auto: the app's Commercials
   // folder, see defaultCommercialsDir). Spot files below are looked up in it
   // by file name, so the list survives moving the app to another PC.
@@ -561,7 +566,8 @@ const breakState = {
   kind: null, // 'break' | 'replay' while phase === 'running'
 };
 const replayState = {
-  bufferActive: false, // OBS replay buffer running (kept running by replayHousekeeping)
+  bufferActive: false, // OBS replay buffer running (kept running by replayHousekeeping while the stream is live)
+  waitingForStream: false, // replay enabled, but the stream is not live: the buffer starts with it
   appliedSeconds: null, // replaySeconds last pushed into the OBS profile
   saving: false,
   playing: null, // clip file name while a replay is on the stream
@@ -598,6 +604,7 @@ function obsStatusPayload() {
     lastError: breakState.lastError || obs.lastError || null,
     youtubeUrl: obsSettings.youtubeUrl || '', // for the website menu ("YouTube Live"); updates live on save
     settingsRev: obsSettingsRev, // bumps on every save: the Media tab reloads its video/replay lists
+    chat: { url: chatState.url, error: chatState.error, at: chatState.at, source: obsSettings.chatSource || '' },
     interview: {
       active: interviewState.active,
       busy: interviewState.busy,
@@ -608,6 +615,7 @@ function obsStatusPayload() {
       enabled: !!obsSettings.replayEnabled,
       seconds: obsSettings.replaySeconds,
       bufferActive: replayState.bufferActive,
+      waitingForStream: replayState.waitingForStream,
       saving: replayState.saving,
       playing: replayState.playing, // clip file name while a replay is on the stream
       last: replayState.lastReplay, // file name of the last clip saved
@@ -897,10 +905,15 @@ function replaySeconds() {
 }
 
 /**
- * Keep OBS's replay buffer running with the configured length. The length is
- * pushed into the profile (both output modes, harmless) and the buffer is
- * restarted when it changes. Throws with a readable message when the buffer
- * cannot start (Replay Buffer not enabled in OBS's output settings).
+ * Keep OBS's replay buffer running with the configured length - but only while the
+ * stream is live and already sending. OBS shares one video encoder between the stream
+ * and the replay buffer: a buffer started first holds it, and a stream started afterwards
+ * may then send nothing at all (0 frames, YouTube never goes live). So the buffer is
+ * stopped while nothing is streamed and started a few seconds after the stream is.
+ * The length is pushed into the profile (both output modes, harmless) and the buffer is
+ * restarted when it changes. Returns true when the buffer runs, false while waiting for
+ * the stream; throws with a readable message when the buffer cannot start (Replay
+ * Buffer not enabled in OBS's output settings).
  */
 async function ensureReplayBuffer() {
   if (!obsSettings.replayEnabled) return false;
@@ -915,6 +928,24 @@ async function ensureReplayBuffer() {
     throw err;
   }
   let active = !!status.outputActive;
+
+  let stream = {};
+  try {
+    stream = await obs.request('GetStreamStatus');
+  } catch (_) {
+    /* older obs-websocket: treat as not live */
+  }
+  const live = !!stream.outputActive && Number(stream.outputBytes) > 0;
+  replayState.waitingForStream = !live;
+  if (!live) {
+    if (active) {
+      await obs.request('StopReplayBuffer'); // the next stream start then gets its own encoder
+      await sleep(700);
+    }
+    replayState.bufferActive = false;
+    return false;
+  }
+
   const seconds = replaySeconds();
   if (replayState.appliedSeconds !== seconds) {
     for (const parameterCategory of ['SimpleOutput', 'AdvOut']) {
@@ -993,7 +1024,9 @@ function replayTitle(st, now = new Date()) {
 }
 
 async function saveReplayClip() {
-  await ensureReplayBuffer();
+  if (!(await ensureReplayBuffer())) {
+    throw new Error('Replay works while the stream is live - the buffer starts a few seconds after the stream does');
+  }
   // The title describes the moment Replay was pressed, not when OBS finished writing.
   const title = replayTitle(state);
   let before = '';
@@ -1101,11 +1134,12 @@ function saveAndPlayReplay() {
 function replayHousekeeping() {
   if (!obsSettings.replayEnabled) {
     replayState.bufferActive = false;
+    replayState.waitingForStream = false;
     return;
   }
   ensureReplayBuffer()
-    .then(() => {
-      replayState.lastError = null;
+    .then((running) => {
+      if (running) replayState.lastError = null; // keep e.g. "Replay works while the stream is live" until it does
     })
     .catch((err) => {
       replayState.bufferActive = false;
@@ -1114,7 +1148,7 @@ function replayHousekeeping() {
     .finally(() => broadcastState());
 }
 setTimeout(replayHousekeeping, 3000);
-setInterval(replayHousekeeping, 15000);
+setInterval(replayHousekeeping, 5000); // starts the buffer within ~5 s of the stream going live
 
 // ---------------------------------------------------------------------------
 // Import players (Admin tab): padeltour.ro link or pasted list -> roster.json
@@ -1439,6 +1473,75 @@ function handleAnnouncementCommand(cmd) {
   saveAnnouncements();
   broadcastState();
   return true;
+}
+
+// ---- YouTube chat in OBS (FRP-styled pop-out chat) ----
+const chatState = { url: '', error: null, at: null };
+
+/** The 11-character video id of a YouTube link (watch?v=, youtu.be/, /live/, /shorts/, /embed/), or ''. */
+function youtubeVideoId(link) {
+  let u;
+  try {
+    u = new URL(String(link || ''));
+  } catch (_) {
+    return '';
+  }
+  if (!/(^|\.)(youtube\.com|youtu\.be)$/i.test(u.hostname)) return '';
+  const id = /youtu\.be$/i.test(u.hostname)
+    ? u.pathname.slice(1)
+    : u.searchParams.get('v') || (u.pathname.match(/^\/(?:live|shorts|embed)\/([^/?#]+)/) || [])[1] || '';
+  return /^[\w-]{11}$/.test(id) ? id : '';
+}
+
+const chatUrlFor = (link) => {
+  const id = youtubeVideoId(link);
+  return id ? `https://www.youtube.com/live_chat?v=${id}&is_popout=1` : '';
+};
+
+const chatSeconds = (v) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= 0 ? Math.min(600, n) : 10;
+};
+
+/** The FRP chat style with the configured stay time (0 = comments never fold away). */
+function chatCss() {
+  const css = fs.readFileSync(path.join(PUBLIC_DIR, 'yt-chat-obs.css'), 'utf8');
+  const secs = chatSeconds(obsSettings.chatSeconds);
+  return secs
+    ? css.split('ease-in 10s /*stay*/').join(`ease-in ${secs}s /*stay*/`)
+    : css.split(', frpChatOut 0.6s ease-in 10s /*stay*/ forwards').join('');
+}
+
+/** Points the OBS chat source at the stream's YouTube chat with the FRP style. Resolves { ok, url?, error? }. */
+async function applyYoutubeChat() {
+  const url = chatUrlFor(obsSettings.youtubeUrl);
+  const source = String(obsSettings.chatSource || '').trim();
+  let result;
+  if (!url) {
+    result = { ok: false, error: 'the stream link needs the video itself (…watch?v=… or youtu.be/…), not the channel page' };
+  } else if (!source) {
+    result = { ok: false, error: 'no OBS chat source set' };
+  } else {
+    try {
+      await connectObs();
+      const css = chatCss();
+      const current = await obs.request('GetInputSettings', { inputName: source });
+      const before = (current.inputSettings && current.inputSettings.url) || '';
+      if (!obsSettings.chatPreviousUrl && before && !/youtube\.com\/live_chat/.test(before)) {
+        obsSettings = { ...obsSettings, chatPreviousUrl: before }; // keep what was there (e.g. StreamElements)
+        saveObsSettings();
+      }
+      await obs.request('SetInputSettings', { inputName: source, inputSettings: { url, css } });
+      result = { ok: true, url, source };
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+  }
+  chatState.url = result.ok ? url : chatState.url;
+  chatState.error = result.ok ? null : result.error;
+  chatState.at = new Date().toISOString();
+  broadcastState();
+  return result;
 }
 
 // ---- Interview button ----
@@ -1886,6 +1989,12 @@ function handleMainRequest(req, res) {
 
   // Every announcement, drafts included, for the editor (the broadcast only carries the active ones).
   // Test the OBS connection and get the answer back (Admin tab; never forwarded from the public port).
+  // Admin tab: put the stream's YouTube chat (FRP style) in the OBS chat source now.
+  if (pathname === '/api/youtube-chat/apply' && req.method === 'POST') {
+    applyYoutubeChat().then((r) => sendJson(res, r.ok ? 200 : 409, r));
+    return;
+  }
+
   // Admin tab: ask the ATEM at ?host= (or the saved one) for its name and inputs.
   if (pathname === '/api/atem-test' && req.method === 'POST') {
     const host = (url.searchParams.get('host') || obsSettings.atemHost || '').trim();
@@ -1968,6 +2077,9 @@ function handleMainRequest(req, res) {
             clean.replaySeconds = Math.min(600, Math.round(Number(incoming.replaySeconds)));
           }
           if (typeof incoming.youtubeUrl === 'string') clean.youtubeUrl = sanitizeLink(incoming.youtubeUrl);
+          if (typeof incoming.chatSource === 'string') clean.chatSource = incoming.chatSource.trim();
+          if (incoming.chatSeconds !== undefined) clean.chatSeconds = chatSeconds(incoming.chatSeconds);
+          const chatChanged = clean.youtubeUrl !== obsSettings.youtubeUrl || clean.chatSource !== obsSettings.chatSource || clean.chatSeconds !== obsSettings.chatSeconds;
           if (typeof incoming.atemHost === 'string') {
             const host = incoming.atemHost.trim();
             if (host && !IPV4.test(host)) throw new Error('bad ATEM IP');
@@ -1989,6 +2101,7 @@ function handleMainRequest(req, res) {
           obsSettings = clean;
           obsSettingsRev++;
           saveObsSettings();
+          if (chatChanged && youtubeVideoId(clean.youtubeUrl)) setTimeout(() => applyYoutubeChat(), 1500); // after the OBS reconnect below
           obs.close(); // reconnect with the new url/password on next use
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: true }));

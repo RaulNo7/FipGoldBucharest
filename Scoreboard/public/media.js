@@ -230,7 +230,7 @@
     const rp = o.replay || {};
     const replayPlaying = running && !!rp.playing;
     const rpBadge = $('#replayBadge');
-    rpBadge.textContent = !rp.enabled ? 'replay OFF' : rp.bufferActive ? 'buffer: recording' : 'buffer: off';
+    rpBadge.textContent = !rp.enabled ? 'replay OFF' : rp.bufferActive ? 'buffer: recording' : rp.waitingForStream ? 'buffer: waits for the stream' : 'buffer: off';
     rpBadge.className = 'badge ' + (rp.enabled && rp.bufferActive ? 'live' : '');
     const saveBtn = $('#saveReplayBtn');
     saveBtn.disabled = running || !!rp.saving || !rp.enabled;
@@ -246,6 +246,7 @@
     else if (replayPlaying) rpText = `Replay "${rp.playing}" is on the stream…`;
     else if (!rp.enabled) rpText = 'Instant replay is OFF (Admin tab → Commercial break settings).';
     else if (rp.bufferActive) rpText = `Ready — Replay puts the last ${rp.seconds} s on the stream.` + (rp.last ? ` Last clip: ${rp.last}.` : '');
+    else if (rp.waitingForStream) rpText = 'Replay is ready once you are live: the buffer starts a few seconds after the stream does (and stops with it, so every stream starts cleanly).';
     else rpText = 'Waiting for OBS — the replay buffer is not recording yet.';
     if (rp.error) rpText += ` — ${rp.error}`;
     $('#replayStatus').textContent = rpText;

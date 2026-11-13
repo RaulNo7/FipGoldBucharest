@@ -1,0 +1,203 @@
+/* FRP Live look for YouTube's own pop-out live chat (https://www.youtube.com/live_chat?v=…&is_popout=1)
+   shown as an OBS browser source. The app puts this text in the source's "Custom CSS" field
+   (Admin tab → YouTube live stream → Put the chat in OBS). Only restyles YouTube's page:
+   transparent background, navy cards with a gold edge, gold names, white text. */
+
+:root {
+  --frp-navy: rgba(6, 20, 51, 0.9);
+  --frp-gold: #fcd116;
+  --frp-blue: #4da3ff;
+  --frp-text: #ffffff;
+  --frp-muted: #9fb1c4;
+  --frp-font: 'Segoe UI', system-ui, Roboto, Arial, sans-serif;
+  --frp-names: 'Bahnschrift SemiCondensed', 'Bahnschrift', 'Arial Narrow', 'Segoe UI', sans-serif;
+}
+
+/* transparent page, no scrollbars */
+html,
+body,
+yt-live-chat-app,
+yt-live-chat-renderer,
+yt-live-chat-item-list-renderer,
+#item-scroller,
+#item-offset,
+#items {
+  background: transparent !important;
+  background-color: transparent !important;
+  overflow: hidden !important;
+}
+body {
+  margin: 0 !important;
+}
+
+/* The source covers the whole 1920x1080 frame: the chat takes a column on the right
+   (30 % of the width), below the logos in the top-right corner and above the info bar. */
+yt-live-chat-renderer {
+  position: fixed !important;
+  top: 13vh !important;
+  bottom: 8vh !important;
+  right: 1.5vw !important;
+  left: auto !important;
+  width: 30vw !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+
+/* everything that is not a message: header, input box, pinned banners, ticker, "welcome" notices */
+yt-live-chat-header-renderer,
+yt-live-chat-message-input-renderer,
+yt-live-chat-banner-manager,
+yt-live-chat-ticker-renderer,
+#ticker,
+#panel-pages,
+#chat-messages > #contents > #ticker,
+yt-live-chat-viewer-engagement-message-renderer,
+yt-live-chat-mode-change-message-renderer,
+yt-live-chat-restricted-participation-renderer,
+yt-live-chat-placeholder-item-renderer,
+#show-more,
+yt-live-chat-text-message-renderer #menu,
+yt-live-chat-text-message-renderer #timestamp,
+yt-live-chat-text-message-renderer #chat-badges,
+yt-live-chat-text-message-renderer #inline-action-button-container {
+  display: none !important;
+}
+
+/* one card per message */
+yt-live-chat-text-message-renderer {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  overflow: hidden !important;
+  background: var(--frp-navy) !important;
+  border-radius: 10px !important;
+  /* slides in, stays 10 s (Admin tab: "Each comment stays"), then fades and folds away (the next messages close the gap) */
+  animation: frpChatIn 0.35s ease-out both, frpChatOut 0.6s ease-in 10s /*stay*/ forwards !important;
+}
+/* Spacing without !important (an animation cannot change !important values), made
+   specific enough with #items to beat YouTube's own rules - so a finished message can fold to 0. */
+#items yt-live-chat-text-message-renderer,
+#items > yt-live-chat-text-message-renderer {
+  margin: 6px 10px;
+  padding: 10px 14px 10px 12px;
+  border-left: 4px solid var(--frp-gold);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+yt-live-chat-text-message-renderer #author-photo {
+  width: 34px !important;
+  height: 34px !important;
+  margin: 2px 0 0 !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  border: 2px solid var(--frp-gold) !important;
+  flex: none !important;
+}
+yt-live-chat-text-message-renderer #author-photo img {
+  width: 100% !important;
+  height: 100% !important;
+}
+yt-live-chat-text-message-renderer #content {
+  display: block !important;
+  overflow: visible !important;
+}
+yt-live-chat-text-message-renderer #author-name {
+  display: block !important;
+  margin-bottom: 2px !important;
+  font: 700 17px/1.2 var(--frp-names) !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  color: var(--frp-gold) !important;
+}
+yt-live-chat-text-message-renderer #author-name[type='moderator'] {
+  color: var(--frp-blue) !important;
+}
+yt-live-chat-text-message-renderer #author-name[type='owner'] {
+  display: inline-block !important;
+  padding: 0 6px !important;
+  border-radius: 4px !important;
+  background: var(--frp-gold) !important;
+  color: #061433 !important;
+}
+yt-live-chat-text-message-renderer #message {
+  font: 500 20px/1.35 var(--frp-font) !important;
+  color: var(--frp-text) !important;
+  word-break: break-word !important;
+}
+yt-live-chat-text-message-renderer #message img.emoji {
+  width: 24px !important;
+  height: 24px !important;
+  vertical-align: -5px !important;
+}
+
+/* Super Chats and new members: gold card (spacing without !important so it can fold away too) */
+#items yt-live-chat-paid-message-renderer,
+#items yt-live-chat-membership-item-renderer,
+#items yt-live-chat-paid-sticker-renderer {
+  margin: 6px 10px;
+}
+yt-live-chat-paid-message-renderer,
+yt-live-chat-membership-item-renderer,
+yt-live-chat-paid-sticker-renderer {
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  animation: frpChatIn 0.35s ease-out both, frpChatOut 0.6s ease-in 10s /*stay*/ forwards !important;
+}
+yt-live-chat-paid-message-renderer #card,
+yt-live-chat-membership-item-renderer #card,
+yt-live-chat-paid-sticker-renderer #card {
+  background: var(--frp-gold) !important;
+  color: #061433 !important;
+}
+yt-live-chat-paid-message-renderer #header,
+yt-live-chat-membership-item-renderer #header {
+  background: #ffe14d !important;
+}
+yt-live-chat-paid-message-renderer #author-name,
+yt-live-chat-paid-message-renderer #purchase-amount,
+yt-live-chat-paid-message-renderer #message,
+yt-live-chat-membership-item-renderer #author-name,
+yt-live-chat-membership-item-renderer #header-subtext,
+yt-live-chat-membership-item-renderer #message {
+  color: #061433 !important;
+  font-family: var(--frp-font) !important;
+  font-size: 18px !important;
+}
+yt-live-chat-paid-message-renderer #timestamp,
+yt-live-chat-membership-item-renderer #timestamp,
+yt-live-chat-paid-message-renderer #menu,
+yt-live-chat-membership-item-renderer #menu {
+  display: none !important;
+}
+
+@keyframes frpChatIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* after 10 s on screen: fade out and fold to nothing */
+@keyframes frpChatOut {
+  0% {
+    opacity: 1;
+    max-height: 400px;
+  }
+  60% {
+    opacity: 0;
+    max-height: 400px;
+  }
+  100% {
+    opacity: 0;
+    max-height: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+    box-shadow: none;
+  }
+}

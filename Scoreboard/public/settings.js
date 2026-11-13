@@ -416,16 +416,57 @@
   });
 
   // ---- YouTube live stream link (website menu entry) ----
+  // YouTube's pop-out chat for the video in the stream link ('' for a channel page)
+  function chatUrlFor(link) {
+    let u;
+    try {
+      u = new URL(link);
+    } catch (_) {
+      return '';
+    }
+    if (!/(^|\.)(youtube\.com|youtu\.be)$/i.test(u.hostname)) return '';
+    const id = /youtu\.be$/i.test(u.hostname)
+      ? u.pathname.slice(1)
+      : u.searchParams.get('v') || (u.pathname.match(/^\/(?:live|shorts|embed)\/([^/?#]+)/) || [])[1] || '';
+    return /^[\w-]{11}$/.test(id) ? `https://www.youtube.com/live_chat?v=${id}&is_popout=1` : '';
+  }
+  const showChatUrl = () => ($('#chatUrl').value = chatUrlFor($('#youtubeUrl').value.trim()));
+  $('#youtubeUrl').addEventListener('input', showChatUrl);
+
+  function applyChat(quiet) {
+    $('#chatStatus').textContent = 'Putting the chat in OBS…';
+    return fetch('/api/youtube-chat/apply', { method: 'POST' })
+      .then((r) => r.json())
+      .then((r) => {
+        $('#chatStatus').textContent = r.ok
+          ? `✓ OBS source "${r.source}" now shows this stream's chat in FRP style.`
+          : '✗ Chat not put in OBS: ' + r.error;
+      })
+      .catch(() => {
+        if (!quiet) $('#chatStatus').textContent = '✗ the score server did not answer';
+      });
+  }
+  $('#applyChatBtn').addEventListener('click', () => applyChat(false));
+
   $('#saveYoutubeBtn').addEventListener('click', () => {
     fetch('/api/obs-settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ youtubeUrl: $('#youtubeUrl').value.trim() }),
+      body: JSON.stringify({
+        youtubeUrl: $('#youtubeUrl').value.trim(),
+        chatSource: $('#chatSource').value.trim(),
+        chatSeconds: $('#chatSeconds').value === '' ? 10 : Number($('#chatSeconds').value),
+      }),
     })
       .then((r) => (r.ok ? fetch('/api/obs-settings').then((x) => x.json()) : Promise.reject()))
       .then((cfg) => {
         $('#youtubeUrl').value = cfg.youtubeUrl || ''; // show the normalized link (https:// added, etc.)
+        $('#chatSource').value = cfg.chatSource || '';
+        $('#chatSeconds').value = cfg.chatSeconds == null ? 10 : cfg.chatSeconds;
+        showChatUrl();
         flash($('#saveYoutubeBtn'), 'Saved!');
+        // the server also updates the OBS chat source on its own; show the result here
+        if (chatUrlFor(cfg.youtubeUrl || '')) setTimeout(() => applyChat(true), 2500);
       })
       .catch(() => flash($('#saveYoutubeBtn'), 'Failed'));
   });
@@ -440,6 +481,9 @@
       $('#publicHostname').value = cfg.publicHostname || '';
       $('#refereeKey').value = cfg.refereeKey || '';
       $('#youtubeUrl').value = cfg.youtubeUrl || '';
+      $('#chatSource').value = cfg.chatSource || '';
+      $('#chatSeconds').value = cfg.chatSeconds == null ? 10 : cfg.chatSeconds;
+      showChatUrl();
       updatePublicUrls();
     })
     .catch(() => {});

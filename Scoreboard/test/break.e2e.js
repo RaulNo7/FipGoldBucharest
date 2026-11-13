@@ -66,12 +66,15 @@ const transformCalls = []; // scene-item transforms applied to the media source
 let mediaFile = 'C:\\merged-break.mp4';
 let holdMedia = false; // true: the mock media never ends (to test Cancel mid-clip)
 let replayBufferActive = false;
+let streamLive = true; // mock OBS: streaming and sending (the replay buffer only runs while live)
 let replaySaves = 0;
 let lastReplayPath = '';
 const profileParams = {};
 const sceneItemCalls = []; // SetSceneItemEnabled: "scene/item=on|off"
 const muteCalls = []; // SetInputMute: "input=muted|on"
 const missingSources = new Set(); // names the mock OBS does not know
+const chatSettingsCalls = []; // SetInputSettings on the chat browser source
+let chatSourceUrl = 'https://streamelements.com/overlay/abc/def'; // what the chat source showed before
 const obsRecDir = path.join(tmp, 'obs-videos');
 fs.mkdirSync(obsRecDir);
 
@@ -110,7 +113,17 @@ hub.onMessage((sock, text) => {
       muteCalls.push(requestData.inputName + '=' + (requestData.inputMuted ? 'muted' : 'on'));
     }
     if (requestType === 'SetSceneItemTransform') transformCalls.push(requestData.sceneItemTransform);
-    if (requestType === 'SetInputSettings') {
+    if (requestType === 'GetInputSettings' && missingSources.has(requestData.inputName)) {
+      hub.sendText(sock, JSON.stringify({ op: 7, d: { requestType, requestId, requestStatus: { result: false, code: 600, comment: 'No source was found by the name of ' + requestData.inputName } } }));
+      return;
+    }
+    if (requestType === 'GetInputSettings' && requestData.inputName === 'Youtube Comments') {
+      responseData = { inputSettings: { url: chatSourceUrl } };
+    }
+    if (requestType === 'SetInputSettings' && requestData.inputName === 'Youtube Comments') {
+      chatSettingsCalls.push(requestData.inputSettings);
+      chatSourceUrl = requestData.inputSettings.url;
+    } else if (requestType === 'SetInputSettings') {
       mediaFile = requestData.inputSettings.local_file;
       inputSettingsCalls.push(mediaFile);
       mediaPolls = 0; // a newly loaded file plays from the start
@@ -118,6 +131,7 @@ hub.onMessage((sock, text) => {
     // Replay buffer: "recording" once started; a save writes a small file to
     // OBS's own recording folder (the app moves it into the replay folder).
     if (requestType === 'GetReplayBufferStatus') responseData = { outputActive: replayBufferActive };
+    if (requestType === 'GetStreamStatus') responseData = { outputActive: streamLive, outputBytes: streamLive ? 250000 : 0 };
     if (requestType === 'StartReplayBuffer') replayBufferActive = true;
     if (requestType === 'StopReplayBuffer') replayBufferActive = false;
     if (requestType === 'SetProfileParameter') profileParams[requestData.parameterCategory + '/' + requestData.parameterName] = requestData.parameterValue;
@@ -725,6 +739,57 @@ function cleanupAndExit() {
   st = await api('/api/state');
   assert(st.display.playerCardSide === 'left', 'player cards: an unknown side falls back to the left');
   await cmd({ type: 'setDisplay', display: { playerCard: null } });
+
+  // ---- YouTube chat in OBS (FRP style) ----
+  chatSettingsCalls.length = 0;
+  assert((await postJ('/api/obs-settings', { youtubeUrl: 'https://www.youtube.com/@frp/live' })).status === 200, 'chat: a channel /live link is saved');
+  const noVideo = await postJ('/api/youtube-chat/apply', {});
+  assert(noVideo.status === 409 && /video itself/.test(noVideo.body.error || '') && chatSettingsCalls.length === 0, 'chat: a channel page has no chat to show - explained, OBS untouched');
+  assert((await postJ('/api/obs-settings', { youtubeUrl: 'https://youtu.be/AbCdEfGhIjK?si=x' })).status === 200, 'chat: a video link is saved');
+  const want = 'https://www.youtube.com/live_chat?v=AbCdEfGhIjK&is_popout=1';
+  for (let i = 0; i < 30 && !chatSettingsCalls.length; i++) await sleep(150);
+  const auto = chatSettingsCalls[chatSettingsCalls.length - 1] || {};
+  assert(auto.url === want && /yt-live-chat-text-message-renderer/.test(auto.css || '') && /#fcd116/.test(auto.css || ''), 'chat: saving a video link points the OBS chat source at its pop-out chat with the FRP style (' + auto.url + ')');
+  assert((await api('/api/obs-settings')).chatPreviousUrl === 'https://streamelements.com/overlay/abc/def', 'chat: the source\'s previous page (StreamElements) is remembered');
+  assert(/ease-in 10s \/\*stay\*\//.test(auto.css || ''), 'chat: comments stay 10 s by default');
+  chatSettingsCalls.length = 0;
+  assert((await postJ('/api/obs-settings', { chatSeconds: '25' })).status === 200, 'chat: stay time saved');
+  for (let i = 0; i < 30 && !chatSettingsCalls.length; i++) await sleep(150);
+  const longer = chatSettingsCalls[chatSettingsCalls.length - 1] || {};
+  assert(/ease-in 25s \/\*stay\*\//.test(longer.css || '') && !/ease-in 10s/.test(longer.css || ''), 'chat: changing the stay time updates the OBS chat at once (25 s)');
+  chatSettingsCalls.length = 0;
+  await postJ('/api/obs-settings', { chatSeconds: 0 });
+  for (let i = 0; i < 30 && !chatSettingsCalls.length; i++) await sleep(150);
+  const keep = chatSettingsCalls[chatSettingsCalls.length - 1] || {};
+  assert(keep.css && !/frpChatOut 0\.6s/.test(keep.css) && /frpChatIn/.test(keep.css), 'chat: 0 = comments stay until they scroll away');
+  await postJ('/api/obs-settings', { chatSeconds: 10 });
+  const again = await postJ('/api/youtube-chat/apply', {});
+  assert(again.status === 200 && again.body.url === want && again.body.source === 'Youtube Comments', 'chat: "Put the chat in OBS" does it on demand');
+  missingSources.add('Youtube Comments');
+  chatSettingsCalls.length = 0;
+  const bad = await postJ('/api/youtube-chat/apply', {});
+  missingSources.clear();
+  assert(bad.status === 409 && chatSettingsCalls.length === 0, 'chat: a missing OBS source is reported');
+  assert((await fetch(`http://127.0.0.1:${PUBLIC_PORT}/api/youtube-chat/apply`, { method: 'POST' })).status !== 200, 'chat: never reachable on the public port');
+  const adminPage = await (await fetch(`http://127.0.0.1:${SB_PORT}/settings`)).text();
+  assert(/id="applyChatBtn"/.test(adminPage) && /id="chatSource"/.test(adminPage) && (await fetch(`http://127.0.0.1:${SB_PORT}/yt-chat-obs.css`)).status === 200, 'chat: controls on the Admin tab, style sheet served');
+
+  // ---- Replay buffer follows the stream (a buffer started first can leave the stream sending nothing) ----
+  streamLive = false;
+  for (let i = 0; i < 40 && replayBufferActive; i++) await sleep(250);
+  await sleep(1200); // the app updates its status ~0.7 s after OBS
+  let rpNow = (await firstMessage(SB_PORT)).obs.replay;
+  assert(replayBufferActive === false && rpNow.bufferActive === false && rpNow.waitingForStream === true, 'replay buffer: stopped while nothing is streamed (' + JSON.stringify({ obs: replayBufferActive, rp: rpNow }) + ')');
+  const replaysBefore = replaySaves;
+  await cmd({ type: 'saveReplay' });
+  await sleep(1500);
+  rpNow = (await firstMessage(SB_PORT)).obs.replay;
+  assert(replaySaves === replaysBefore && /while the stream is live/.test(rpNow.error || ''), 'replay buffer: Replay while not live explains why (' + rpNow.error + ')');
+  streamLive = true;
+  for (let i = 0; i < 40 && !replayBufferActive; i++) await sleep(250);
+  await sleep(1200);
+  rpNow = (await firstMessage(SB_PORT)).obs.replay;
+  assert(replayBufferActive === true && rpNow.bufferActive === true && rpNow.waitingForStream === false, 'replay buffer: starts again once the stream is live and sending (' + JSON.stringify({ obs: replayBufferActive, rp: rpNow }) + ')');
 
   cleanupAndExit();
 })().catch((err) => {

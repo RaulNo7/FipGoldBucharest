@@ -240,6 +240,19 @@
         <button class="btn btn-ghost" id="openYoutubeBtn">Open</button>
       </div>
       <p class="hint">Paste the public link of the live stream (or the channel's /live page). The main page and the Scorebug page pick it up immediately and open it in a new tab. Leave it empty to hide the menu entry.</p>
+
+      <div class="config-grid align-end">
+        <label>OBS chat source (browser source in the live scene)
+          <input type="text" id="chatSource" placeholder="Youtube Comments" />
+        </label>
+        <label>Each comment stays (seconds, 0 = until it scrolls away)
+          <input type="number" id="chatSeconds" min="0" max="600" step="1" placeholder="10" />
+        </label>
+        <span class="row gap"><button class="btn btn-ghost" id="applyChatBtn" type="button">💬 Put the chat in OBS</button></span>
+      </div>
+      <div class="row gap url-row"><span class="url-label">Chat link</span><input type="text" id="chatUrl" readonly placeholder="needs a …watch?v=… stream link" /><button class="btn btn-ghost" data-copy="chatUrl">Copy</button></div>
+      <p class="hint" id="chatStatus"></p>
+      <p class="hint">The live chat in FRP colours: saving a stream link points that OBS source at YouTube's own chat for the stream (no login or API key) and gives it the FRP style. Use the video link (<b>watch?v=…</b> or <b>youtu.be/…</b>), not the channel page. If the chat stays empty in OBS, start the stream first, or right-click the source → <b>Interact</b> and sign in once.</p>
     </div>
 
     <div class="card">

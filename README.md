@@ -75,6 +75,12 @@ Profiles are read on demand on the **Teams** tab:
 
 Without a profile the card shows only the name, the flag and initials.
 
+## YouTube chat in OBS (FRP style)
+
+Admin tab → **YouTube live stream**: saving a stream video link sets the OBS browser source named in **OBS chat source** (default `Youtube Comments`). It points the source at YouTube's own pop-out chat for that video, `https://www.youtube.com/live_chat?v=<id>&is_popout=1`. It also puts `Scoreboard/public/yt-chat-obs.css` in the source's Custom CSS: transparent background, navy cards with a gold edge, gold names, and gold cards for Super Chats and new members. The chat takes a column on the right (30 % of the frame), below the logos and above the info bar. Each comment stays **Each comment stays** seconds (default 10; 0 = until it scrolls away) and then fades and folds away. **💬 Put the chat in OBS** does the same on demand.
+
+No login, API key or channel permission is needed. The page the source showed before (e.g. StreamElements) is remembered as `chatPreviousUrl` in `obs-settings.json`. A channel `/live` link has no chat of its own, so use the video link. If the chat stays empty, start the stream first, or right-click the source in OBS → **Interact** and sign in once.
+
 ## Interview button (Media tab)
 
 **🎤 Interview** switches the stream to a post-match interview in one press, and **🎾 Back to court** undoes it:
