@@ -379,12 +379,12 @@ const PAGES_BUILD = (() => {
 function publicStateMessage() {
   // Same as the LAN message minus the client count. The OBS/break status is
   // needed by the (key-protected) Media page and contains nothing sensitive.
-  return JSON.stringify({ type: 'state', state, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload(), cards: playerCardsPayload(), build: PAGES_BUILD });
+  return JSON.stringify({ type: 'state', state, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload(), cards: playerCardsPayload(), build: PAGES_BUILD, serverNow: Date.now() });
 }
 
 function stateMessage() {
   // `obs` is transient status for the admin UI — never persisted, never secret.
-  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload(), cards: playerCardsPayload(), build: PAGES_BUILD });
+  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload(), cards: playerCardsPayload(), build: PAGES_BUILD, serverNow: Date.now() });
 }
 
 /** Roster version + tournament name: pages reload /api/teams when `rev` changes. */
@@ -1644,6 +1644,7 @@ function testObsConnection() {
 
 function handleCommand(cmd) {
   if (!cmd || typeof cmd.type !== 'string') return;
+  cmd = { ...cmd, now: Date.now() }; // the server's clock drives the match timer (never a client's)
 
   if (cmd.type === 'undo') {
     if (undoStack.length) {

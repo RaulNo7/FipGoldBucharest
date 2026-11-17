@@ -97,6 +97,7 @@ function createDefaultState() {
       showServe: true,
       showPlayers: true,
       showTitle: true,
+      showClock: true, // match timer in the title bar (Media tab: Hide / Show)
       scoreVisible: true, // false while the stream shows commercials; the /tv page ignores it
       introVisible: false, // pre-match players presentation (the /intro overlay page)
       playerCard: null, // one player's card on the /intro page: '0-0' | '0-1' | '1-0' | '1-1' (team-player), null = none
@@ -104,6 +105,10 @@ function createDefaultState() {
       startTime: '', // scheduled start of the match, e.g. '14:30' — shown on the players intro
     },
     teams_registry: {}, // live Active/Eliminated flags per entry-list teamId ({ [id]: { active } }; missing = active)
+    clock: { startedAt: null, endedAt: null }, // match timer (ms since epoch; the server passes cmd.now)
+    // "the bar under the scoreboard": set point / match point / deuce now, with how
+    // many of each this game has had so far (reset when a game or tiebreak ends)
+    pressure: null,
     seq: 0, // monotonically increasing change counter (animation hint)
     lastScorer: null, // team that won the last point (animation hint)
   };
@@ -341,6 +346,81 @@ function awardPoint(state, team) {
 }
 
 // ---------------------------------------------------------------------------
+// Set point / match point / deuce (the bar under the scoreboard)
+// ---------------------------------------------------------------------------
+
+/** 1 -> "1st", 2 -> "2nd", 3 -> "3rd", 4 -> "4th", 11 -> "11th", 21 -> "21st". */
+function ordinal(n) {
+  const suffix = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (suffix[(v - 20) % 10] || suffix[v] || suffix[0]);
+}
+
+/** Which team would win the set / the match by winning the next point (null = none). */
+function nextPointWins(state) {
+  const res = { match: null, set: null };
+  if (state.status === 'finished') return res;
+  for (const t of [0, 1]) {
+    const sim = awardPoint(clone(state), t);
+    if (sim.status === 'finished' && sim.winner === t) {
+      if (res.match === null) res.match = t;
+    } else if (sim.sets.length > state.sets.length) {
+      if (res.set === null) res.set = t;
+    }
+  }
+  return res;
+}
+
+/**
+ * Recomputes state.pressure after a command: what the next point means now
+ * (match point > set point > deuce) and, after a point, counts it - the counts
+ * belong to the current game and start again when a game or tiebreak ends.
+ */
+function withPressure(state, afterPoint) {
+  if (!state || !Array.isArray(state.points) || !Array.isArray(state.games)) return state;
+  const key = [(state.sets || []).length, state.games[0], state.games[1], state.inTiebreak ? 'tb' : 'g'].join('|');
+  const prev = state.pressure && state.pressure.key === key ? state.pressure : null;
+  const pr = {
+    key,
+    setPoint: prev ? prev.setPoint : 0,
+    matchPoint: prev ? prev.matchPoint : 0,
+    deuce: prev ? prev.deuce : 0,
+    now: null,
+  };
+  if (state.status !== 'finished') {
+    const wins = nextPointWins(state);
+    const deuceNow = !state.inTiebreak && state.points[0] >= 3 && state.points[0] === state.points[1];
+    if (deuceNow && afterPoint) pr.deuce += 1;
+    if (wins.match !== null) {
+      if (afterPoint) pr.matchPoint += 1;
+      pr.now = { kind: 'match', team: wins.match, n: pr.matchPoint };
+    } else if (wins.set !== null) {
+      if (afterPoint) pr.setPoint += 1;
+      pr.now = { kind: 'set', team: wins.set, n: pr.setPoint };
+    } else if (deuceNow) {
+      pr.now = { kind: 'deuce', team: null, n: pr.deuce };
+    }
+  }
+  state.pressure = pr;
+  return state;
+}
+
+/** Text for the bar: "SET POINT", "2nd SET POINT", "MATCH POINT", "3rd DEUCE"... ('' = nothing to show). */
+function pressureLabel(state) {
+  const now = state && state.pressure && state.pressure.now;
+  if (!now) return '';
+  const word = now.kind === 'match' ? 'MATCH POINT' : now.kind === 'set' ? 'SET POINT' : 'DEUCE';
+  return now.n >= 2 ? `${ordinal(now.n)} ${word}` : word;
+}
+
+/** Match timer in ms (0 while not started); `now` = the server's clock. */
+function clockElapsed(state, now) {
+  const c = (state && state.clock) || {};
+  if (!c.startedAt) return 0;
+  return Math.max(0, (c.endedAt || now) - c.startedAt);
+}
+
+// ---------------------------------------------------------------------------
 // Command reducer
 // ---------------------------------------------------------------------------
 
@@ -348,7 +428,7 @@ const MUTATING = new Set([
   'point', 'adjustPoints', 'adjustGames', 'adjustSets', 'saveSet', 'removeLastSet',
   'setServer', 'swapServer', 'setServingPlayer', 'swapServingPlayer',
   'setTeams', 'selectTeam', 'setTeamActive', 'setPlayerName', 'setPlayerCountry', 'setConfig', 'setDisplay', 'resetMatch', 'resetAll', 'startMatch',
-  'finishMatch', 'setStatus',
+  'finishMatch', 'setStatus', 'setMatchClock',
 ]);
 
 function isMutating(type) {
@@ -365,8 +445,21 @@ function clampInt(n, min, max) {
 /**
  * Apply a command, returning a NEW state object. Unknown / no-op commands
  * return the original reference (caller can skip the history push).
+ * cmd.now (ms) - the server's clock - drives the match timer.
  */
 function applyCommand(prev, cmd) {
+  const next = applyCommandCore(prev, cmd);
+  if (next === prev) return prev;
+  const now = Number(cmd.now) || Date.now();
+  if (!next.clock || typeof next.clock !== 'object') next.clock = { startedAt: null, endedAt: null };
+  // the timer starts with the match (Start or its first point) and stops when it ends
+  if (next.status !== 'idle' && !next.clock.startedAt && cmd.type !== 'setMatchClock' && cmd.type !== 'resetMatch') next.clock.startedAt = now;
+  if (next.status === 'finished' && next.clock.startedAt && !next.clock.endedAt) next.clock.endedAt = now;
+  if (next.status !== 'finished' && next.clock.endedAt) next.clock.endedAt = null; // re-opened (undo set...)
+  return withPressure(next, cmd.type === 'point');
+}
+
+function applyCommandCore(prev, cmd) {
   const type = cmd && cmd.type;
   if (!type) return prev;
 
@@ -569,6 +662,14 @@ function applyCommand(prev, cmd) {
         Object.assign(state.display, cmd.display);
         if (!/^[01]-[01]$/.test(String(state.display.playerCard))) state.display.playerCard = null;
         if (state.display.playerCardSide !== 'right') state.display.playerCardSide = 'left';
+        if (cmd.display.commentary !== undefined) {
+          // info bar label: 'watch' (watch only) | 'none' (no commentator) | 'live' (microphone + names) | '' (the Admin label)
+          const c = cmd.display.commentary || {};
+          state.display.commentary = {
+            mode: ['watch', 'none', 'live'].includes(c.mode) ? c.mode : '',
+            names: String(c.names || '').replace(/\s+/g, ' ').trim().slice(0, 40),
+          };
+        }
         // The match intro, a player card and the scorebug never share the screen:
         // showing one hides the others (hiding one leaves the screen empty).
         if (cmd.display.scoreVisible === true) {
@@ -596,6 +697,19 @@ function applyCommand(prev, cmd) {
     case 'setStatus':
       if (['idle', 'live', 'finished'].includes(cmd.status)) state.status = cmd.status;
       return state;
+
+    case 'setMatchClock': {
+      // Broadcast section: set the match time (elapsedMs) or clear it (null).
+      const now = Number(cmd.now) || Date.now();
+      if (cmd.elapsedMs == null) {
+        state.clock = { startedAt: null, endedAt: null };
+        return state;
+      }
+      const ms = clampInt(cmd.elapsedMs, 0, 24 * 3600 * 1000);
+      const end = state.status === 'finished' && state.clock && state.clock.endedAt ? state.clock.endedAt : null;
+      state.clock = { startedAt: (end || now) - ms, endedAt: end };
+      return state;
+    }
 
     case 'finishMatch':
       state.status = 'finished';
@@ -629,6 +743,9 @@ const api = {
   pointLabel,
   suddenDeathLabel,
   isSuddenDeathLabel,
+  ordinal,
+  pressureLabel,
+  clockElapsed,
   clone,
   POINT_LABELS,
 };

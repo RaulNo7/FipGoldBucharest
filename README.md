@@ -57,6 +57,20 @@ If padeltour.ro changes its page layout the reader may need an update (`Scoreboa
 
 Settings are stored server-side in `%AppData%\FipGoldBucharest\obs-settings.json` (never broadcast to referee phones). If OBS is unreachable, scoring keeps working and the error is shown in the card.
 
+## Scoreboard extras
+
+- **Bar under the scoreboard:**
+  - Shows **SET POINT**, **MATCH POINT** or **DEUCE**, numbered from the second one in a game: "2nd SET POINT", "3rd DEUCE"…
+  - Counts restart when a game or tiebreak ends. Match point beats set point, which beats deuce.
+  - Worked out by the scoring engine: it checks what winning the next point would do (`pressure` in the state, `pressureLabel()` in `scoring.js`).
+- **Scoreboard colours:** the winner's games of a finished set are green, and the serve dot is gold like the current-set column.
+- **Match timer (hh:mm):**
+  - Sits right-aligned in the title bar, in the title's colour.
+  - Starts with **Start** or the first point and stops when the match ends.
+  - Shown as h:mm (1:05; no leading zero below 10 hours). Set or reset in Media → Broadcast → **Match time** ("1:05" or "45"); **Hide** / **Show** takes it off the scoreboard while it keeps running.
+- **Info bar label:** chosen in Media → Broadcast → **Commentary**: *Watch only* (eye icon + NO COMMENTATOR) or 🎙 *Commentators* with their names. With none chosen, the Info bar label from the Admin tab is used.
+- **App tabs:** Media is first, then **Score** (formerly Home).
+
 ## Player cards (Media tab)
 
 Under **Show score · Interview** the Media tab has a second line: **👥 Show match** and one **🪪 button per player** of the match. A player's button shows that player's card in the middle of the stream (the same OBS source as Show match, `/intro`); the same button hides it, another player's button switches to it, and the score/match intro and the cards never share the screen.

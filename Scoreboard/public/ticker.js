@@ -25,6 +25,7 @@
 
   let items = []; // [{ id, text }]
   let settings = { visible: true, rotateSeconds: 8, label: 'INFO' };
+  let commentary = null; // display.commentary: { mode: 'watch' | 'none' | 'live', names }
   let index = 0;
   let currentId = null;
   let currentText = null;
@@ -36,7 +37,8 @@
 
   PadelClient.connect({
     reloadOnUpdate: true, // OBS keeps the page it loaded first: reload after an app update
-    onState: (_state, msg) => {
+    onState: (state, msg) => {
+      commentary = (state && state.display && state.display.commentary) || null;
       const ann = (msg && msg.announcements) || {};
       if (ann.settings) settings = ann.settings;
       const next = (ann.active || []).map((a) => ({ id: a.id, text: a.text }));
@@ -45,9 +47,47 @@
     },
   });
 
+  // Left label: the commentary set in the Media tab's Broadcast section - watch only
+  // (eye icon + "No commentator") or microphone + names; without one, the Info bar label
+  // of the Admin tab.
+  const SVG = 'http://www.w3.org/2000/svg';
+  function icon(parts) {
+    const svg = document.createElementNS(SVG, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('class', 'ticker-mic');
+    svg.setAttribute('aria-hidden', 'true');
+    for (const [tag, attrs] of parts) {
+      const n = document.createElementNS(SVG, tag);
+      for (const k in attrs) n.setAttribute(k, attrs[k]);
+      svg.appendChild(n);
+    }
+    return svg;
+  }
+  const micIcon = () =>
+    icon([
+      ['rect', { x: 9, y: 2, width: 6, height: 12, rx: 3 }],
+      ['path', { d: 'M5 11a7 7 0 0 0 14 0', fill: 'none', 'stroke-width': 2.2, 'stroke-linecap': 'round' }],
+      ['path', { d: 'M12 18v4M8.5 22h7', fill: 'none', 'stroke-width': 2.2, 'stroke-linecap': 'round' }],
+    ]);
+  const eyeIcon = () =>
+    icon([
+      ['path', { d: 'M1.5 12S5.5 4.5 12 4.5 22.5 12 22.5 12 18.5 19.5 12 19.5 1.5 12 1.5 12Z', fill: 'none', 'stroke-width': 2.2, 'stroke-linejoin': 'round' }],
+      ['circle', { cx: 12, cy: 12, r: 3.6 }],
+    ]);
+  function renderLabel() {
+    const c = commentary || {};
+    labelEl.replaceChildren();
+    labelEl.classList.toggle('commentary', !!c.mode);
+    if (c.mode === 'watch' || c.mode === 'none') {
+      labelEl.append(eyeIcon(), document.createTextNode('No commentator'));
+    } else if (c.mode === 'live') {
+      labelEl.append(micIcon(), document.createTextNode(String(c.names || '').trim() || 'Live commentary'));
+    } else labelEl.textContent = settings.label || '';
+  }
+
   function update(next) {
     items = next;
-    labelEl.textContent = settings.label || '';
+    renderLabel();
     const show = (settings.visible !== false || preview) && items.length > 0;
     root.classList.toggle('hidden', !show);
     if (!show) {

@@ -14,6 +14,23 @@
   const titleEl = document.getElementById('title');
   const subtitleEl = document.getElementById('subtitle');
   const winnerBanner = document.getElementById('winnerBanner');
+  const clockEl = document.getElementById('matchClock');
+  const pressureEl = document.getElementById('pressureBar');
+
+  // Match timer (hh:mm), counted from the server's clock so every screen agrees.
+  let clockState = null;
+  let serverOffset = 0; // server time - this computer's time
+  function renderClock() {
+    if (!clockEl) return;
+    const ms = clockState ? S.clockElapsed(clockState, Date.now() + serverOffset) : 0;
+    const shown = !(clockState && clockState.display && clockState.display.showClock === false);
+    const on = shown && !!(clockState && clockState.clock && clockState.clock.startedAt);
+    const mins = Math.floor(ms / 60000);
+    // h:mm - no leading zero below 10 hours (1:05, not 01:05)
+    clockEl.textContent = on ? `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}` : '';
+    titleBar.classList.toggle('has-clock', on);
+  }
+  setInterval(renderClock, 1000);
 
   const el = {
     flag: [
@@ -77,11 +94,25 @@
     // A finished match shows only the completed sets — no next-set/points cells.
     root.classList.toggle('finished', finished);
 
-    // Title bar
-    const hasTitle = d.showTitle !== false && (d.title || d.subtitle);
+    // Title bar (+ the match timer on the right)
+    if (msg && msg.serverNow) serverOffset = msg.serverNow - Date.now();
+    clockState = state;
+    renderClock();
+    const hasClock = titleBar.classList.contains('has-clock');
+    const hasTitle = d.showTitle !== false && (d.title || d.subtitle || hasClock);
     titleBar.classList.toggle('empty', !hasTitle);
     titleEl.textContent = d.title || '';
     subtitleEl.textContent = d.subtitle || '';
+
+    // The bar under the board: SET POINT / 2nd SET POINT / MATCH POINT / 3rd DEUCE
+    if (pressureEl) {
+      const text = S.pressureLabel(state);
+      if (text) {
+        pressureEl.textContent = text;
+        pressureEl.dataset.kind = state.pressure.now.kind;
+      }
+      pressureEl.classList.toggle('hidden', !text);
+    }
 
     for (let t = 0; t < 2; t++) {
       const team = state.teams[t] || {};
@@ -158,6 +189,10 @@
       const cell = document.createElement('span');
       cell.className = 'set-cell';
       cell.textContent = teamIdx === 0 ? set.a : set.b;
+      // the winner's games of a finished set in green (6-3: the 6)
+      const mine = teamIdx === 0 ? set.a : set.b;
+      const theirs = teamIdx === 0 ? set.b : set.a;
+      if (mine > theirs) cell.classList.add('won');
       if (set.tb) {
         const tb = document.createElement('span');
         tb.className = 'tb';

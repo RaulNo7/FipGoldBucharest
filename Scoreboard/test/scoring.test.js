@@ -407,5 +407,81 @@ console.log('\nRunning padel scoring tests…\n');
   eq([s.inTiebreak, s.inSuperTiebreak], [false, false], 'normal 3rd set: no tiebreak at the start of the deciding set');
 })();
 
+// ---- The bar under the scoreboard: set point / match point / deuce, numbered per game ----
+(function pressureBar() {
+  eq([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101, 111].map(scoring.ordinal),
+    ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '23rd', '101st', '111th'], 'ordinal: English 1st 2nd 3rd 4th ... 11th 21st');
+
+  const L = (st) => scoring.pressureLabel(st);
+  // advantage deuces so the game can go back and forth
+  let s = scoring.createDefaultState();
+  s.config.deuceMode = 'advantage';
+  s = scoring.applyCommand(s, { type: 'adjustGames', team: 0, delta: 5 });
+  s = scoring.applyCommand(s, { type: 'adjustGames', team: 1, delta: 3 });
+  s = play(s, [0, 0]);
+  eq(L(s), '', 'pressure: 30-0 at 5-3 is nothing yet');
+  s = play(s, [0]);
+  eq(L(s), 'SET POINT', 'pressure: 40-0 at 5-3 -> SET POINT');
+  s = play(s, [1]);
+  eq(L(s), '2nd SET POINT', 'pressure: 40-15 -> 2nd SET POINT');
+  s = play(s, [1]);
+  eq(L(s), '3rd SET POINT', 'pressure: 40-30 -> 3rd SET POINT');
+  s = play(s, [1]);
+  eq(L(s), 'DEUCE', 'pressure: 40-40 -> DEUCE');
+  s = play(s, [0]);
+  eq(L(s), '4th SET POINT', 'pressure: advantage set -> 4th SET POINT');
+  s = play(s, [1]);
+  eq(L(s), '2nd DEUCE', 'pressure: back to deuce -> 2nd DEUCE');
+  s = play(s, [1]);
+  eq(L(s), '', 'pressure: advantage to the receiver at 5-3 -> nothing');
+  s = play(s, [1]);
+  eq([s.games, L(s), s.pressure.setPoint, s.pressure.deuce], [[5, 4], '', 0, 0], 'pressure: the game ends -> counters start again');
+  s = play(s, [1, 1, 1]);
+  eq(L(s), '', 'pressure: 0-40 at 5-4 for the trailing team is no set point');
+
+  // match point: one set up, 5-3, 40-0
+  let m = scoring.createDefaultState();
+  m = scoring.applyCommand(m, { type: 'adjustGames', team: 0, delta: 6 });
+  m = scoring.applyCommand(m, { type: 'saveSet' });
+  m = scoring.applyCommand(m, { type: 'adjustGames', team: 0, delta: 5 });
+  m = scoring.applyCommand(m, { type: 'adjustGames', team: 1, delta: 3 });
+  m = play(m, [0, 0, 0]);
+  eq(L(m), 'MATCH POINT', 'pressure: one set up, 40-0 at 5-3 -> MATCH POINT (not set point)');
+  m = play(m, [1]);
+  eq(L(m), '2nd MATCH POINT', 'pressure: 40-15 -> 2nd MATCH POINT');
+  m = play(m, [0]);
+  eq([m.status, L(m)], ['finished', ''], 'pressure: match over -> nothing');
+
+  // tiebreak set point
+  let t = scoring.createDefaultState();
+  t = scoring.applyCommand(t, { type: 'adjustGames', team: 0, delta: 5 });
+  t = scoring.applyCommand(t, { type: 'adjustGames', team: 1, delta: 6 });
+  t = play(t, [0, 0, 0, 0]); // 6-6 -> tiebreak
+  eq(t.inTiebreak, true, 'pressure: 6-6 starts the tiebreak');
+  t = play(t, [1, 1, 1, 1, 1, 1]);
+  eq(L(t), 'SET POINT', 'pressure: 0-6 in the tiebreak -> SET POINT');
+  t = play(t, [0]);
+  eq(L(t), '2nd SET POINT', 'pressure: 1-6 -> 2nd SET POINT');
+})();
+
+// ---- Match timer: starts with the match, stops at the end, can be set ----
+(function matchClock() {
+  let s = scoring.createDefaultState();
+  eq(scoring.clockElapsed(s, 5000), 0, 'clock: not started before the match');
+  s = scoring.applyCommand(s, { type: 'point', team: 0, now: 1000 });
+  eq(s.clock.startedAt, 1000, 'clock: starts with the first point');
+  eq(scoring.clockElapsed(s, 61000), 60000, 'clock: running time');
+  s = scoring.applyCommand(s, { type: 'setMatchClock', elapsedMs: 65 * 60000, now: 100000 });
+  eq(scoring.clockElapsed(s, 100000), 65 * 60000, 'clock: set to 01:05 from the Broadcast section');
+  s = scoring.applyCommand(s, { type: 'finishMatch', winner: 0, now: 200000 });
+  eq([s.clock.endedAt, scoring.clockElapsed(s, 999999)], [200000, 200000 - (100000 - 65 * 60000)], 'clock: stops when the match ends');
+  s = scoring.applyCommand(s, { type: 'setMatchClock', elapsedMs: null, now: 300000 });
+  eq(scoring.clockElapsed(s, 300000), 0, 'clock: reset');
+  s = scoring.applyCommand(s, { type: 'resetMatch', now: 400000 });
+  eq(s.clock, { startedAt: null, endedAt: null }, 'clock: a new match starts without time');
+  s = scoring.applyCommand(s, { type: 'startMatch', now: 500000 });
+  eq(s.clock.startedAt, 500000, 'clock: Start starts it too');
+})();
+
 console.log(`\n${passed} passed, ${failed} failed.\n`);
 process.exit(failed ? 1 : 0);

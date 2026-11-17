@@ -56,6 +56,20 @@
           </span>
         </div>
       </div>
+      <div class="row gap wrap bc-row">
+        <span class="bc-label">⏱ Match time</span>
+        <span class="bc-value" id="clockNow">--:--</span>
+        <input type="text" id="clockInput" class="bc-input" placeholder="hh:mm" maxlength="5" inputmode="numeric" />
+        <button class="btn btn-ghost" id="clockSetBtn" type="button">Set</button>
+        <button class="btn btn-ghost" id="clockResetBtn" type="button" title="Clear the timer (it starts again with the next point or Start)">Reset</button>
+        <button class="btn btn-ghost" id="clockHideBtn" type="button" title="Show or hide the timer on the scoreboard (it keeps running)">Hide</button>
+      </div>
+      <div class="row gap wrap bc-row">
+        <span class="bc-label">🎙 Commentary</span>
+        <button class="btn btn-ghost" data-commentary="watch" type="button" title="Info bar: eye icon + NO COMMENTATOR">👁 Watch only</button>
+        <button class="btn btn-ghost" data-commentary="live" type="button">🎙 Commentators</button>
+        <input type="text" id="commentatorNames" class="bc-input bc-names" placeholder="e.g. Miguel &amp; Arsh" maxlength="40" />
+      </div>
       <p class="hint" id="interviewStatus" hidden></p>
       <p class="hint" id="breakStatus">…</p>
     </div>
@@ -79,8 +93,6 @@
         <button class="btn btn-play" id="playReplayBtn">▶ Play</button>
         <button class="btn btn-stop" id="stopReplayBtn" disabled title="Stop the replay and go back to the live scene">■ Cancel</button>
       </div>
-      <p class="hint" id="replayStatus">…</p>
-      <p class="hint"><b>Replay</b> saves the last seconds of the stream from OBS's replay buffer into <b id="replayDir">…</b> and plays the clip straight away on the replay scene; the dropdown keeps the <b>last 10 clips</b> (newest first) so the best points can be shown again during a pause with <b>Play</b>. The scorebug is hidden for the whole replay (the REPLAY cover takes its place) and comes back, if it was showing, when OBS switches back to the live scene at the end of the clip. The clip length, the folder and the scene names are set on the <b>Admin</b> tab, card <b>Commercial break settings</b>.</p>
     </div>
 
     <div class="card">
@@ -101,7 +113,6 @@
         <select id="videoSelect" aria-label="Video file"></select>
         <button class="btn btn-play" id="playVideoBtn">▶ Play</button>
       </div>
-      <p class="hint"><b>Play all commercials</b> (and the automatic break after a match) runs the spots listed in <b>obs-settings.json</b> one after another — no merged file needed. The dropdown holds every video file in the commercials folder <b id="videoDir">…</b>; <b>Play</b> puts just that file on the stream. Either way: the scorebug hides, OBS switches to the commercials scene, the file is loaded into the media source, and OBS returns to the live scene when it ends. After a <b>single video</b> the score always comes back (they are meant for during the game). After <b>Play all</b> or the automatic break, the score comes back only if it interrupted a live match; after a finished match it stays hidden until the next match starts.</p>
     </div>
   </main>
 

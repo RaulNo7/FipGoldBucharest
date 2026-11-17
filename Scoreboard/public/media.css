@@ -253,3 +253,34 @@
   font-size: 13px;
   white-space: nowrap;
 }
+
+/* Broadcast: match timer + commentary rows */
+.bc-row {
+  margin-top: 10px;
+  align-items: center;
+}
+.bc-label {
+  min-width: 128px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.bc-value {
+  min-width: 64px;
+  font-weight: 800;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.bc-row input.bc-input {
+  width: 90px;
+  flex: none;
+}
+.bc-row input.bc-input.bc-names {
+  width: 220px;
+}
+
+/* the timer is hidden on the scoreboard (still running) */
+.bc-value.off-air {
+  opacity: 0.45;
+  text-decoration: line-through;
+}

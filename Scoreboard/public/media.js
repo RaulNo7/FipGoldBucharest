@@ -15,6 +15,7 @@
       state = s;
       if (msg && msg.obs) latestObs = msg.obs;
       if (msg && msg.cards) latestCards = msg.cards;
+      if (msg && msg.serverNow) serverOffset = msg.serverNow - Date.now();
       render();
     },
     onStatus: (status) => {
@@ -22,6 +23,11 @@
       $('#connText').textContent = status === 'connected' ? 'connected' : 'reconnecting…';
     },
   });
+
+  const setText = (sel, text) => {
+    const n = $(sel);
+    if (n) n.textContent = text;
+  };
 
   function send(obj) {
     client.send(obj);
@@ -38,7 +44,7 @@
       })
       .catch(() => {
         buildVideos({ videos: [], dir: '' });
-        $('#videoDir').textContent = '(could not load the commercials list)';
+        setText('#videoDir', '(could not load the commercials list)');
       });
   }
   loadCommercials();
@@ -59,7 +65,7 @@
       opt.textContent = name;
       sel.appendChild(opt);
     });
-    $('#videoDir').textContent = data.dir || '';
+    setText('#videoDir', data.dir || '');
     $('#playVideoBtn').disabled = !videos.length;
   }
 
@@ -98,12 +104,12 @@
         });
         // Keep the operator's pick if it is still listed, else the newest clip.
         sel.value = clips.some((c) => c.name === current) ? current : (clips[0] ? clips[0].name : '');
-        $('#replayDir').textContent = data.dir || '';
+        setText('#replayDir', data.dir || '');
         $('#replaySecondsLabel').textContent = `last ${data.seconds} s → on the stream`;
         render();
       })
       .catch(() => {
-        $('#replayDir').textContent = '(could not load the replay list)';
+        setText('#replayDir', '(could not load the replay list)');
       });
   }
   loadReplays();
@@ -138,6 +144,54 @@
     })
   );
 
+  // ---- match timer (hh:mm): shown live, set or cleared here ----
+  let serverOffset = 0;
+  function clockMs() {
+    const c = (state && state.clock) || {};
+    if (!c.startedAt) return null;
+    return Math.max(0, (c.endedAt || Date.now() + serverOffset) - c.startedAt);
+  }
+  const hhmm = (ms) => {
+    const m = Math.floor(ms / 60000);
+    return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; // 1:05, not 01:05
+  };
+  function renderClock() {
+    const ms = clockMs();
+    $('#clockNow').textContent = ms == null ? '-:--' : hhmm(ms);
+  }
+  setInterval(renderClock, 1000);
+  $('#clockSetBtn').addEventListener('click', () => {
+    const m = $('#clockInput').value.trim().match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+    if (!m) {
+      $('#clockInput').focus();
+      return;
+    }
+    // "1:05" = 1 h 5 min, "45" = 45 min
+    const mins = m[2] != null ? Number(m[1]) * 60 + Number(m[2]) : Number(m[1]);
+    send({ type: 'setMatchClock', elapsedMs: mins * 60000 });
+    $('#clockInput').value = '';
+  });
+  $('#clockInput').addEventListener('keydown', (e) => e.key === 'Enter' && $('#clockSetBtn').click());
+  $('#clockResetBtn').addEventListener('click', () => send({ type: 'setMatchClock', elapsedMs: null }));
+  $('#clockHideBtn').addEventListener('click', () => {
+    const shown = !(state && state.display && state.display.showClock === false);
+    send({ type: 'setDisplay', display: { showClock: !shown } });
+  });
+
+  // ---- commentary label on the info bar (bottom left) ----
+  const commentary = () => (state && state.display && state.display.commentary) || {};
+  $$('[data-commentary]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const mode = b.dataset.commentary;
+      const on = commentary().mode === mode;
+      send({ type: 'setDisplay', display: { commentary: { mode: on ? '' : mode, names: $('#commentatorNames').value.trim() } } });
+    })
+  );
+  $('#commentatorNames').addEventListener('change', () => {
+    const c = commentary();
+    send({ type: 'setDisplay', display: { commentary: { mode: c.mode || 'live', names: $('#commentatorNames').value.trim() } } });
+  });
+
   // Interview: one press sets everything up, the next one goes back to the court.
   $('#interviewBtn').addEventListener('click', () => {
     const iv = (latestObs && latestObs.interview) || {};
@@ -158,6 +212,16 @@
       introBtn.classList.toggle('is-on', introOn);
       $('#toggleScoreBtn').textContent =
         state.display && state.display.scoreVisible === false ? 'Show score' : 'Hide score';
+
+      renderClock();
+      const clockShown = !(state.display && state.display.showClock === false);
+      $('#clockHideBtn').textContent = clockShown ? 'Hide' : 'Show';
+      $('#clockHideBtn').classList.toggle('is-on', !clockShown);
+      $('#clockNow').classList.toggle('off-air', !clockShown);
+      const c = (state.display && state.display.commentary) || {};
+      $$('[data-commentary]').forEach((b) => b.classList.toggle('is-on', c.mode === b.dataset.commentary));
+      const names = $('#commentatorNames');
+      if (document.activeElement !== names) names.value = c.names || '';
 
       // the four players: a name label + ◀ Left / Right ▶ (which side of the frame the card takes)
       const C = window.PadelCountries;
@@ -249,7 +313,7 @@
     else if (rp.waitingForStream) rpText = 'Replay is ready once you are live: the buffer starts a few seconds after the stream does (and stops with it, so every stream starts cleanly).';
     else rpText = 'Waiting for OBS — the replay buffer is not recording yet.';
     if (rp.error) rpText += ` — ${rp.error}`;
-    $('#replayStatus').textContent = rpText;
+    rpBadge.title = rpText; // the status line under Replay is gone: hover the badge for it
     if (typeof rp.count === 'number' && rp.count !== replayCount) {
       const first = replayCount < 0;
       replayCount = rp.count;

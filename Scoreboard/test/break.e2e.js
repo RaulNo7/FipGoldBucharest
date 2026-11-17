@@ -791,6 +791,32 @@ function cleanupAndExit() {
   rpNow = (await firstMessage(SB_PORT)).obs.replay;
   assert(replayBufferActive === true && rpNow.bufferActive === true && rpNow.waitingForStream === false, 'replay buffer: starts again once the stream is live and sending (' + JSON.stringify({ obs: replayBufferActive, rp: rpNow }) + ')');
 
+  // ---- Scoreboard extras: set point bar, match timer, commentary label (Broadcast section) ----
+  await cmd({ type: 'resetMatch' });
+  await cmd({ type: 'adjustGames', team: 0, delta: 5 });
+  await cmd({ type: 'adjustGames', team: 1, delta: 3 });
+  for (let i = 0; i < 3; i++) await cmd({ type: 'point', team: 0 });
+  let sm = await firstMessage(SB_PORT);
+  assert(sm.state.pressure && sm.state.pressure.now && sm.state.pressure.now.kind === 'set' && sm.state.pressure.now.n === 1, 'scoreboard: 40-0 at 5-3 is a set point (' + JSON.stringify(sm.state.pressure && sm.state.pressure.now) + ')');
+  assert(typeof sm.serverNow === 'number' && Math.abs(sm.serverNow - Date.now()) < 5000, 'scoreboard: every state message carries the server clock (for the match timer)');
+  assert(sm.state.clock && sm.state.clock.startedAt > 0 && !sm.state.clock.endedAt, 'match timer: started with the first point');
+  await cmd({ type: 'setMatchClock', elapsedMs: 65 * 60000, now: 1 }); // a client's "now" is ignored
+  sm = await firstMessage(SB_PORT);
+  const shown = sm.serverNow - sm.state.clock.startedAt;
+  assert(shown >= 65 * 60000 && shown < 65 * 60000 + 5000, 'match timer: set to 01:05 from the Broadcast section, on the server clock');
+  await cmd({ type: 'setDisplay', display: { showClock: false } });
+  assert((await api('/api/state')).display.showClock === false, 'match timer: can be hidden from the scoreboard');
+  await cmd({ type: 'setDisplay', display: { showClock: true } });
+  await cmd({ type: 'setDisplay', display: { commentary: { mode: 'live', names: '  Miguel   &  Arsh ' } } });
+  assert(JSON.stringify((await api('/api/state')).display.commentary) === JSON.stringify({ mode: 'live', names: 'Miguel & Arsh' }), 'commentary: microphone + names saved (tidied)');
+  await cmd({ type: 'setDisplay', display: { commentary: { mode: 'shout', names: 'x' } } });
+  assert((await api('/api/state')).display.commentary.mode === '', 'commentary: unknown modes are dropped (the Admin label shows again)');
+  const ov = await (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/overlay`)).text();
+  const md = await (await fetch(`http://127.0.0.1:${SB_PORT}/media`)).text();
+  assert(/id="pressureBar"/.test(ov) && /id="matchClock"/.test(ov), 'scoreboard: set point bar and timer on the overlay');
+  assert(/id="clockSetBtn"/.test(md) && /id="clockHideBtn"/.test(md) && /data-commentary="watch"/.test(md) && !/data-commentary="none"/.test(md) && /data-commentary="live"/.test(md) && !/id="replayStatus"/.test(md) && !/Play all commercials<\/b> \(and/.test(md), 'Media tab: timer + commentary controls in Broadcast, the long help texts gone');
+  await cmd({ type: 'resetMatch' });
+
   cleanupAndExit();
 })().catch((err) => {
   console.error(err);
