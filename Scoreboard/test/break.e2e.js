@@ -72,7 +72,11 @@ let lastReplayPath = '';
 const profileParams = {};
 const sceneItemCalls = []; // SetSceneItemEnabled: "scene/item=on|off"
 const muteCalls = []; // SetInputMute: "input=muted|on"
-const missingSources = new Set(); // names the mock OBS does not know
+const missingSources = new Set(['FRP Transition']); // names the mock OBS does not know (the transition overlay: until the app adds it)
+const createdInputs = []; // CreateInput requests
+const sceneIndexCalls = []; // SetSceneItemIndex: "item@index"
+const itemIds = { 'Youtube Comments': 7, Commercials: 7 }; // scene item ids by source name
+const itemEnabled = {}; // scene item id -> shown (default: shown)
 const chatSettingsCalls = []; // SetInputSettings on the chat browser source
 let chatSourceUrl = 'https://streamelements.com/overlay/abc/def'; // what the chat source showed before
 const obsRecDir = path.join(tmp, 'obs-videos');
@@ -97,12 +101,25 @@ hub.onMessage((sock, text) => {
     if (requestType === 'SetCurrentProgramScene') sceneSwitches.push(requestData.sceneName);
     if (requestType === 'GetInputSettings') responseData = { inputSettings: { local_file: mediaFile } };
     if (requestType === 'GetVideoSettings') responseData = { baseWidth: 1280, baseHeight: 720 };
+    if (requestType === 'GetSceneItemEnabled') responseData = { sceneItemEnabled: itemEnabled[requestData.sceneItemId] !== false };
     if (requestType === 'GetSceneItemId') {
       if (missingSources.has(requestData.sourceName)) {
         hub.sendText(sock, JSON.stringify({ op: 7, d: { requestType, requestId, requestStatus: { result: false, code: 600, comment: 'No source was found by the name of ' + requestData.sourceName } } }));
         return;
       }
-      responseData = { sceneItemId: 7 };
+      if (!(requestData.sourceName in itemIds)) itemIds[requestData.sourceName] = 100 + Object.keys(itemIds).length;
+      responseData = { sceneItemId: itemIds[requestData.sourceName] };
+    }
+    if (requestType === 'SetSceneItemEnabled') itemEnabled[requestData.sceneItemId] = !!requestData.sceneItemEnabled;
+    if (requestType === 'GetSceneItemList') {
+      responseData = { sceneItems: Object.entries(itemIds).map(([sourceName, sceneItemId], i) => ({ sourceName, sceneItemId, sceneItemIndex: i, sceneItemEnabled: itemEnabled[sceneItemId] !== false })) };
+    }
+    if (requestType === 'SetSceneItemIndex') sceneIndexCalls.push(requestData.sceneItemId + '@' + requestData.sceneItemIndex);
+    if (requestType === 'CreateInput') {
+      createdInputs.push(requestData);
+      missingSources.delete(requestData.inputName);
+      itemIds[requestData.inputName] = 50;
+      responseData = { sceneItemId: 50 };
     }
     if (requestType === 'SetSceneItemEnabled') sceneItemCalls.push(requestData.sceneName + '/' + requestData.sceneItemId + '=' + (requestData.sceneItemEnabled ? 'on' : 'off'));
     if (requestType === 'SetInputMute') {
@@ -643,7 +660,12 @@ function cleanupAndExit() {
   let iv = await ivWait(true);
   st = await api('/api/state');
   assert(iv.active === true && !iv.error, 'interview: on, no errors (' + JSON.stringify(iv) + ')');
-  assert(fakeSwitcher.log.program === 2 && fakeSwitcher.log.commands.some((c) => c.name === 'CPgI' && c.input === 2), 'interview: ATEM cut to the interview camera (input 2)');
+  assert(fakeSwitcher.log.program === 2 && fakeSwitcher.log.commands.some((c) => c.name === 'CPgI' && c.input === 2), 'interview: ATEM cut to the interview camera (input 2), behind the overlay');
+  assert(fakeSwitcher.log.keyer.onAir === true && fakeSwitcher.log.keyer.fill === 1 && fakeSwitcher.log.keyer.box.sizeX === 250, 'interview: the court camera stays on, small at the bottom left (ATEM key 1 on air, fill = input 1)');
+  const cue1 = (await firstMessage(SB_PORT)).transitionCue;
+  assert(cue1 && cue1.kind === 'swipe' && cue1.dir === 'ltr' && cue1.inMs + cue1.holdMs + cue1.outMs >= 1000, 'interview: the FRP swipe is cued left to right (' + JSON.stringify(cue1) + ')');
+  assert(createdInputs.length === 1 && createdInputs[0].inputKind === 'browser_source' && /\/transition$/.test(createdInputs[0].inputSettings.url) && createdInputs[0].sceneName === 'LIVE',
+    'interview: the "FRP Transition" overlay is added to the live scene (' + JSON.stringify(createdInputs[0]) + ')');
   assert(st.display.scoreVisible === false, 'interview: score hidden');
   assert(sceneItemCalls.join() === 'LIVE/7=off', 'interview: "Youtube Comments" hidden in the live scene (' + sceneItemCalls.join() + ')');
   assert(muteCalls.join() === 'Headset Mic=muted,DJI Mic=on', 'interview: headset mic muted, DJI mic on (' + muteCalls.join() + ')');
@@ -654,7 +676,38 @@ function cleanupAndExit() {
   iv = await ivWait(false);
   st = await api('/api/state');
   assert(iv.active === false && !iv.error && fakeSwitcher.log.program === 1, 'back to court: ATEM back on the court camera (input 1)');
+  assert(fakeSwitcher.log.keyer.onAir === false, 'back to court: the small court camera box goes off air');
+  const cue2 = (await firstMessage(SB_PORT)).transitionCue;
+  assert(cue2 && cue2.id === cue1.id + 1 && cue2.dir === 'rtl' && createdInputs.length === 1, 'back to court: the swipe goes right to left, the overlay is not added twice');
   assert(st.display.scoreVisible === true && sceneItemCalls.join() === 'LIVE/7=on' && muteCalls.join() === 'Headset Mic=on,DJI Mic=muted', 'back to court: score, comments and headset mic back, DJI mic off');
+
+  // the score can stay on during the interview (Admin tab)
+  await postJ('/api/obs-settings', { interviewHideScore: false });
+  await cmd({ type: 'setDisplay', display: { scoreVisible: true } });
+  await cmd({ type: 'interview', on: true });
+  await ivWait(true);
+  const scoreDuring = (await api('/api/state')).display.scoreVisible;
+  await cmd({ type: 'interview', on: false });
+  await ivWait(false);
+  assert(scoreDuring === true && (await api('/api/state')).display.scoreVisible === true, 'interview: with "hide the score" off the score stays on');
+  await postJ('/api/obs-settings', { interviewHideScore: true });
+
+  // the ATEM transitions, chosen on the Admin tab
+  for (const [kind, style] of [['mix', 0], ['wipe', 2], ['push', 3]]) {
+    assert((await postJ('/api/obs-settings', { interviewTransition: kind })).status === 200, 'interview transition: ' + kind + ' saved');
+    fakeSwitcher.log.wipes.length = 0;
+    await cmd({ type: 'interview', on: true });
+    await ivWait(true);
+    await cmd({ type: 'interview', on: false });
+    iv = await ivWait(false);
+    const ws = fakeSwitcher.log.wipes;
+    assert(!iv.error && ws.length === 2 && ws[0].style === style && (kind === 'mix' || (ws[0].reverse === false && ws[1].reverse === true)) && fakeSwitcher.log.program === 1 && fakeSwitcher.log.keyer.onAir === false,
+      'interview transition: ' + kind + ' on the ATEM, left to right and back right to left (' + JSON.stringify(ws) + ' ' + iv.error + ')');
+  }
+  assert((await postJ('/api/obs-settings', { interviewTransition: 'nope' })).status === 200 && (await api('/api/obs-settings')).interviewTransition === 'push', 'interview transition: an unknown kind is ignored');
+  await postJ('/api/obs-settings', { interviewTransition: 'swipe' });
+  const trPage = await fetch(`http://127.0.0.1:${SB_PORT}/transition`);
+  assert(trPage.status === 200 && /transition\.js/.test(await trPage.text()) && (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/transition`)).status !== 200, 'transition overlay: served on the LAN port only');
 
   // score that was off before the interview stays off afterwards
   await cmd({ type: 'setDisplay', display: { scoreVisible: false } });
@@ -707,6 +760,23 @@ function cleanupAndExit() {
   const b1 = (await firstMessage(SB_PORT)).build;
   const b2 = (await firstMessage(PUBLIC_PORT)).build;
   assert(/^\d{10,}$/.test(b1 || '') && b1 === b2, 'overlays: every state message carries the page-files version (OBS pages reload after an app update)');
+
+  // a player card hides the logos and comments in OBS, and brings back only what was shown
+  await cmd({ type: 'setDisplay', display: { playerCard: null } });
+  await sleep(300);
+  itemEnabled[itemIds['Youtube Comments']] = false; // e.g. hidden by hand before the card
+  sceneItemCalls.length = 0;
+  await cmd({ type: 'setDisplay', display: { playerCard: '0-0' } });
+  for (let i = 0; i < 20 && sceneItemCalls.length < 3; i++) await sleep(150);
+  const logoFrp = itemIds['Logo FRP'];
+  const logoRpt = itemIds['Logo RPT'];
+  assert(itemEnabled[logoFrp] === false && itemEnabled[logoRpt] === false, 'player cards: the logos are hidden while a card shows (' + sceneItemCalls.join() + ')');
+  sceneItemCalls.length = 0;
+  await cmd({ type: 'setDisplay', display: { playerCard: null } });
+  for (let i = 0; i < 20 && sceneItemCalls.length < 3; i++) await sleep(150);
+  assert(itemEnabled[logoFrp] === true && itemEnabled[logoRpt] === true && itemEnabled[itemIds['Youtube Comments']] === true, 'player cards: switching the card off shows the logos and comments again (even if hidden before)');
+  assert((await api('/api/state')).display.scoreVisible === true, 'player cards: switching the card off brings the score back');
+  delete itemEnabled[itemIds['Youtube Comments']];
 
   // one presentation at a time: player card <-> match intro <-> score
   await cmd({ type: 'setDisplay', display: { scoreVisible: true } });

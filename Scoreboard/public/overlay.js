@@ -26,8 +26,8 @@
     const shown = !(clockState && clockState.display && clockState.display.showClock === false);
     const on = shown && !!(clockState && clockState.clock && clockState.clock.startedAt);
     const mins = Math.floor(ms / 60000);
-    // h:mm - no leading zero below 10 hours (1:05, not 01:05)
-    clockEl.textContent = on ? `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}` : '';
+    // 0h 5m / 1h 5m / 11h 15m (hours always shown)
+    clockEl.textContent = on ? `${Math.floor(mins / 60)}h ${mins % 60}m` : '';
     titleBar.classList.toggle('has-clock', on);
   }
   setInterval(renderClock, 1000);
@@ -150,11 +150,27 @@
 
     // Winner banner
     if (state.status === 'finished' && state.winner != null) {
-      const w = state.teams[state.winner] || {};
-      const names = (w.players || [])
-        .map((p) => C.shortName(C.playerName(p)))
-        .filter(Boolean);
-      winnerBanner.textContent = (names.join(' / ') || 'Winner') + ' win!';
+      if (tvMode) {
+        // Court TV: the board fills the screen - the bar stays underneath, with the names
+        const w = state.teams[state.winner] || {};
+        const names = (w.players || [])
+          .map((p) => C.shortName(C.playerName(p)))
+          .filter(Boolean);
+        winnerBanner.textContent = (names.join(' / ') || 'Winner') + ' win!';
+      } else {
+        // Scoreboard: a green "WINNERS" tag beside the board, on the winning pair's line
+        // (the names are already on that line)
+        winnerBanner.textContent = 'Winners';
+        winnerBanner.classList.remove('hidden'); // shown first so its own height can be measured
+        const block = root.querySelector(`[data-block="${state.winner}"]`);
+        if (block) {
+          // offset from the top of the scoreboard (the board may be the block's offsetParent),
+          // then centred on that pair's line
+          let y = 0;
+          for (let n = block; n && n !== root; n = n.offsetParent) y += n.offsetTop;
+          winnerBanner.style.top = Math.round(y + (block.offsetHeight - winnerBanner.offsetHeight) / 2) + 'px';
+        }
+      }
       winnerBanner.classList.remove('hidden');
     } else {
       winnerBanner.classList.add('hidden');
@@ -223,6 +239,7 @@
     };
     const style = map[pos];
     if (style) Object.assign(root.style, style);
+    root.classList.toggle('pos-right', pos.includes('right'));
 
     // The scorebug renders at 90% of its design size (operator's choice for the
     // broadcast picture); ?scale= multiplies that, so scale=1 is the default look.

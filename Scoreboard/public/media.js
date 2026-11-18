@@ -151,13 +151,17 @@
     if (!c.startedAt) return null;
     return Math.max(0, (c.endedAt || Date.now() + serverOffset) - c.startedAt);
   }
+  // 0h 5m 00s (the seconds tick here; the scoreboard shows 0h 5m)
   const hhmm = (ms) => {
-    const m = Math.floor(ms / 60000);
-    return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; // 1:05, not 01:05
+    const total = Math.floor(ms / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor(total / 60) % 60;
+    const s = String(total % 60).padStart(2, '0');
+    return `${h}h ${m}m ${s}s`;
   };
   function renderClock() {
     const ms = clockMs();
-    $('#clockNow').textContent = ms == null ? '-:--' : hhmm(ms);
+    $('#clockNow').textContent = ms == null ? '-h --m --s' : hhmm(ms);
   }
   setInterval(renderClock, 1000);
   $('#clockSetBtn').addEventListener('click', () => {
@@ -267,7 +271,7 @@
     ivBtn.disabled = !!iv.busy;
     const ivText = $('#interviewStatus');
     let ivMsg = '';
-    if (iv.active) ivMsg = 'Interview on: interview camera, score and comments hidden, headset mic off, DJI mic on.';
+    if (iv.active) ivMsg = 'Interview on (interview camera and mics) - press Back to court to undo it.';
     if (iv.error) ivMsg += (ivMsg ? ' ' : '') + 'Not done — ' + iv.error;
     ivText.textContent = ivMsg;
     ivText.hidden = !ivMsg;

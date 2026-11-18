@@ -1,0 +1,72 @@
+/* Camera transitions drawn over the stream (see transition.html). 1920x1080 frame. */
+:root {
+  --navy: #061433;
+  --navy-2: #0e2251;
+  --gold: #fcd116;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---- FRP swipe: a slanted navy panel with gold edges crosses the frame ---- */
+.swipe {
+  position: fixed;
+  inset: 0;
+}
+
+.swipe-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -15%;
+  width: 130%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(90deg, var(--navy) 0%, var(--navy-2) 50%, var(--navy) 100%);
+  border-left: 1.6vw solid var(--gold);
+  border-right: 1.6vw solid var(--gold);
+  box-shadow: 0 0 4vw rgba(0, 0, 0, 0.55);
+  transform: translateX(-140%) skewX(-12deg);
+  will-change: transform;
+}
+
+.swipe-logo {
+  width: 30vw;
+  transform: skewX(12deg); /* upright inside the slanted panel */
+}
+
+/* ---- Fade through the FRP logo ---- */
+.logo {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.4vh;
+  background: radial-gradient(ellipse at center, var(--navy-2) 0%, var(--navy) 70%);
+  opacity: 0;
+  will-change: opacity;
+}
+
+.logo-img {
+  width: 34vw;
+}
+
+.logo-line {
+  width: 16vw;
+  height: 0.6vh;
+  background: var(--gold);
+  border-radius: 1vh;
+}

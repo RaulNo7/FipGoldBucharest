@@ -17,7 +17,7 @@
   --muted: #9fb1c4;
   --text-dark: #061433;
   --serve: #fcd116; /* same gold as the current-set column (as on the scoreboard) */
-  --set-won: #4ade80;
+  --set-won: #15803d; /* green cell of a won set (white number) */
   --title-bg: #040C22;
 }
 
@@ -252,7 +252,8 @@ body {
 
 /* the winner's games of a finished set */
 .set-cell.won {
-  color: var(--set-won);
+  background: var(--set-won);
+  color: var(--white);
 }
 
 .set-cell .tb {
@@ -303,8 +304,8 @@ body {
 /* ---- Winner banner ---- */
 .winner-banner {
   margin-top: 0.45em;
-  background: var(--gold);
-  color: var(--text-dark);
+  background: var(--set-won);
+  color: var(--white);
   font-size: 0.85em;
   font-weight: 800;
   text-transform: uppercase;

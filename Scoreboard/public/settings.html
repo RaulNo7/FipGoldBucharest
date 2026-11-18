@@ -212,6 +212,36 @@
         <label>Turn on during the interview (OBS audio sources)
           <input type="text" id="interviewUnmute" placeholder="DJI Mic" />
         </label>
+        <label class="check"><input type="checkbox" id="interviewHideScore" /> Hide the score during the interview</label>
+        <label class="check"><input type="checkbox" id="interviewPip" /> Keep the court camera small, bottom left, above the info bar (ATEM picture-in-picture)</label>
+        <label>Camera change
+          <select id="interviewTransition">
+            <option value="swipe">FRP swipe: navy panel with the logo crosses the screen</option>
+            <option value="mix">Crossfade</option>
+            <option value="logo">Fade through the FRP logo</option>
+            <option value="wipe">Sharp diagonal wipe with a gold line</option>
+            <option value="push">Push, then the court box flies in</option>
+            <option value="cut">Cut</option>
+          </select>
+        </label>
+        <label>Transition length
+          <select id="interviewWipeSeconds">
+            <option value="0.5">0.5 s</option>
+            <option value="1">1 s</option>
+            <option value="1.5">1.5 s</option>
+            <option value="2">2 s</option>
+          </select>
+        </label>
+        <label>Size of the small court camera
+          <select id="interviewPipSize">
+            <option value="20">Small (20% of the width)</option>
+            <option value="25">Medium (25%)</option>
+            <option value="33">Large (33%)</option>
+          </select>
+        </label>
+        <label>Hide while a player card shows (OBS sources; the score hides anyway, the info bar stays)
+          <input type="text" id="cardHide" placeholder="Logo FRP, Logo RPT, Youtube Comments" />
+        </label>
         <span class="row gap"><button class="btn btn-ghost" id="saveInterviewBtn" type="button">Save</button></span>
       </div>
       <p class="hint" id="atemStatus"></p>

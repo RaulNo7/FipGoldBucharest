@@ -18,7 +18,7 @@
   --muted: #9fb1c4;
   --text-dark: #061433;
   --serve: #fcd116; /* same gold as the current-set column */
-  --set-won: #4ade80;
+  --set-won: #15803d; /* green cell of a won set (white number) */
   --title-bg: rgba(4, 12, 34, 0.96);
 }
 
@@ -227,7 +227,8 @@ body {
 
 /* the winner's games of a finished set */
 .set-cell.won {
-  color: var(--set-won);
+  background: var(--set-won);
+  color: var(--white);
 }
 
 .set-cell .tb {
@@ -332,19 +333,30 @@ body {
 }
 
 /* ---- Winner banner ---- */
+/* finished match: a green tag beside the board, on the winning pair's line
+   (top/height set by overlay.js from that team block) */
 .winner-banner {
-  margin-top: 10px;
-  background: var(--gold);
-  color: var(--text-dark);
-  font-size: 16px;
+  position: absolute;
+  left: calc(100% + 8px);
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  background: var(--set-won);
+  color: var(--white);
+  font-family: var(--font-names);
+  font-size: 19px;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  text-align: center;
-  padding: 10px;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  padding: 11px 20px; /* compact; overlay.js centres it on the winning pair */
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   animation: winnerIn 0.5s ease;
+}
+.scoreboard.pos-right .winner-banner {
+  left: auto;
+  right: calc(100% + 8px);
 }
 
 .winner-banner.hidden {

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FRP Live - camera transition</title>
+  <link rel="stylesheet" href="transition.css" />
+</head>
+<body>
+  <!-- OBS browser source "FRP Transition" (1920x1080, top of the live scene), added by the app.
+       It covers the frame while the ATEM changes camera (Interview button, Admin tab:
+       Camera change = FRP swipe / Fade through the FRP logo). Transparent the rest of the time. -->
+  <div id="swipe" class="swipe" hidden>
+    <div class="swipe-panel">
+      <img class="swipe-logo" src="frp-logo-light.png" alt="" />
+    </div>
+  </div>
+  <div id="logo" class="logo" hidden>
+    <img class="logo-img" src="frp-logo-light.png" alt="" />
+    <div class="logo-line"></div>
+  </div>
+  <script src="client.js"></script>
+  <script src="transition.js"></script>
+</body>
+</html>

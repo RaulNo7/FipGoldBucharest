@@ -384,7 +384,7 @@ function publicStateMessage() {
 
 function stateMessage() {
   // `obs` is transient status for the admin UI — never persisted, never secret.
-  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload(), cards: playerCardsPayload(), build: PAGES_BUILD, serverNow: Date.now() });
+  return JSON.stringify({ type: 'state', state, clients: hub.size, obs: obsStatusPayload(), announcements: annPayload(), roster: rosterPayload(), cards: playerCardsPayload(), build: PAGES_BUILD, serverNow: Date.now(), transitionCue });
 }
 
 /** Roster version + tournament name: pages reload /api/teams when `rev` changes. */
@@ -463,6 +463,19 @@ const DEFAULT_OBS_SETTINGS = {
   interviewHide: 'Youtube Comments', // OBS sources in the live scene to hide (comma-separated)
   interviewMute: 'Headset Mic', // OBS audio inputs to mute during the interview
   interviewUnmute: 'DJI Mic', // OBS audio inputs to turn on during the interview
+  interviewHideScore: true, // hide the score (top left) during the interview
+  // keep the court camera in a small box at the bottom left, above the info bar (ATEM upstream key 1 as picture-in-picture)
+  interviewPip: true,
+  interviewPipSize: 25, // % of the frame width (10-50)
+  // camera change (to the interview left to right, back right to left):
+  //   'swipe' FRP swipe and 'logo' fade through the FRP logo: an OBS overlay covers the frame while the ATEM cuts
+  //   'mix' crossfade, 'wipe' sharp diagonal wipe with a gold line, 'push' push + the box flies in: done by the ATEM
+  //   'cut'
+  interviewTransition: 'swipe',
+  interviewWipeSeconds: 1, // length of the transition
+  transitionSource: 'FRP Transition', // OBS browser source for 'swipe' / 'logo' (the app adds it to the live scene)
+  // OBS sources of the live scene hidden while a player card is on (the info bar stays)
+  cardHide: 'Logo FRP, Logo RPT, Youtube Comments',
   // Individual spots for the Media tab: each temporarily swaps the media
   // source's file, plays through the same break routine, then restores the
   // merged break video configured in OBS.
@@ -1545,7 +1558,63 @@ async function applyYoutubeChat() {
 }
 
 // ---- Interview button ----
-const interviewState = { active: false, busy: false, error: null, scoreWasVisible: true };
+const interviewState = { active: false, busy: false, error: null, scoreWasVisible: true, scoreHidden: false, pipShown: false };
+const TRANSITIONS = ['swipe', 'logo', 'mix', 'wipe', 'push', 'cut'];
+const OVERLAY_TRANSITIONS = ['swipe', 'logo'];
+// the camera transition the OBS overlay (/transition) plays; sent with every state message, played once per id
+let transitionCue = null;
+
+/** Timing of an overlay transition: in, fully covered, out (ms). The ATEM cuts in the middle of "covered". */
+function overlayTiming(seconds) {
+  const total = Math.round(Math.min(4, Math.max(0.5, Number(seconds) || 1)) * 1000);
+  const holdMs = Math.max(300, Math.round(total * 0.3));
+  const inMs = Math.max(200, Math.round((total - holdMs) / 2));
+  return { inMs, holdMs, outMs: inMs };
+}
+
+function cueTransition(kind, dir, timing) {
+  transitionCue = { id: (transitionCue ? transitionCue.id : 0) + 1, kind, dir, ...timing, at: Date.now() };
+  broadcastState();
+}
+
+/**
+ * Makes sure the overlay browser source is in the live scene, shown, on top of everything.
+ * Returns true when it had to be added (its page then needs a moment to load).
+ */
+async function ensureTransitionSource() {
+  await connectObs();
+  const scene = obsSettings.liveScene;
+  const name = obsSettings.transitionSource || 'FRP Transition';
+  const url = `http://127.0.0.1:${PORT}/transition`;
+  let added = false;
+  let sceneItemId;
+  try {
+    ({ sceneItemId } = await obs.request('GetSceneItemId', { sceneName: scene, sourceName: name }));
+  } catch (_) {
+    try {
+      ({ sceneItemId } = await obs.request('CreateInput', {
+        sceneName: scene,
+        inputName: name,
+        inputKind: 'browser_source',
+        inputSettings: { url, width: 1920, height: 1080, shutdown: false, restart_when_active: false },
+        sceneItemEnabled: true,
+      }));
+    } catch (err) {
+      // the source exists (in another scene): add it to this one
+      ({ sceneItemId } = await obs.request('CreateSceneItem', { sceneName: scene, sourceName: name, sceneItemEnabled: true }));
+    }
+    added = true;
+  }
+  const { sceneItems } = await obs.request('GetSceneItemList', { sceneName: scene });
+  const top = sceneItems.length - 1;
+  const me = sceneItems.find((it) => it.sceneItemId === sceneItemId);
+  if (me && me.sceneItemIndex !== top) await obs.request('SetSceneItemIndex', { sceneName: scene, sceneItemId, sceneItemIndex: top });
+  if (me && !me.sceneItemEnabled) {
+    await obs.request('SetSceneItemEnabled', { sceneName: scene, sceneItemId, sceneItemEnabled: true });
+    added = true; // a hidden browser source may have unloaded its page
+  }
+  return added;
+}
 
 const nameList = (v) => String(v || '').split(',').map((x) => x.trim()).filter(Boolean);
 const atemInput = (v, dflt) => {
@@ -1555,6 +1624,48 @@ const atemInput = (v, dflt) => {
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 
 /** Shows / hides a source of an OBS scene. */
+// ---- Player card: hide the logos / comments while a card is on, then put back what was shown ----
+const cardSources = { hidden: [] }; // sources hidden for the card (all listed ones come back when it goes)
+let cardQueue = Promise.resolve();
+
+async function applyCardSources(on) {
+  const scene = obsSettings.liveScene;
+  try {
+    await connectObs();
+  } catch (_) {
+    return; // OBS not running: nothing to hide
+  }
+  if (on) {
+    for (const name of nameList(obsSettings.cardHide)) {
+      if (cardSources.hidden.includes(name)) continue;
+      try {
+        const { sceneItemId } = await obs.request('GetSceneItemId', { sceneName: scene, sourceName: name });
+        await obs.request('SetSceneItemEnabled', { sceneName: scene, sceneItemId, sceneItemEnabled: false });
+        cardSources.hidden.push(name);
+      } catch (err) {
+        console.error('Player card: could not hide', name, err.message);
+      }
+    }
+  } else {
+    // the card is off: every listed source is shown again (logos, comments)
+    cardSources.hidden = [];
+    const keptByInterview = interviewState.active ? nameList(obsSettings.interviewHide) : [];
+    for (const name of nameList(obsSettings.cardHide)) {
+      if (keptByInterview.includes(name)) continue; // the interview still wants it hidden
+      try {
+        await setSceneSourceEnabled(scene, name, true);
+      } catch (err) {
+        console.error('Player card: could not show', name, err.message);
+      }
+    }
+  }
+}
+
+/** Called when a player card appears or goes (one change at a time, in order). */
+function playerCardChanged(on) {
+  cardQueue = cardQueue.then(() => applyCardSources(on)).catch(() => {});
+}
+
 async function setSceneSourceEnabled(sceneName, sourceName, enabled) {
   const { sceneItemId } = await obs.request('GetSceneItemId', { sceneName, sourceName });
   await obs.request('SetSceneItemEnabled', { sceneName, sceneItemId, sceneItemEnabled: enabled });
@@ -1580,20 +1691,49 @@ async function setInterview(on) {
     }
   };
 
-  // 1. ATEM camera
+  // 1. ATEM camera (+ the court camera small, bottom left, during the interview)
   if (obsSettings.atemHost) {
-    const input = on ? atemInput(obsSettings.atemInterviewInput, 2) : atemInput(obsSettings.atemCourtInput, 1);
-    await step('ATEM', () => atem.setProgramInput(obsSettings.atemHost, input));
+    const court = atemInput(obsSettings.atemCourtInput, 1);
+    const program = on ? atemInput(obsSettings.atemInterviewInput, 2) : court;
+    let pip = null;
+    if (on && obsSettings.interviewPip !== false) pip = { on: true, fill: court, box: atem.pipBox(obsSettings.interviewPipSize) };
+    else if (!on && interviewState.pipShown) pip = { on: false };
+    // the transition: to the interview from left to right, back to the court from right to left
+    const kind = TRANSITIONS.includes(obsSettings.interviewTransition) ? obsSettings.interviewTransition : 'swipe';
+    let transition = null;
+    let beforeCut = null;
+    if (OVERLAY_TRANSITIONS.includes(kind)) {
+      let ready = false;
+      await step('Transition overlay', async () => {
+        if (await ensureTransitionSource()) await sleep(2500); // just added: let its page load
+        ready = true;
+      });
+      if (ready) {
+        const timing = overlayTiming(obsSettings.interviewWipeSeconds);
+        beforeCut = async () => {
+          cueTransition(kind, on ? 'ltr' : 'rtl', timing);
+          await sleep(timing.inMs + Math.round(timing.holdMs / 2)); // the frame is covered: cut now
+        };
+      }
+    } else if (kind !== 'cut') {
+      transition = { kind, seconds: obsSettings.interviewWipeSeconds, reverse: !on };
+    }
+    await step('ATEM', async () => {
+      await atem.switchCameras(obsSettings.atemHost, { program, pip, transition, beforeCut });
+      if (pip) interviewState.pipShown = pip.on;
+    });
   } else {
     problems.push('ATEM: no IP address set (Admin tab → Interview button)');
   }
 
-  // 2. score (top left)
+  // 2. score (top left) - only when the Admin tab says so; it comes back only if the interview hid it
   if (on) {
     interviewState.scoreWasVisible = !(state.display && state.display.scoreVisible === false);
-    handleCommand({ type: 'setDisplay', display: { scoreVisible: false } });
-  } else if (interviewState.scoreWasVisible) {
+    interviewState.scoreHidden = obsSettings.interviewHideScore !== false && interviewState.scoreWasVisible;
+    if (interviewState.scoreHidden) handleCommand({ type: 'setDisplay', display: { scoreVisible: false } });
+  } else if (interviewState.scoreHidden) {
     handleCommand({ type: 'setDisplay', display: { scoreVisible: true } });
+    interviewState.scoreHidden = false;
   }
 
   // 3-5. OBS: comments widget, headset mic, DJI mic
@@ -1785,10 +1925,13 @@ function handleCommand(cmd) {
         undoStack.length = 0; // a full reset starts a fresh history
         redoStack.length = 0;
       }
+      const cardBefore = !!(state.display && state.display.playerCard);
       state = next;
       persist();
       onStatusMaybeChanged(prevStatus);
       broadcastState();
+      const cardAfter = !!(state.display && state.display.playerCard);
+      if (cardBefore !== cardAfter) playerCardChanged(cardAfter);
     }
   }
 }
@@ -2089,7 +2232,18 @@ function handleMainRequest(req, res) {
           for (const k of ['atemCourtInput', 'atemInterviewInput']) {
             if (incoming[k] !== undefined) clean[k] = atemInput(incoming[k], clean[k]);
           }
-          for (const k of ['interviewHide', 'interviewMute', 'interviewUnmute']) {
+          if (typeof incoming.interviewHideScore === 'boolean') clean.interviewHideScore = incoming.interviewHideScore;
+          if (typeof incoming.interviewPip === 'boolean') clean.interviewPip = incoming.interviewPip;
+          if (TRANSITIONS.includes(incoming.interviewTransition)) clean.interviewTransition = incoming.interviewTransition;
+          if (incoming.interviewWipeSeconds !== undefined) {
+            const v = Number(incoming.interviewWipeSeconds);
+            if (Number.isFinite(v)) clean.interviewWipeSeconds = Math.min(4, Math.max(0.2, Math.round(v * 10) / 10));
+          }
+          if (incoming.interviewPipSize !== undefined) {
+            const n = Math.round(Number(incoming.interviewPipSize));
+            if (Number.isFinite(n)) clean.interviewPipSize = Math.min(50, Math.max(10, n));
+          }
+          for (const k of ['interviewHide', 'interviewMute', 'interviewUnmute', 'cardHide']) {
             if (typeof incoming[k] === 'string') clean[k] = nameList(incoming[k]).join(', ');
           }
           for (const k of ['autoDelaySeconds', 'maxBreakSeconds']) {
@@ -2103,6 +2257,8 @@ function handleMainRequest(req, res) {
           obsSettingsRev++;
           saveObsSettings();
           if (chatChanged && youtubeVideoId(clean.youtubeUrl)) setTimeout(() => applyYoutubeChat(), 1500); // after the OBS reconnect below
+          // an overlay transition was chosen: put its OBS source in the live scene now, so its page is loaded by the first press
+          if (OVERLAY_TRANSITIONS.includes(incoming.interviewTransition)) setTimeout(() => ensureTransitionSource().catch((err) => console.error('Transition overlay:', err.message)), 1500);
           obs.close(); // reconnect with the new url/password on next use
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: true }));
@@ -2135,6 +2291,7 @@ function handleMainRequest(req, res) {
   if (pathname === '/media') pathname = '/media.html';
   if (pathname === '/announcements') pathname = '/announcements.html';
   if (pathname === '/ticker') pathname = '/ticker.html';
+  if (pathname === '/transition') pathname = '/transition.html';
 
   const filePath = safeJoin(PUBLIC_DIR, pathname);
   if (!filePath) {

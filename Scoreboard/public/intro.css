@@ -160,16 +160,20 @@ body {
 }
 
 /* ---- Player card (one player, Media tab ◀ / ▶ buttons) ----
-   Vertical, 560 px wide on a 1920x1080 frame, 360 px in from the left or right edge (class side-right;
-   the right card then clears the Romania Padel Tour logos in the top-right corner),
-   so the player stays visible on the other half of the video. Scaled by intro.js (--pc-scale). */
+   Vertical, 560 px wide on a 1920x1080 frame, 80 px in from the left or right edge (class
+   side-right), with the same 60 px gap above it (to the top of the frame) as below it (to the
+   top of the info bar, which is ~56 px high), so the player stays visible on the rest of the
+   video. The logos, comments and score are hidden in OBS meanwhile. Scaled by intro.js (--pc-scale). */
 .pcard {
   position: fixed;
-  top: 50%;
-  left: calc(360px * var(--pc-scale, 1));
+  top: calc(60px * var(--pc-scale, 1));
+  left: calc(80px * var(--pc-scale, 1));
   width: 560px;
-  transform: translateY(-50%) scale(var(--pc-scale, 1));
-  transform-origin: left center;
+  height: 904px; /* 1080 - 60 gap - 56 info bar - 60 gap */
+  display: flex;
+  flex-direction: column;
+  transform: scale(var(--pc-scale, 1));
+  transform-origin: left top;
   border-radius: 18px;
   overflow: hidden;
   background: var(--navy-deep);
@@ -181,8 +185,8 @@ body {
 }
 .pcard.side-right {
   left: auto;
-  right: calc(360px * var(--pc-scale, 1));
-  transform-origin: right center;
+  right: calc(80px * var(--pc-scale, 1));
+  transform-origin: right top;
 }
 .pcard.hidden { opacity: 0; pointer-events: none; translate: -40px 0; }
 .pcard.side-right.hidden { translate: 40px 0; }
@@ -210,8 +214,8 @@ body {
 .pc-source .sep { margin: 0 10px; }
 .pc-event { margin-top: 6px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
 
-.pcard-main { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 26px 28px 22px; }
-.pc-photo { position: relative; width: 210px; height: 210px; }
+.pcard-main { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; text-align: center; padding: 16px 28px 14px; }
+.pc-photo { position: relative; width: 186px; height: 186px; flex: none; }
 .pc-face, .pc-initials {
   position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%;
   border: 5px solid var(--gold); box-shadow: 0 0 0 6px rgba(252, 209, 22, 0.18);
@@ -230,7 +234,7 @@ body {
 .pc-flagdot.none { display: none; }
 
 .pc-name {
-  margin-top: 18px;
+  margin-top: 10px;
   font: 700 64px/0.98 var(--font-names); letter-spacing: 0.02em; text-transform: uppercase;
   text-wrap: balance;
 }
@@ -252,7 +256,7 @@ body {
 .pc-rank b { font: 700 27px var(--font-names); color: var(--gold); }
 .pc-rank small { color: var(--muted); font-size: 17px; }
 
-.pc-big { margin-top: 20px; width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pc-big { margin-top: 12px; width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .pc-stat { background: var(--navy-alt); border-radius: 14px; padding: 14px 8px 12px; text-align: center; }
 .pc-stat.gold { background: linear-gradient(160deg, var(--gold-light), var(--gold)); color: #061433; }
 .pc-stat .num { font: 700 52px/1 var(--font-names); }

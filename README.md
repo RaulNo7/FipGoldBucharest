@@ -67,7 +67,7 @@ Settings are stored server-side in `%AppData%\FipGoldBucharest\obs-settings.json
 - **Match timer (hh:mm):**
   - Sits right-aligned in the title bar, in the title's colour.
   - Starts with **Start** or the first point and stops when the match ends.
-  - Shown as h:mm (1:05; no leading zero below 10 hours). Set or reset in Media → Broadcast → **Match time** ("1:05" or "45"); **Hide** / **Show** takes it off the scoreboard while it keeps running.
+  - Shown as 0h 5m / 11h 15m on the scoreboard and Court TV, with seconds on the Media tab (0h 5m 00s). Set or reset in Media → Broadcast → **Match time** ("1:05" or "45"); **Hide** / **Show** takes it off the scoreboard while it keeps running.
 - **Info bar label:** chosen in Media → Broadcast → **Commentary**: *Watch only* (eye icon + NO COMMENTATOR) or 🎙 *Commentators* with their names. With none chosen, the Info bar label from the Admin tab is used.
 - **App tabs:** Media is first, then **Score** (formerly Home).
 
@@ -100,7 +100,15 @@ No login, API key or channel permission is needed. The page the source showed be
 **🎤 Interview** switches the stream to a post-match interview in one press, and **🎾 Back to court** undoes it:
 
 1. cuts the **ATEM Mini** to the interview camera (and back to the court camera) over the network: the ATEM needs an Ethernet cable to the same router as this PC (USB carries only video/sound). Set its IP on the Admin tab → *Interview button* (**Find** looks for it on the PC's network, **Test** shows its inputs);
-2. hides the score (top left); it comes back only if it was on before;
+   During the interview the court camera stays on in a small box at the bottom left, above the info bar: the ATEM's own picture-in-picture (upstream key 1 as a DVE, filled with the court input), the box off again with **Back to court**. Admin tab → *Interview button*: on/off and size (20 / 25 / 33% of the width).
+   The camera change (Admin tab → *Camera change*, length 0.5–2 s) goes to the interview from left to right and back from right to left:
+   - **FRP swipe** (default): a slanted navy panel with gold edges and the FRP logo crosses the frame; the ATEM cuts while it covers everything. It is the OBS browser source *FRP Transition* (`/transition`, LAN only), which the app adds on top of the live scene;
+   - **Fade through the FRP logo**: the same overlay, fading to navy with the logo and out again;
+   - **Crossfade** and **Sharp diagonal wipe with a gold line** (colour generator 2): done by the ATEM, the box comes / goes in the same transition;
+   - **Push, then the court box flies in**: an ATEM DVE push; the box flies in from the left edge afterwards (fly key frames A/B, stored by the app) and flies out first when going back, since the ATEM Mini has one DVE;
+   - **Cut**.
+   The ATEM's own transition settings (style, selection, mix / wipe / DVE settings, colour 2) are put back once the ATEM reports the transition over;
+2. hides the score (top left), if *Hide the score during the interview* is ticked; it comes back only if it was on before;
 3. hides the OBS sources listed in the card (default `Youtube Comments`) in the live scene;
 4. mutes the headset mic (OBS audio source `Headset Mic` — add it in OBS as an *Audio Input Capture* with the headset selected);
 5. turns the `DJI Mic` on (and off again afterwards).

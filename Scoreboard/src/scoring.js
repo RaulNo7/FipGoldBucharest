@@ -659,8 +659,13 @@ function applyCommandCore(prev, cmd) {
 
     case 'setDisplay':
       if (cmd.display && typeof cmd.display === 'object') {
+        const hadCard = !!state.display.playerCard;
         Object.assign(state.display, cmd.display);
         if (!/^[01]-[01]$/.test(String(state.display.playerCard))) state.display.playerCard = null;
+        // the card was switched off: the score comes back (not when it gives way to Show match)
+        if (hadCard && !state.display.playerCard && cmd.display.introVisible !== true && cmd.display.scoreVisible === undefined) {
+          state.display.scoreVisible = true;
+        }
         if (state.display.playerCardSide !== 'right') state.display.playerCardSide = 'left';
         if (cmd.display.commentary !== undefined) {
           // info bar label: 'watch' (watch only) | 'none' (no commentator) | 'live' (microphone + names) | '' (the Admin label)

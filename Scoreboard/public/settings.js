@@ -372,15 +372,27 @@
   $$('[data-copy]').forEach((b) => b.addEventListener('click', () => copyField($('#' + b.dataset.copy), b)));
 
   // ---- Interview button (ATEM + OBS) ----
-  const IV_FIELDS = ['atemHost', 'atemCourtInput', 'atemInterviewInput', 'interviewHide', 'interviewMute', 'interviewUnmute'];
+  const IV_FIELDS = ['atemHost', 'atemCourtInput', 'atemInterviewInput', 'interviewHide', 'interviewMute', 'interviewUnmute', 'cardHide'];
   const atemStatus = (text) => ($('#atemStatus').textContent = text);
   fetch('/api/obs-settings')
     .then((r) => r.json())
-    .then((cfg) => IV_FIELDS.forEach((k) => ($('#' + k).value = cfg[k] == null ? '' : cfg[k])))
+    .then((cfg) => {
+      IV_FIELDS.forEach((k) => ($('#' + k).value = cfg[k] == null ? '' : cfg[k]));
+      $('#interviewHideScore').checked = cfg.interviewHideScore !== false;
+      $('#interviewPip').checked = cfg.interviewPip !== false;
+      $('#interviewTransition').value = ['swipe', 'mix', 'logo', 'wipe', 'push', 'cut'].includes(cfg.interviewTransition) ? cfg.interviewTransition : 'swipe';
+      $('#interviewWipeSeconds').value = String([0.5, 1, 1.5, 2].includes(cfg.interviewWipeSeconds) ? cfg.interviewWipeSeconds : 1);
+      $('#interviewPipSize').value = String([20, 25, 33].includes(cfg.interviewPipSize) ? cfg.interviewPipSize : 25);
+    })
     .catch(() => {});
   $('#saveInterviewBtn').addEventListener('click', () => {
     const body = {};
     IV_FIELDS.forEach((k) => (body[k] = $('#' + k).value.trim()));
+    body.interviewHideScore = $('#interviewHideScore').checked;
+    body.interviewPip = $('#interviewPip').checked;
+    body.interviewTransition = $('#interviewTransition').value;
+    body.interviewWipeSeconds = Number($('#interviewWipeSeconds').value);
+    body.interviewPipSize = Number($('#interviewPipSize').value);
     fetch('/api/obs-settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       .then((r) => {
         flash($('#saveInterviewBtn'), r.ok ? 'Saved!' : 'Failed');
