@@ -897,7 +897,21 @@ function cleanupAndExit() {
   await cmd({ type: 'saveReplay', seconds: 15 });
   await waitFor(() => sceneSwitches.length >= 2 && sceneSwitches[sceneSwitches.length - 1] === 'LIVE', 15000);
   assert(cursorCalls.length === 0 && sceneSwitches.join() === 'REPLAY,LIVE', 'replay 15 s with a 15 s buffer: the whole clip, no jump (' + cursorCalls.join() + ')');
+  // ---- "Play right away" off: the clip is only saved; Play from the list later plays only its last 10 s ----
+  sceneSwitches.length = 0;
+  cursorCalls.length = 0;
+  const savesBeforeOnly = replaySaves;
+  await cmd({ type: 'saveReplay', seconds: 10, play: false });
+  await waitFor(() => replaySaves > savesBeforeOnly, 15000);
+  await sleep(1500);
+  assert(sceneSwitches.length === 0, 'replay save only: nothing goes on air (' + sceneSwitches.join() + ')');
+  const savedOnly = (await (await fetch(`http://127.0.0.1:${SB_PORT}/api/replays`)).json()).replays[0];
+  assert(savedOnly && savedOnly.last === 10, 'replay save only: the newest clip in the list remembers "last 10 s" (' + JSON.stringify(savedOnly) + ')');
+  await cmd({ type: 'playReplay', file: savedOnly.name });
+  await waitFor(() => sceneSwitches.length >= 2 && sceneSwitches[sceneSwitches.length - 1] === 'LIVE', 15000);
+  assert(cursorCalls.join() === 'Replay@5000' && sceneSwitches.join() === 'REPLAY,LIVE', 'replay save only: Play later shows only its last 10 s (' + cursorCalls.join() + ' / ' + sceneSwitches.join() + ')');
   const replayPage = await (await fetch(`http://127.0.0.1:${SB_PORT}/media`)).text();
+  assert(/id="replayPlayNow"/.test(replayPage), 'replay: "Play right away" checkbox on the Media tab');
   assert(/data-replay-last="10"/.test(replayPage) && /data-replay-last="15"/.test(replayPage), 'replay: 10 s and 15 s buttons on the Media tab');
 
   // break point in the bar under the scoreboard

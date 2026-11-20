@@ -77,7 +77,7 @@
   // ---- instant replay ----
   let replayCount = -1; // last `replay.count` seen: the list reloads when it changes
   let settingsRev = -1; // last `obs.settingsRev` seen (saves on the Admin tab)
-  function loadReplays() {
+  function loadReplays(pickNewest = false) {
     fetch('/api/replays')
       .then((r) => r.json())
       .then((data) => {
@@ -99,14 +99,15 @@
           // (the file name uses the look-alike U+A789) and no extension; older clips keep their saved time.
           const title = c.name.replace(/\.[a-z0-9]+$/i, '').replace(/꞉/g, ':');
           const dated = /\d{2}-\d{2}-\d{4} \d{2}:\d{2}/.test(title);
-          opt.textContent = `${i + 1}. ${title}${when && !dated ? '  (' + when + ')' : ''}`;
+          opt.textContent = `${i + 1}. ${title}${when && !dated ? '  (' + when + ')' : ''}${c.last ? '  [last ' + c.last + ' s]' : ''}`;
           sel.appendChild(opt);
         });
-        // Keep the operator's pick if it is still listed, else the newest clip.
-        sel.value = clips.some((c) => c.name === current) ? current : (clips[0] ? clips[0].name : '');
+        // Keep the operator's pick if it is still listed, else the newest clip (a clip just saved: that one).
+        sel.value = !pickNewest && clips.some((c) => c.name === current) ? current : (clips[0] ? clips[0].name : '');
         setText('#replayDir', data.dir || '');
         $('#replaySecondsBig').textContent = `⏪ ${data.seconds} s`;
         $('#replaySecondsLabel').textContent = `last ${data.seconds} s`;
+        showPlayNow();
         render();
       })
       .catch(() => {
@@ -115,9 +116,30 @@
   }
   loadReplays();
 
-  $('#saveReplayBtn').addEventListener('click', () => send({ type: 'saveReplay' }));
+  // "Play right away": off = the 10 / 15 / 20 s buttons only save the clip (Play it later from the list).
+  // Remembered in this browser.
+  const playNow = $('#replayPlayNow');
+  try {
+    if (localStorage.getItem('replayPlayNow') === '0') playNow.checked = false;
+  } catch (_) { /* no storage: stays on */ }
+  function showPlayNow() {
+    const now = playNow.checked;
+    for (const b of document.querySelectorAll('[data-replay-last]')) {
+      b.querySelector('.spot-file').textContent = now ? `last ${b.dataset.replayLast} s` : 'save only';
+      b.title = now ? `Save the buffer and play only its last ${b.dataset.replayLast} seconds` : `Save the last ${b.dataset.replayLast} seconds; play it later from the list`;
+    }
+    $('#replaySecondsLabel').textContent = now ? $('#replaySecondsBig').textContent.replace('⏪', 'last').trim() : 'save only';
+    $('#saveReplayBtn').title = now ? 'Save the buffer and play all of it' : 'Save the whole buffer; play it later from the list';
+  }
+  playNow.addEventListener('change', () => {
+    try { localStorage.setItem('replayPlayNow', playNow.checked ? '1' : '0'); } catch (_) { /* this session only */ }
+    showPlayNow();
+  });
+  showPlayNow();
+
+  $('#saveReplayBtn').addEventListener('click', () => send({ type: 'saveReplay', play: playNow.checked }));
   for (const b of document.querySelectorAll('[data-replay-last]')) {
-    b.addEventListener('click', () => send({ type: 'saveReplay', seconds: Number(b.dataset.replayLast) }));
+    b.addEventListener('click', () => send({ type: 'saveReplay', seconds: Number(b.dataset.replayLast), play: playNow.checked }));
   }
   $('#playReplayBtn').addEventListener('click', () => {
     const file = $('#replaySelect').value;
@@ -329,7 +351,7 @@
     if (typeof rp.count === 'number' && rp.count !== replayCount) {
       const first = replayCount < 0;
       replayCount = rp.count;
-      if (!first) loadReplays();
+      if (!first) loadReplays(true); // a new clip: select it, ready for Play
     }
     // Settings saved on the Admin tab (folders may have changed): reload both lists.
     if (typeof o.settingsRev === 'number' && o.settingsRev !== settingsRev) {

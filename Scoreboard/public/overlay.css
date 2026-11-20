@@ -385,6 +385,17 @@ body {
   visibility: hidden; /* keeps the layout (= the size of the live scorebug) */
 }
 
+/* Taller than the board: the plate also covers the SET POINT / MATCH POINT bar
+   that is recorded under the score in the clip. */
+.scoreboard.cover .board {
+  padding-bottom: 42px;
+}
+
+.scoreboard.cover .pressure-bar,
+.scoreboard.cover .winner-banner {
+  display: none;
+}
+
 .scoreboard.cover .title-bar {
   background: #040C22;
 }

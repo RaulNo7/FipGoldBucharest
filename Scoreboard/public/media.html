@@ -75,7 +75,13 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Replay</h2><span id="replayBadge" class="badge"></span></div>
+      <div class="card-head">
+        <h2>Replay</h2>
+        <label class="check replay-now" title="Off: the buttons only save the clip; play it later from the list below">
+          <input type="checkbox" id="replayPlayNow" checked /> Play right away
+        </label>
+        <span id="replayBadge" class="badge"></span>
+      </div>
       <div class="spots spots-controls spots-replay">
         <button class="btn spot spot-replay spot-short" data-replay-last="10" title="Save the buffer and play only its last 10 seconds">
           <span class="spot-label">⏪ 10 s</span>

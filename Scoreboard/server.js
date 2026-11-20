@@ -899,15 +899,43 @@ function replayDir() {
   return (obsSettings && obsSettings.replayDir) || defaultReplayDir();
 }
 
-/** The newest replay clips (file names, newest first), at most `limit`. */
+// Clips saved with the 10 s / 15 s buttons: { fileName: seconds } in the replay folder, so a clip
+// saved for later (Media tab, "Play right away" off) still plays only its end from the list.
+const CLIP_LENGTHS_FILE = 'replay-lengths.json';
+
+function readClipLengths() {
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(replayDir(), CLIP_LENGTHS_FILE), 'utf8'));
+    return data && typeof data === 'object' ? data : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function rememberClipLength(file, lastSeconds) {
+  if (!lastSeconds) return;
+  try {
+    const lengths = readClipLengths();
+    const present = new Set(fs.readdirSync(replayDir()));
+    for (const name of Object.keys(lengths)) if (!present.has(name)) delete lengths[name]; // deleted clips
+    lengths[path.basename(file)] = lastSeconds;
+    fs.writeFileSync(path.join(replayDir(), CLIP_LENGTHS_FILE), JSON.stringify(lengths, null, 2));
+  } catch (err) {
+    console.error('Replay: could not remember the clip length:', err.message);
+  }
+}
+
+/** The newest replay clips (file names, newest first), at most `limit`; last = seconds played from its end. */
 function listReplays(limit = 10) {
   try {
     const dir = replayDir();
+    const lengths = readClipLengths();
     return fs.readdirSync(dir)
       .filter((f) => VIDEO_FILE.test(f))
       .map((name) => {
         const st = fs.statSync(path.join(dir, name));
-        return { name, size: st.size, time: st.mtimeMs };
+        const last = Number(lengths[name]) || null;
+        return { name, size: st.size, time: st.mtimeMs, last };
       })
       .sort((a, b) => b.time - a.time)
       .slice(0, limit);
@@ -1224,8 +1252,11 @@ async function runReplayClip(file, lastSeconds = null) {
   broadcastState();
 }
 
-/** Replay button: save the buffer, then play the clip right away (lastSeconds: only its end). */
-function saveAndPlayReplay(lastSeconds = null) {
+/**
+ * Replay button: save the buffer, then play the clip right away (lastSeconds: only its end).
+ * play = false only saves it: it waits in the Media tab's list for Play.
+ */
+function saveAndPlayReplay(lastSeconds = null, play = true) {
   if (replayState.saving || breakState.phase === 'running') return;
   (async () => {
     replayState.saving = true;
@@ -1238,9 +1269,10 @@ function saveAndPlayReplay(lastSeconds = null) {
       replayState.lastError = err.message;
       console.error('Replay save failed:', err.message);
     }
+    if (clip) rememberClipLength(clip, lastSeconds);
     replayState.saving = false;
     broadcastState();
-    if (clip) await runReplayClip(clip, lastSeconds);
+    if (clip && play) await runReplayClip(clip, lastSeconds);
   })();
 }
 
@@ -1963,9 +1995,10 @@ function handleCommand(cmd) {
 
   // Replay button: save the last N seconds from OBS and play the clip.
   // seconds: 10 / 15 buttons play only the end of the saved clip (shorter than the buffer)
+  // play: false = only save it (shown later from the list)
   if (cmd.type === 'saveReplay') {
     const last = Math.round(Number(cmd.seconds));
-    saveAndPlayReplay(Number.isFinite(last) && last >= 3 && last < replaySeconds() ? last : null);
+    saveAndPlayReplay(Number.isFinite(last) && last >= 3 && last < replaySeconds() ? last : null, cmd.play !== false);
     return;
   }
 
@@ -1975,7 +2008,8 @@ function handleCommand(cmd) {
     const clip = name && listReplays(1000).find((r) => r.name === name);
     if (!clip) return;
     if (breakState.phase === 'countdown') cancelBreak();
-    if (breakState.phase !== 'running') runReplayClip(path.join(replayDir(), name));
+    const last = clip.last >= 3 ? clip.last : null; // saved with 10 / 15 s: only that end
+    if (breakState.phase !== 'running') runReplayClip(path.join(replayDir(), name), last);
     return;
   }
 
@@ -2286,10 +2320,10 @@ function handleMainRequest(req, res) {
     return;
   }
 
-  // The last 10 replay clips for the Media tab (newest first).
+  // The last 25 replay clips for the Media tab (newest first).
   if (pathname === '/api/replays') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
-    res.end(JSON.stringify({ dir: replayDir(), seconds: replaySeconds(), replays: listReplays(10) }));
+    res.end(JSON.stringify({ dir: replayDir(), seconds: replaySeconds(), replays: listReplays(25) }));
     return;
   }
 

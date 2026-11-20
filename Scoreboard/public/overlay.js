@@ -80,6 +80,18 @@
     root.querySelector('.board').appendChild(plate);
   }
 
+  // The replay clip shows the scorebug as it was a while ago, maybe wider than now (longer names,
+  // one more set column): the cover keeps the widest board of the last few minutes.
+  const coverWidths = []; // [time, px]
+  function keepCoverWide() {
+    const board = root.querySelector('.board');
+    board.style.minWidth = '';
+    const now = Date.now();
+    coverWidths.push([now, board.offsetWidth]);
+    while (coverWidths.length && now - coverWidths[0][0] > 5 * 60000) coverWidths.shift();
+    board.style.minWidth = Math.max(...coverWidths.map((w) => w[1])) + 'px';
+  }
+
   let lastSeq = -1;
 
   PadelClient.connect({
@@ -92,7 +104,8 @@
     const finished = state.status === 'finished';
 
     // A finished match shows only the completed sets — no next-set/points cells.
-    root.classList.toggle('finished', finished);
+    // Not on the replay cover: the clip of the match point still has those cells in the picture.
+    root.classList.toggle('finished', finished && !coverMode);
 
     // Title bar (+ the match timer on the right)
     if (msg && msg.serverNow) serverOffset = msg.serverNow - Date.now();
@@ -188,6 +201,7 @@
     }
 
     if (coverMode) {
+      keepCoverWide();
       // The cover follows the replay, not the score toggle (the score is
       // switched off for the replay, yet the cover must be there).
       const replay = msg && msg.obs && msg.obs.replay;
