@@ -15,8 +15,27 @@
   margin-bottom: 12px;
 }
 
+/* Replay row: 10 s · 15 s · whole buffer (20 s) · Cancel */
+.spots.spots-replay {
+  grid-template-columns: 1fr 1fr 1fr 2fr;
+}
+
+.btn.spot.spot-short {
+  padding: 10px 12px;
+  justify-content: center;
+}
+
+.btn.spot.spot-short .spot-label {
+  font-size: 15px;
+}
+
+.btn.spot.spot-short[hidden] {
+  display: none;
+}
+
 @media (max-width: 640px) {
-  .spots {
+  .spots,
+  .spots.spots-replay {
     grid-template-columns: repeat(2, 1fr);
   }
 }

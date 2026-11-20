@@ -105,7 +105,8 @@
         // Keep the operator's pick if it is still listed, else the newest clip.
         sel.value = clips.some((c) => c.name === current) ? current : (clips[0] ? clips[0].name : '');
         setText('#replayDir', data.dir || '');
-        $('#replaySecondsLabel').textContent = `last ${data.seconds} s → on the stream`;
+        $('#replaySecondsBig').textContent = `⏪ ${data.seconds} s`;
+        $('#replaySecondsLabel').textContent = `last ${data.seconds} s`;
         render();
       })
       .catch(() => {
@@ -115,6 +116,9 @@
   loadReplays();
 
   $('#saveReplayBtn').addEventListener('click', () => send({ type: 'saveReplay' }));
+  for (const b of document.querySelectorAll('[data-replay-last]')) {
+    b.addEventListener('click', () => send({ type: 'saveReplay', seconds: Number(b.dataset.replayLast) }));
+  }
   $('#playReplayBtn').addEventListener('click', () => {
     const file = $('#replaySelect').value;
     if (file) send({ type: 'playReplay', file });
@@ -303,6 +307,10 @@
     const saveBtn = $('#saveReplayBtn');
     saveBtn.disabled = running || !!rp.saving || !rp.enabled;
     saveBtn.classList.toggle('is-playing', !!rp.saving || replayPlaying);
+    for (const b of document.querySelectorAll('[data-replay-last]')) {
+      b.disabled = saveBtn.disabled;
+      b.hidden = Number(b.dataset.replayLast) >= Number(rp.seconds || 20); // only when shorter than the buffer
+    }
     $('#cancelReplayBtn').disabled = !replayPlaying;
     $('#stopReplayBtn').disabled = !replayPlaying;
     $('#stopReplayBtn').classList.toggle('is-armed', replayPlaying);

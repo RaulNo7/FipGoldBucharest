@@ -433,11 +433,49 @@ console.log('\nRunning padel scoring tests…\n');
   s = play(s, [1]);
   eq(L(s), '2nd DEUCE', 'pressure: back to deuce -> 2nd DEUCE');
   s = play(s, [1]);
-  eq(L(s), '', 'pressure: advantage to the receiver at 5-3 -> nothing');
+  eq(L(s), 'BREAK POINT', 'pressure: advantage to the receiver at 5-3 -> BREAK POINT');
   s = play(s, [1]);
   eq([s.games, L(s), s.pressure.setPoint, s.pressure.deuce], [[5, 4], '', 0, 0], 'pressure: the game ends -> counters start again');
   s = play(s, [1, 1, 1]);
   eq(L(s), '', 'pressure: 0-40 at 5-4 for the trailing team is no set point');
+
+  // break points: the receiving team one point from the game, numbered per game
+  let b = scoring.createDefaultState();
+  b.config.deuceMode = 'advantage';
+  b = scoring.applyCommand(b, { type: 'adjustGames', team: 0, delta: 1 });
+  b = scoring.applyCommand(b, { type: 'adjustGames', team: 1, delta: 1 });
+  eq(b.server, 0, 'break point: team 1 receives');
+  b = play(b, [1, 1]);
+  eq(L(b), '', 'break point: 0-30 is nothing yet');
+  b = play(b, [1]);
+  eq([L(b), b.pressure.now.team], ['BREAK POINT', 1], 'break point: 0-40 -> BREAK POINT for the receivers');
+  b = play(b, [0]);
+  eq(L(b), '2nd BREAK POINT', 'break point: 15-40 -> 2nd BREAK POINT');
+  b = play(b, [0]);
+  eq(L(b), '3rd BREAK POINT', 'break point: 30-40 -> 3rd BREAK POINT');
+  b = play(b, [0]);
+  eq(L(b), 'DEUCE', 'break point: 40-40 -> DEUCE');
+  b = play(b, [0]);
+  eq(L(b), '', 'break point: advantage to the server -> nothing');
+  b = play(b, [1]);
+  eq(L(b), '2nd DEUCE', 'break point: back to deuce');
+  b = play(b, [1]);
+  eq(L(b), '4th BREAK POINT', 'break point: advantage to the receivers -> 4th BREAK POINT');
+  b = play(b, [1]);
+  eq([b.games, b.server, L(b), b.pressure.breakPoint], [[1, 2], 1, '', 0], 'break point: broken -> new game, team 1 serves, count starts again');
+  b = play(b, [1, 1, 1]);
+  eq(L(b), '', 'break point: 40-0 for the server is no break point');
+  b = play(b, [0, 0, 0]);
+  eq(L(b), 'DEUCE', 'break point: 40-40');
+  b = play(b, [0]);
+  eq([L(b), b.pressure.now.team], ['BREAK POINT', 0], 'break point: now team 0 receives -> its 1st BREAK POINT');
+
+  // a break point that would win the set is a SET POINT
+  let bs = scoring.createDefaultState();
+  bs = scoring.applyCommand(bs, { type: 'adjustGames', team: 1, delta: 5 });
+  bs = scoring.applyCommand(bs, { type: 'adjustGames', team: 0, delta: 3 });
+  bs = play(bs, [1, 1, 1]);
+  eq([bs.server, L(bs)], [0, 'SET POINT'], 'break point: receivers at 5-3, 0-40 -> SET POINT (not break point)');
 
   // match point: one set up, 5-3, 40-0
   let m = scoring.createDefaultState();

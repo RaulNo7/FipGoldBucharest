@@ -63,6 +63,8 @@ let mediaPolls = 0; // polls since the current file was loaded (drives PLAYING -
 let totalPolls = 0; // never reset
 const inputSettingsCalls = []; // files set on the media source, in order
 const transformCalls = []; // scene-item transforms applied to the media source
+const cursorCalls = []; // SetMediaInputCursor: "input@ms"
+const replayAudioDuring = []; // inputs muted / unmuted while the REPLAY scene was on
 let mediaFile = 'C:\\merged-break.mp4';
 let holdMedia = false; // true: the mock media never ends (to test Cancel mid-clip)
 let replayBufferActive = false;
@@ -72,6 +74,7 @@ let lastReplayPath = '';
 const profileParams = {};
 const sceneItemCalls = []; // SetSceneItemEnabled: "scene/item=on|off"
 const muteCalls = []; // SetInputMute: "input=muted|on"
+const audioMuted = { 'DJI Mic Teren': false, 'DJi Mic Comentator': false, Replay: true, 'Interview Mic': false }; // mock audio inputs
 const missingSources = new Set(['FRP Transition']); // names the mock OBS does not know (the transition overlay: until the app adds it)
 const createdInputs = []; // CreateInput requests
 const sceneIndexCalls = []; // SetSceneItemIndex: "item@index"
@@ -130,6 +133,20 @@ hub.onMessage((sock, text) => {
       muteCalls.push(requestData.inputName + '=' + (requestData.inputMuted ? 'muted' : 'on'));
     }
     if (requestType === 'SetSceneItemTransform') transformCalls.push(requestData.sceneItemTransform);
+    if (requestType === 'GetInputList') responseData = { inputs: Object.keys(audioMuted).filter((n) => n !== 'Interview Mic').map((inputName) => ({ inputName })) };
+    if (requestType === 'GetSpecialInputs') responseData = { desktop1: null, mic1: 'Interview Mic' }; // a global mic device
+    if (requestType === 'GetInputMute') {
+      if (!(requestData.inputName in audioMuted)) {
+        hub.sendText(sock, JSON.stringify({ op: 7, d: { requestType, requestId, requestStatus: { result: false, code: 600, comment: 'no audio' } } }));
+        return;
+      }
+      responseData = { inputMuted: audioMuted[requestData.inputName] };
+    }
+    if (requestType === 'SetInputMute' && requestData.inputName in audioMuted) {
+      audioMuted[requestData.inputName] = !!requestData.inputMuted;
+      if (sceneSwitches[sceneSwitches.length - 1] === 'REPLAY') replayAudioDuring.push(requestData.inputName);
+    }
+    if (requestType === 'SetMediaInputCursor') cursorCalls.push(requestData.inputName + '@' + requestData.mediaCursor);
     if (requestType === 'GetInputSettings' && missingSources.has(requestData.inputName)) {
       hub.sendText(sock, JSON.stringify({ op: 7, d: { requestType, requestId, requestStatus: { result: false, code: 600, comment: 'No source was found by the name of ' + requestData.inputName } } }));
       return;
@@ -161,7 +178,7 @@ hub.onMessage((sock, text) => {
     if (requestType === 'GetMediaInputStatus') {
       mediaPolls++;
       totalPolls++;
-      responseData = { mediaState: holdMedia || mediaPolls <= 2 ? 'OBS_MEDIA_STATE_PLAYING' : 'OBS_MEDIA_STATE_ENDED' };
+      responseData = { mediaState: holdMedia || mediaPolls <= 2 ? 'OBS_MEDIA_STATE_PLAYING' : 'OBS_MEDIA_STATE_ENDED', mediaDuration: 15000 };
     }
     hub.sendText(
       sock,
@@ -860,6 +877,34 @@ function cleanupAndExit() {
   await sleep(1200);
   rpNow = (await firstMessage(SB_PORT)).obs.replay;
   assert(replayBufferActive === true && rpNow.bufferActive === true && rpNow.waitingForStream === false, 'replay buffer: starts again once the stream is live and sending (' + JSON.stringify({ obs: replayBufferActive, rp: rpNow }) + ')');
+
+  // ---- Replay of only the last 10 s (the clip is the whole 15 s buffer) ----
+  sceneSwitches.length = 0;
+  cursorCalls.length = 0;
+  muteCalls.length = 0;
+  await cmd({ type: 'saveReplay', seconds: 10 });
+  await waitFor(() => sceneSwitches.includes('REPLAY'), 15000);
+  const audioDuring = { ...audioMuted };
+  await waitFor(() => sceneSwitches.length >= 2 && sceneSwitches[sceneSwitches.length - 1] === 'LIVE', 15000);
+  await sleep(300);
+  assert(audioDuring['DJI Mic Teren'] === true && audioDuring['Interview Mic'] === true && audioDuring['DJi Mic Comentator'] === false,
+    'replay audio: during the replay only the commentator is heard (court mic and the global mic muted) (' + JSON.stringify(audioDuring) + ')');
+  assert(audioMuted['DJI Mic Teren'] === false && audioMuted['Interview Mic'] === false && audioMuted.Replay === true && audioMuted['DJi Mic Comentator'] === false,
+    'replay audio: afterwards everything is as before (the replay clip stays muted) (' + JSON.stringify(audioMuted) + ')');
+  assert(cursorCalls.join() === 'Replay@5000' && sceneSwitches.join() === 'REPLAY,LIVE', 'replay 10 s: plays from 10 s before the end of the clip (' + cursorCalls.join() + ' / ' + sceneSwitches.join() + ')');
+  sceneSwitches.length = 0;
+  cursorCalls.length = 0;
+  await cmd({ type: 'saveReplay', seconds: 15 });
+  await waitFor(() => sceneSwitches.length >= 2 && sceneSwitches[sceneSwitches.length - 1] === 'LIVE', 15000);
+  assert(cursorCalls.length === 0 && sceneSwitches.join() === 'REPLAY,LIVE', 'replay 15 s with a 15 s buffer: the whole clip, no jump (' + cursorCalls.join() + ')');
+  const replayPage = await (await fetch(`http://127.0.0.1:${SB_PORT}/media`)).text();
+  assert(/data-replay-last="10"/.test(replayPage) && /data-replay-last="15"/.test(replayPage), 'replay: 10 s and 15 s buttons on the Media tab');
+
+  // break point in the bar under the scoreboard
+  await cmd({ type: 'resetMatch' });
+  for (let i = 0; i < 3; i++) await cmd({ type: 'point', team: 1 });
+  const bp = (await firstMessage(SB_PORT)).state.pressure.now;
+  assert(bp && bp.kind === 'break' && bp.team === 1 && bp.n === 1, 'scoreboard: 0-40 against the server is a break point (' + JSON.stringify(bp) + ')');
 
   // ---- Scoreboard extras: set point bar, match timer, commentary label (Broadcast section) ----
   await cmd({ type: 'resetMatch' });

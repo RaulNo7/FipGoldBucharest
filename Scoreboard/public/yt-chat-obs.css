@@ -43,8 +43,10 @@ yt-live-chat-renderer {
   height: auto !important;
 }
 
-/* everything that is not a message: header, input box, pinned banners, ticker, "welcome" notices */
+/* everything that is not a message: header (and the thin line under it), input box, pinned banners, ticker, "welcome" notices */
 yt-live-chat-header-renderer,
+yt-live-chat-renderer #separator,
+#separator,
 yt-live-chat-message-input-renderer,
 yt-live-chat-banner-manager,
 yt-live-chat-ticker-renderer,

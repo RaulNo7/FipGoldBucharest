@@ -121,6 +121,9 @@ body {
   border-left-color: #ce1126;
   color: var(--text-dark);
 }
+.pressure-bar[data-kind='break'] {
+  border-left-color: #ce1126;
+}
 .pressure-bar.hidden {
   display: none;
 }

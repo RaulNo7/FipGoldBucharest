@@ -163,6 +163,18 @@
         <label>Commercials folder
           <input type="text" id="obsAdsDir" placeholder="(auto: the app's Commercials folder)" />
         </label>
+      </div>
+      <div class="row gap wrap actions">
+        <button class="btn btn-ghost" id="saveObsBtn">Save settings</button>
+        <button class="btn btn-ghost" id="testObsBtn">Test connection</button>
+      </div>
+      <p class="hint imp-status" id="obsTestResult"></p>
+      <p class="hint">In OBS: enable <b>Tools → WebSocket Server Settings</b>, and create the commercials scene containing one Media Source (any video file — the app loads the spots into it one by one) with "Restart playback when source becomes active" ticked. The connection result shows right under the buttons (and in the Broadcast card of the Media tab).</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Replay</h2></div>
+      <div class="config-grid">
         <label class="check"><input type="checkbox" id="rpEnabled" /> Instant replay (keeps OBS's replay buffer running)</label>
         <label>Replay length (seconds)
           <input type="number" id="rpSeconds" min="5" max="600" step="5" />
@@ -176,13 +188,14 @@
         <label>Replay folder
           <input type="text" id="rpDir" placeholder="(auto: the app's Replay folder)" />
         </label>
+        <label>Heard during a replay (OBS audio sources, comma-separated; every other one is muted meanwhile, empty = leave the audio alone)
+          <input type="text" id="rpAudio" placeholder="DJi Mic Comentator" />
+        </label>
       </div>
       <div class="row gap wrap actions">
-        <button class="btn btn-ghost" id="saveObsBtn">Save settings</button>
-        <button class="btn btn-ghost" id="testObsBtn">Test connection</button>
+        <button class="btn btn-ghost" id="saveReplaySettingsBtn" type="button">Save</button>
       </div>
-      <p class="hint imp-status" id="obsTestResult"></p>
-      <p class="hint">In OBS: enable <b>Tools → WebSocket Server Settings</b>, and create the commercials scene containing one Media Source (any video file — the app loads the spots into it one by one) with "Restart playback when source becomes active" ticked. For replays: enable the <b>Replay Buffer</b> in OBS (Settings → Output → Recording) and create the replay scene with one Media Source of the name above; the app starts the buffer, sets its length and moves each saved clip into the replay folder. The connection result shows right under the buttons (and in the Broadcast card of the Media tab).</p>
+      <p class="hint">In OBS: enable the <b>Replay Buffer</b> (Settings → Output → Recording) and create the replay scene with one Media Source of the name above; the app starts the buffer while the stream is live, sets its length and moves each saved clip into the replay folder. The OBS connection itself is set under <b>Commercial break settings</b>.</p>
     </div>
 
     <div class="card">

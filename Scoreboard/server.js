@@ -454,6 +454,9 @@ const DEFAULT_OBS_SETTINGS = {
   replayDir: '', // '' = auto: the app's Replay folder (see defaultReplayDir)
   replayScene: 'REPLAY',
   replaySource: 'Replay',
+  // the only OBS audio sources heard while a replay is on the stream (comma-separated; '' = leave the audio alone):
+  // every other audio source is muted meanwhile and comes back as it was afterwards
+  replayAudio: 'DJi Mic Comentator',
   // Interview button (Media tab): cut the ATEM Mini to the interview camera,
   // hide the score and the listed OBS sources of the live scene, mute the
   // headset mic and open the DJI mic; pressing it again puts everything back.
@@ -1075,8 +1078,88 @@ async function saveReplayClip() {
   return dest;
 }
 
-/** Put one replay clip on the stream: replay scene + its media source, back to live when it ends. */
-async function runReplayClip(file) {
+/**
+ * A replay is going on air: only the sources in obsSettings.replayAudio stay audible. They are put
+ * in the replay scene (a scene only plays the audio of its own sources) and every other audio source,
+ * global ones included (desktop / mic devices play in every scene), is muted. Returns the names it
+ * muted, for restoreReplayAudio().
+ */
+async function replayAudioOnly() {
+  const keep = nameList(obsSettings.replayAudio);
+  if (!keep.length) return [];
+  for (const name of keep) {
+    try {
+      let sceneItemId;
+      try {
+        ({ sceneItemId } = await obs.request('GetSceneItemId', { sceneName: obsSettings.replayScene, sourceName: name }));
+      } catch (_) {
+        ({ sceneItemId } = await obs.request('CreateSceneItem', { sceneName: obsSettings.replayScene, sourceName: name, sceneItemEnabled: true }));
+      }
+      await obs.request('SetSceneItemEnabled', { sceneName: obsSettings.replayScene, sceneItemId, sceneItemEnabled: true });
+    } catch (err) {
+      console.error('Replay audio: could not put', name, 'in the replay scene:', err.message);
+    }
+  }
+  const names = new Set();
+  try {
+    for (const i of (await obs.request('GetInputList')).inputs || []) names.add(i.inputName);
+  } catch (_) { /* none */ }
+  try {
+    for (const v of Object.values(await obs.request('GetSpecialInputs'))) if (v) names.add(v);
+  } catch (_) { /* none */ }
+  const muted = [];
+  for (const name of names) {
+    if (keep.includes(name)) continue;
+    try {
+      const { inputMuted } = await obs.request('GetInputMute', { inputName: name });
+      if (inputMuted) continue; // already off: leave it
+      await obs.request('SetInputMute', { inputName: name, inputMuted: true });
+      muted.push(name);
+    } catch (_) { /* a source without audio */ }
+  }
+  return muted;
+}
+
+/** After the replay: the sources replayAudioOnly() muted are heard again. */
+async function restoreReplayAudio(muted) {
+  for (const name of muted || []) {
+    try {
+      await obs.request('SetInputMute', { inputName: name, inputMuted: false });
+    } catch (err) {
+      console.error('Replay audio: could not unmute', name, err.message);
+    }
+  }
+}
+
+/**
+ * Starts the replay source `lastSeconds` before the end of its clip (the 10 s / 15 s
+ * buttons: the clip is the whole buffer). Returns true once the cursor was set.
+ */
+async function seekToLastSeconds(inputName, lastSeconds, waitMs) {
+  const until = Date.now() + waitMs;
+  while (Date.now() < until) {
+    let st = null;
+    try {
+      st = await obs.request('GetMediaInputStatus', { inputName });
+    } catch (_) {
+      return false;
+    }
+    const duration = Number(st && st.mediaDuration);
+    if (duration > 0) {
+      const cursor = Math.max(0, Math.round(duration - lastSeconds * 1000));
+      if (cursor > 0) await obs.request('SetMediaInputCursor', { inputName, mediaCursor: cursor });
+      return true;
+    }
+    await sleep(50);
+  }
+  return false;
+}
+
+/**
+ * Put one replay clip on the stream: replay scene + its media source, back to live when it ends.
+ * lastSeconds = only the end of the clip (10 / 15 s buttons); null = all of it.
+ */
+async function runReplayClip(file, lastSeconds = null) {
   if (breakState.phase === 'running') return;
   breakState.phase = 'running';
   breakState.kind = 'replay';
@@ -1092,6 +1175,7 @@ async function runReplayClip(file) {
     handleCommand({ type: 'setDisplay', display: { scoreVisible: false } });
     await sleep(500); // let the overlay fade out before the scene switch
   }
+  let replayMuted = [];
   try {
     await connectObs();
     await fitMediaSourceToCanvas(obsSettings.replayScene, obsSettings.replaySource);
@@ -1100,13 +1184,29 @@ async function runReplayClip(file) {
       inputSettings: { is_local_file: true, local_file: file },
       overlay: true,
     });
-    await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.replayScene });
+    const restart = async () => {
+      try {
+        await obs.request('TriggerMediaInputAction', {
+          inputName: obsSettings.replaySource,
+          mediaAction: 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART',
+        });
+      } catch (_) { /* the settings change alone restarts playback on most builds */ }
+    };
+    // only the last seconds: jump there before the replay scene is on air (if OBS already
+    // knows the clip's length), else right after
+    let seeked = false;
+    if (lastSeconds) {
+      await restart();
+      seeked = await seekToLastSeconds(obsSettings.replaySource, lastSeconds, 800);
+    }
     try {
-      await obs.request('TriggerMediaInputAction', {
-        inputName: obsSettings.replaySource,
-        mediaAction: 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART',
-      });
-    } catch (_) { /* the settings change alone restarts playback on most builds */ }
+      replayMuted = await replayAudioOnly(); // only the commentator (Admin tab) is heard during the replay
+    } catch (err) {
+      console.error('Replay audio:', err.message);
+    }
+    await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.replayScene });
+    if (!lastSeconds) await restart();
+    else if (!seeked) await seekToLastSeconds(obsSettings.replaySource, lastSeconds, 2000);
     await waitForCommercialsEnd(obsSettings.replaySource, (replaySeconds() + 15) * 1000);
     await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.liveScene });
   } catch (err) {
@@ -1116,6 +1216,7 @@ async function runReplayClip(file) {
       if (obs.connected) await obs.request('SetCurrentProgramScene', { sceneName: obsSettings.liveScene });
     } catch (_) { /* reported above */ }
   }
+  await restoreReplayAudio(replayMuted);
   replayState.playing = null;
   breakState.kind = null;
   breakState.phase = 'idle';
@@ -1123,8 +1224,8 @@ async function runReplayClip(file) {
   broadcastState();
 }
 
-/** Replay button: save the buffer, then play the clip right away. */
-function saveAndPlayReplay() {
+/** Replay button: save the buffer, then play the clip right away (lastSeconds: only its end). */
+function saveAndPlayReplay(lastSeconds = null) {
   if (replayState.saving || breakState.phase === 'running') return;
   (async () => {
     replayState.saving = true;
@@ -1139,7 +1240,7 @@ function saveAndPlayReplay() {
     }
     replayState.saving = false;
     broadcastState();
-    if (clip) await runReplayClip(clip);
+    if (clip) await runReplayClip(clip, lastSeconds);
   })();
 }
 
@@ -1861,8 +1962,10 @@ function handleCommand(cmd) {
   }
 
   // Replay button: save the last N seconds from OBS and play the clip.
+  // seconds: 10 / 15 buttons play only the end of the saved clip (shorter than the buffer)
   if (cmd.type === 'saveReplay') {
-    saveAndPlayReplay();
+    const last = Math.round(Number(cmd.seconds));
+    saveAndPlayReplay(Number.isFinite(last) && last >= 3 && last < replaySeconds() ? last : null);
     return;
   }
 
@@ -2217,6 +2320,7 @@ function handleMainRequest(req, res) {
             if (typeof incoming[k] === 'string') clean[k] = incoming[k].trim();
           }
           if (typeof incoming.replayEnabled === 'boolean') clean.replayEnabled = incoming.replayEnabled;
+          if (typeof incoming.replayAudio === 'string') clean.replayAudio = nameList(incoming.replayAudio).join(', ');
           if (Number.isFinite(Number(incoming.replaySeconds)) && Number(incoming.replaySeconds) >= 5) {
             clean.replaySeconds = Math.min(600, Math.round(Number(incoming.replaySeconds)));
           }

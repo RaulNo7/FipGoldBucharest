@@ -235,7 +235,7 @@
   $('#copyIbPubUrlBtn').addEventListener('click', () => isUrl($('#ibPubUrl').value) && copyField($('#ibPubUrl'), $('#copyIbPubUrlBtn')));
   $('#openIbPubUrlBtn').addEventListener('click', () => openPreview($('#ibPubUrl').value));
 
-  // ---- Commercial break settings (OBS connection, scenes, commercials, instant replay) ----
+  // ---- Commercial break settings (OBS connection, scenes, commercials) and the Replay card ----
   // Stored server-side in obs-settings.json, never broadcast. The Media tab
   // reloads its lists when they change (obs.settingsRev).
   fetch('/api/obs-settings')
@@ -256,6 +256,7 @@
       $('#rpScene').value = cfg.replayScene || '';
       $('#rpSource').value = cfg.replaySource || '';
       $('#rpDir').value = cfg.replayDir || '';
+      $('#rpAudio').value = cfg.replayAudio === undefined ? 'DJi Mic Comentator' : cfg.replayAudio;
     })
     .catch(() => {
       $('#obsTestResult').textContent = 'Could not load the OBS settings.';
@@ -273,11 +274,6 @@
       mediaSource: $('#obsMediaSource').value.trim(),
       commercialsDir: $('#obsAdsDir').value.trim(),
       maxBreakSeconds: +$('#obsMaxBreak').value,
-      replayEnabled: $('#rpEnabled').checked,
-      replaySeconds: +$('#rpSeconds').value,
-      replayScene: $('#rpScene').value.trim(),
-      replaySource: $('#rpSource').value.trim(),
-      replayDir: $('#rpDir').value.trim(),
     };
     fetch('/api/obs-settings', {
       method: 'POST',
@@ -286,6 +282,25 @@
     })
       .then((r) => flash($('#saveObsBtn'), r.ok ? 'Saved!' : 'Failed'))
       .catch(() => flash($('#saveObsBtn'), 'Failed'));
+  });
+
+  // ---- Replay (its own card; same obs-settings.json, only these fields) ----
+  $('#saveReplaySettingsBtn').addEventListener('click', () => {
+    const body = {
+      replayEnabled: $('#rpEnabled').checked,
+      replaySeconds: +$('#rpSeconds').value,
+      replayScene: $('#rpScene').value.trim(),
+      replaySource: $('#rpSource').value.trim(),
+      replayDir: $('#rpDir').value.trim(),
+      replayAudio: $('#rpAudio').value,
+    };
+    fetch('/api/obs-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then((r) => flash($('#saveReplaySettingsBtn'), r.ok ? 'Saved!' : 'Failed'))
+      .catch(() => flash($('#saveReplaySettingsBtn'), 'Failed'));
   });
 
   $('#testObsBtn').addEventListener('click', () => {

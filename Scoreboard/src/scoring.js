@@ -356,9 +356,13 @@ function ordinal(n) {
   return n + (suffix[(v - 20) % 10] || suffix[v] || suffix[0]);
 }
 
-/** Which team would win the set / the match by winning the next point (null = none). */
+/**
+ * Which team would win the set / the match by winning the next point (null = none),
+ * and `brk`: the receiving team when the next point would win it the game (a break
+ * point; not in a tiebreak).
+ */
 function nextPointWins(state) {
-  const res = { match: null, set: null };
+  const res = { match: null, set: null, brk: null };
   if (state.status === 'finished') return res;
   for (const t of [0, 1]) {
     const sim = awardPoint(clone(state), t);
@@ -366,6 +370,8 @@ function nextPointWins(state) {
       if (res.match === null) res.match = t;
     } else if (sim.sets.length > state.sets.length) {
       if (res.set === null) res.set = t;
+    } else if (!state.inTiebreak && t !== state.server && sim.games[t] === state.games[t] + 1) {
+      res.brk = t;
     }
   }
   return res;
@@ -373,7 +379,7 @@ function nextPointWins(state) {
 
 /**
  * Recomputes state.pressure after a command: what the next point means now
- * (match point > set point > deuce) and, after a point, counts it - the counts
+ * (match point > set point > deuce > break point) and, after a point, counts it - the counts
  * belong to the current game and start again when a game or tiebreak ends.
  */
 function withPressure(state, afterPoint) {
@@ -385,6 +391,7 @@ function withPressure(state, afterPoint) {
     setPoint: prev ? prev.setPoint : 0,
     matchPoint: prev ? prev.matchPoint : 0,
     deuce: prev ? prev.deuce : 0,
+    breakPoint: prev ? prev.breakPoint || 0 : 0,
     now: null,
   };
   if (state.status !== 'finished') {
@@ -399,17 +406,20 @@ function withPressure(state, afterPoint) {
       pr.now = { kind: 'set', team: wins.set, n: pr.setPoint };
     } else if (deuceNow) {
       pr.now = { kind: 'deuce', team: null, n: pr.deuce };
+    } else if (wins.brk !== null) {
+      if (afterPoint) pr.breakPoint += 1;
+      pr.now = { kind: 'break', team: wins.brk, n: pr.breakPoint };
     }
   }
   state.pressure = pr;
   return state;
 }
 
-/** Text for the bar: "SET POINT", "2nd SET POINT", "MATCH POINT", "3rd DEUCE"... ('' = nothing to show). */
+/** Text for the bar: "SET POINT", "2nd SET POINT", "MATCH POINT", "3rd DEUCE", "BREAK POINT"... ('' = nothing to show). */
 function pressureLabel(state) {
   const now = state && state.pressure && state.pressure.now;
   if (!now) return '';
-  const word = now.kind === 'match' ? 'MATCH POINT' : now.kind === 'set' ? 'SET POINT' : 'DEUCE';
+  const word = now.kind === 'match' ? 'MATCH POINT' : now.kind === 'set' ? 'SET POINT' : now.kind === 'break' ? 'BREAK POINT' : 'DEUCE';
   return now.n >= 2 ? `${ordinal(now.n)} ${word}` : word;
 }
 

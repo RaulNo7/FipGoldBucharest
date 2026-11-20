@@ -76,11 +76,18 @@
 
     <div class="card">
       <div class="card-head"><h2>Replay</h2><span id="replayBadge" class="badge"></span></div>
-      <div class="spots spots-controls">
-        <button class="btn spot spot-replay" id="saveReplayBtn">
-          <span class="spot-num">LAST</span>
-          <span class="spot-label">⏪ Replay</span>
-          <span class="spot-file" id="replaySecondsLabel">last 20 s → on the stream</span>
+      <div class="spots spots-controls spots-replay">
+        <button class="btn spot spot-replay spot-short" data-replay-last="10" title="Save the buffer and play only its last 10 seconds">
+          <span class="spot-label">⏪ 10 s</span>
+          <span class="spot-file">last 10 s</span>
+        </button>
+        <button class="btn spot spot-replay spot-short" data-replay-last="15" title="Save the buffer and play only its last 15 seconds">
+          <span class="spot-label">⏪ 15 s</span>
+          <span class="spot-file">last 15 s</span>
+        </button>
+        <button class="btn spot spot-replay spot-short" id="saveReplayBtn" title="Save the buffer and play all of it">
+          <span class="spot-label" id="replaySecondsBig">⏪ 20 s</span>
+          <span class="spot-file" id="replaySecondsLabel">last 20 s</span>
         </button>
         <button class="btn spot spot-cancel" id="cancelReplayBtn" disabled>
           <span class="spot-num">STOP</span>
