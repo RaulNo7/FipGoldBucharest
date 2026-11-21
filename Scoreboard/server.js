@@ -457,6 +457,9 @@ const DEFAULT_OBS_SETTINGS = {
   // the only OBS audio sources heard while a replay is on the stream (comma-separated; '' = leave the audio alone):
   // every other audio source is muted meanwhile and comes back as it was afterwards
   replayAudio: 'DJi Mic Comentator',
+  // commentator headsets: the "To headset ..." Audio Monitor filters play every source at the level the stream has it
+  // (its OBS fader; silent while it is muted or not in the scene on air) - see syncHeadsetMix()
+  headsetFollowsStream: true,
   // Interview button (Media tab): cut the ATEM Mini to the interview camera,
   // hide the score and the listed OBS sources of the live scene, mute the
   // headset mic and open the DJI mic; pressing it again puts everything back.
@@ -1275,6 +1278,106 @@ function saveAndPlayReplay(lastSeconds = null, play = true) {
     if (clip && play) await runReplayClip(clip, lastSeconds);
   })();
 }
+
+// ---------------------------------------------------------------------------
+// Commentator headsets hear the stream mix
+// ---------------------------------------------------------------------------
+// Each source the commentators hear has Audio Monitor filters (kind audio_monitor) named "To headset ..."
+// that play it on a headset (a commentator's own mic is never sent to their own headset: no echo). Those
+// filters take the sound before OBS's fader and mute, so every second the filter volume is set to the
+// source's own fader level (the level it has on the stream), and to 0 while the source is not heard on the
+// stream: muted, or not in the scene on air (global audio devices play in every scene).
+const HEADSET_FILTER = /^to headset/i;
+const headsetMix = { routes: [], scannedAt: 0, applied: new Map(), busy: false, lastTry: 0 };
+
+async function scanHeadsetRoutes() {
+  const names = new Set();
+  for (const i of (await obs.request('GetInputList')).inputs || []) names.add(i.inputName);
+  try {
+    for (const v of Object.values(await obs.request('GetSpecialInputs'))) if (v) names.add(v);
+  } catch (_) { /* none */ }
+  const routes = [];
+  for (const sourceName of names) {
+    let filters = [];
+    try {
+      ({ filters } = await obs.request('GetSourceFilterList', { sourceName }));
+    } catch (_) {
+      continue;
+    }
+    for (const f of filters || []) {
+      if (f.filterKind === 'audio_monitor' && HEADSET_FILTER.test(f.filterName)) routes.push({ sourceName, filterName: f.filterName });
+    }
+  }
+  headsetMix.routes = routes;
+  headsetMix.scannedAt = Date.now();
+  headsetMix.applied.clear(); // re-assert every level after a scan (someone may have changed a filter by hand)
+}
+
+/** Names of the sources shown in a scene, nested scenes and groups included. */
+async function sourcesInScene(sceneName, seen = new Set()) {
+  if (seen.has(sceneName)) return new Set();
+  seen.add(sceneName);
+  const out = new Set();
+  const { sceneItems } = await obs.request('GetSceneItemList', { sceneName });
+  for (const it of sceneItems || []) {
+    if (it.sceneItemEnabled === false) continue;
+    out.add(it.sourceName);
+    if (it.isGroup) {
+      try {
+        for (const g of (await obs.request('GetGroupSceneItemList', { sceneName: it.sourceName })).sceneItems || []) {
+          if (g.sceneItemEnabled !== false) out.add(g.sourceName);
+        }
+      } catch (_) { /* not a group after all */ }
+    } else if (it.sourceType === 'OBS_SOURCE_TYPE_SCENE') {
+      for (const n of await sourcesInScene(it.sourceName, seen)) out.add(n);
+    }
+  }
+  return out;
+}
+
+async function syncHeadsetMix() {
+  if (obsSettings.headsetFollowsStream === false || headsetMix.busy) return;
+  if (!obs.connected) {
+    if (Date.now() - headsetMix.lastTry < 10000 || !obsSettings.url) return;
+    headsetMix.lastTry = Date.now();
+    try {
+      await connectObs();
+    } catch (_) {
+      return;
+    }
+  }
+  headsetMix.busy = true;
+  try {
+    if (Date.now() - headsetMix.scannedAt > 15000) await scanHeadsetRoutes();
+    if (!headsetMix.routes.length) return;
+    const program = (await obs.request('GetCurrentProgramScene')).currentProgramSceneName;
+    const onAir = program ? await sourcesInScene(program) : new Set();
+    let global = new Set();
+    try {
+      global = new Set(Object.values(await obs.request('GetSpecialInputs')).filter(Boolean));
+    } catch (_) { /* none */ }
+    const level = new Map();
+    for (const name of new Set(headsetMix.routes.map((r) => r.sourceName))) {
+      const { inputMuted } = await obs.request('GetInputMute', { inputName: name });
+      const { inputVolumeMul } = await obs.request('GetInputVolume', { inputName: name });
+      const heard = !inputMuted && (global.has(name) || onAir.has(name));
+      level.set(name, heard ? Math.round(Number(inputVolumeMul) * 1000) / 10 : 0); // the filter's volume is in % (100 = as captured)
+    }
+    for (const r of headsetMix.routes) {
+      const key = r.sourceName + '\u0000' + r.filterName;
+      const volume = level.get(r.sourceName);
+      if (headsetMix.applied.get(key) === volume) continue;
+      await obs.request('SetSourceFilterSettings', { sourceName: r.sourceName, filterName: r.filterName, filterSettings: { volume }, overlay: true });
+      headsetMix.applied.set(key, volume);
+    }
+  } catch (err) {
+    headsetMix.scannedAt = 0; // a source or filter changed: look again next time
+    console.error('Headset mix:', err.message);
+  } finally {
+    headsetMix.busy = false;
+  }
+}
+setInterval(syncHeadsetMix, 1000);
 
 /** Keeps OBS connected and the replay buffer running so a replay is always available. */
 function replayHousekeeping() {
@@ -2354,6 +2457,7 @@ function handleMainRequest(req, res) {
             if (typeof incoming[k] === 'string') clean[k] = incoming[k].trim();
           }
           if (typeof incoming.replayEnabled === 'boolean') clean.replayEnabled = incoming.replayEnabled;
+          if (typeof incoming.headsetFollowsStream === 'boolean') clean.headsetFollowsStream = incoming.headsetFollowsStream;
           if (typeof incoming.replayAudio === 'string') clean.replayAudio = nameList(incoming.replayAudio).join(', ');
           if (Number.isFinite(Number(incoming.replaySeconds)) && Number(incoming.replaySeconds) >= 5) {
             clean.replaySeconds = Math.min(600, Math.round(Number(incoming.replaySeconds)));

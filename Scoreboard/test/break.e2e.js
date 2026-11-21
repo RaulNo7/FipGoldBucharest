@@ -74,6 +74,9 @@ let lastReplayPath = '';
 const profileParams = {};
 const sceneItemCalls = []; // SetSceneItemEnabled: "scene/item=on|off"
 const muteCalls = []; // SetInputMute: "input=muted|on"
+const inputVolume = { 'DJI Mic Teren': 0.16, 'Interview Mic': 0.97 }; // OBS fader levels (multiplier)
+const headsetFilters = { 'DJI Mic Teren': ['To headset 1', 'To headset 2'], 'Interview Mic': ['To headset 1'] };
+const filterVolume = {}; // "source/filter" -> volume set by the app
 const audioMuted = { 'DJI Mic Teren': false, 'DJi Mic Comentator': false, Replay: true, 'Interview Mic': false }; // mock audio inputs
 const missingSources = new Set(['FRP Transition']); // names the mock OBS does not know (the transition overlay: until the app adds it)
 const createdInputs = []; // CreateInput requests
@@ -117,6 +120,15 @@ hub.onMessage((sock, text) => {
     if (requestType === 'GetSceneItemList') {
       responseData = { sceneItems: Object.entries(itemIds).map(([sourceName, sceneItemId], i) => ({ sourceName, sceneItemId, sceneItemIndex: i, sceneItemEnabled: itemEnabled[sceneItemId] !== false })) };
     }
+    if (requestType === 'GetCurrentProgramScene') responseData = { currentProgramSceneName: sceneSwitches[sceneSwitches.length - 1] || 'LIVE' };
+    if (requestType === 'GetSceneItemList' && requestData.sceneName === 'LIVE' && !('DJI Mic Teren' in itemIds)) {
+      responseData.sceneItems.push({ sourceName: 'DJI Mic Teren', sceneItemId: 999, sceneItemIndex: 99, sceneItemEnabled: true });
+    }
+    if (requestType === 'GetSourceFilterList') {
+      responseData = { filters: (headsetFilters[requestData.sourceName] || []).map((filterName) => ({ filterName, filterKind: 'audio_monitor', filterEnabled: true, filterSettings: {} })) };
+    }
+    if (requestType === 'GetInputVolume') responseData = { inputVolumeMul: inputVolume[requestData.sourceName || requestData.inputName] ?? 1 };
+    if (requestType === 'SetSourceFilterSettings') filterVolume[requestData.sourceName + '/' + requestData.filterName] = requestData.filterSettings.volume;
     if (requestType === 'SetSceneItemIndex') sceneIndexCalls.push(requestData.sceneItemId + '@' + requestData.sceneItemIndex);
     if (requestType === 'CreateInput') {
       createdInputs.push(requestData);
@@ -945,6 +957,20 @@ function cleanupAndExit() {
   assert(/id="pressureBar"/.test(ov) && /id="matchClock"/.test(ov), 'scoreboard: set point bar and timer on the overlay');
   assert(/id="clockSetBtn"/.test(md) && /id="clockHideBtn"/.test(md) && /data-commentary="watch"/.test(md) && !/data-commentary="none"/.test(md) && /data-commentary="live"/.test(md) && !/id="replayStatus"/.test(md) && !/Play all commercials<\/b> \(and/.test(md), 'Media tab: timer + commentary controls in Broadcast, the long help texts gone');
   await cmd({ type: 'resetMatch' });
+
+  // ---- Commentator headsets: each "To headset" route plays at the source's stream level ----
+  await waitFor(() => filterVolume['DJI Mic Teren/To headset 1'] === 16 && filterVolume['Interview Mic/To headset 1'] === 97, 8000);
+  assert(filterVolume['DJI Mic Teren/To headset 1'] === 16 && filterVolume['DJI Mic Teren/To headset 2'] === 16 && filterVolume['Interview Mic/To headset 1'] === 97,
+    'headsets: every route at its source\'s fader level (' + JSON.stringify(filterVolume) + ')');
+  inputVolume['DJI Mic Teren'] = 0.5;
+  await waitFor(() => filterVolume['DJI Mic Teren/To headset 2'] === 50, 5000);
+  assert(filterVolume['DJI Mic Teren/To headset 1'] === 50 && filterVolume['DJI Mic Teren/To headset 2'] === 50, 'headsets: a fader moved in OBS is followed within a second or two');
+  audioMuted['DJI Mic Teren'] = true;
+  await waitFor(() => filterVolume['DJI Mic Teren/To headset 1'] === 0, 5000);
+  assert(filterVolume['DJI Mic Teren/To headset 1'] === 0 && filterVolume['Interview Mic/To headset 1'] === 97, 'headsets: a muted source is silent in the headsets too (the others unchanged)');
+  audioMuted['DJI Mic Teren'] = false;
+  await waitFor(() => filterVolume['DJI Mic Teren/To headset 1'] === 50, 5000);
+  assert(filterVolume['DJI Mic Teren/To headset 1'] === 50, 'headsets: unmuted, it is heard again at its level');
 
   cleanupAndExit();
 })().catch((err) => {
