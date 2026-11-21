@@ -93,7 +93,6 @@ function createDefaultState() {
       title: '',
       subtitle: '',
       theme: 'dark', // 'dark' | 'light'
-      showSets: true,
       showServe: true,
       showPlayers: true,
       showTitle: true,

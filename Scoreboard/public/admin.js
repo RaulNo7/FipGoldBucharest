@@ -154,12 +154,11 @@
         subtitle: $('#dspSubtitle').value,
         startTime: $('#dspStartTime').value,
         showTitle: $('#dspShowTitle').checked,
-        showSets: $('#dspShowSets').checked,
         showServe: $('#dspShowServe').checked,
       },
     });
   }
-  ['#dspShowTitle', '#dspShowSets', '#dspShowServe', '#dspStartTime'].forEach((sel) =>
+  ['#dspShowTitle', '#dspShowServe', '#dspStartTime'].forEach((sel) =>
     $(sel).addEventListener('change', sendDisplay)
   );
   bindEditable('#dspTitle, #dspSubtitle', sendDisplay);
@@ -220,7 +219,6 @@
     setVal('#dspSubtitle', d.subtitle || '');
     setVal('#dspStartTime', d.startTime || '');
     setChk('#dspShowTitle', d.showTitle !== false);
-    setChk('#dspShowSets', d.showSets !== false);
     setChk('#dspShowServe', d.showServe !== false);
   }
 

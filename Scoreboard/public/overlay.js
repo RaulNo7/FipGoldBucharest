@@ -147,7 +147,6 @@
       }
 
       // Completed sets (blue columns)
-      el.sets[t].classList.toggle('hidden', d.showSets === false);
       renderSets(el.sets[t], state, t);
 
       // Current-set games (gold column)
