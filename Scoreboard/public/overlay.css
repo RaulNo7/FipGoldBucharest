@@ -292,6 +292,11 @@ body {
   display: none;
 }
 
+/* Players only: names and flags, no score columns */
+.scoreboard.names-only .score-cols {
+  display: none;
+}
+
 @keyframes pointBump {
   0% { transform: scale(1); }
   40% { transform: scale(1.28); }

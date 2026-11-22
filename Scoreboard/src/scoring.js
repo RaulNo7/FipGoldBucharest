@@ -94,6 +94,7 @@ function createDefaultState() {
       subtitle: '',
       theme: 'dark', // 'dark' | 'light'
       showServe: true,
+      showScore: true, // false = players only: names and flags, no score columns (the /tv page ignores it)
       showPlayers: true,
       showTitle: true,
       showClock: true, // match timer in the title bar (Media tab: Hide / Show)

@@ -956,6 +956,19 @@ function cleanupAndExit() {
   const md = await (await fetch(`http://127.0.0.1:${SB_PORT}/media`)).text();
   assert(/id="pressureBar"/.test(ov) && /id="matchClock"/.test(ov), 'scoreboard: set point bar and timer on the overlay');
   assert(/id="clockSetBtn"/.test(md) && /id="clockHideBtn"/.test(md) && /data-commentary="watch"/.test(md) && !/data-commentary="none"/.test(md) && /data-commentary="live"/.test(md) && !/id="replayStatus"/.test(md) && !/Play all commercials<\/b> \(and/.test(md), 'Media tab: timer + commentary controls in Broadcast, the long help texts gone');
+  // Players only: the score columns can be hidden while the names stay
+  assert((await api('/api/state')).display.showScore === true, 'players only: the score is shown by default');
+  await cmd({ type: 'setDisplay', display: { showScore: false } });
+  let ps = await api('/api/state');
+  assert(ps.display.showScore === false && ps.display.scoreVisible !== false, 'players only: score hidden, the scoreboard (players) stays on');
+  const ovJs = await (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/overlay.js`)).text();
+  const ovCss = await (await fetch(`http://127.0.0.1:${PUBLIC_PORT}/overlay.css`)).text();
+  assert(/showScore === false/.test(ovJs) && /names-only \.score-cols/.test(ovCss), 'players only: the overlay drops the score columns');
+  const adm = await (await fetch(`http://127.0.0.1:${SB_PORT}/admin`)).text();
+  assert(/id="playersOnlyBtn"/.test(md) && /id="dspShowScore"/.test(adm), 'players only: button on the Media tab, checkbox on Admin');
+  await cmd({ type: 'resetMatch' });
+  assert((await api('/api/state')).display.showScore === false, 'players only: kept by Reset score (a display setting)');
+  await cmd({ type: 'setDisplay', display: { showScore: true } });
   await cmd({ type: 'resetMatch' });
 
   // ---- Commentator headsets: each "To headset" route plays at the source's stream level ----

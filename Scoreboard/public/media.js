@@ -158,6 +158,10 @@
     const visible = !state || !state.display || state.display.scoreVisible !== false;
     send({ type: 'setDisplay', display: { scoreVisible: !visible } });
   });
+  $('#playersOnlyBtn').addEventListener('click', () => {
+    const scoreShown = !(state && state.display && state.display.showScore === false);
+    send({ type: 'setDisplay', display: { showScore: !scoreShown } });
+  });
   // Player cards: ◀ Left / Right ▶ shows that player's card on that side of the frame; the same
   // button hides it, the other side moves it, another player's button switches to that player.
   $$('[data-pcard]').forEach((b) =>
@@ -242,6 +246,8 @@
       introBtn.classList.toggle('is-on', introOn);
       $('#toggleScoreBtn').textContent =
         state.display && state.display.scoreVisible === false ? 'Show score' : 'Hide score';
+      const playersOnly = !!(state.display && state.display.showScore === false);
+      $('#playersOnlyBtn').classList.toggle('is-on', playersOnly);
 
       renderClock();
       const clockShown = !(state.display && state.display.showClock === false);

@@ -155,10 +155,11 @@
         startTime: $('#dspStartTime').value,
         showTitle: $('#dspShowTitle').checked,
         showServe: $('#dspShowServe').checked,
+        showScore: $('#dspShowScore').checked,
       },
     });
   }
-  ['#dspShowTitle', '#dspShowServe', '#dspStartTime'].forEach((sel) =>
+  ['#dspShowTitle', '#dspShowServe', '#dspShowScore', '#dspStartTime'].forEach((sel) =>
     $(sel).addEventListener('change', sendDisplay)
   );
   bindEditable('#dspTitle, #dspSubtitle', sendDisplay);
@@ -220,6 +221,7 @@
     setVal('#dspStartTime', d.startTime || '');
     setChk('#dspShowTitle', d.showTitle !== false);
     setChk('#dspShowServe', d.showServe !== false);
+    setChk('#dspShowScore', d.showScore !== false);
   }
 
   // ---- helpers ----

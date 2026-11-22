@@ -107,6 +107,11 @@
     // Not on the replay cover: the clip of the match point still has those cells in the picture.
     root.classList.toggle('finished', finished && !coverMode);
 
+    // Players only (Media: "Players only" / Admin): the names stay, the score columns go.
+    // Not on the court TV, and not on the replay cover (it must cover the score in the clip).
+    const namesOnly = !tvMode && !coverMode && d.showScore === false;
+    root.classList.toggle('names-only', namesOnly);
+
     // Title bar (+ the match timer on the right)
     if (msg && msg.serverNow) serverOffset = msg.serverNow - Date.now();
     clockState = state;
@@ -124,7 +129,7 @@
         pressureEl.textContent = text;
         pressureEl.dataset.kind = state.pressure.now.kind;
       }
-      pressureEl.classList.toggle('hidden', !text);
+      pressureEl.classList.toggle('hidden', !text || namesOnly);
     }
 
     for (let t = 0; t < 2; t++) {
