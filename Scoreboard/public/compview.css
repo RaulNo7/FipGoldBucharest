@@ -50,6 +50,34 @@
   color: var(--accent-fg);
 }
 
+/* a past day folded into one line (Games tab) */
+.day-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.day-toggle .day-sum {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.day-toggle.open {
+  background: transparent;
+  border-color: transparent;
+  padding-left: 2px;
+}
+
 .cv-group {
   background: var(--panel);
   border: 1px solid var(--line);

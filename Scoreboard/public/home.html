@@ -12,22 +12,37 @@
   <header class="top">
     <div class="wrap top-inner">
       <a class="brand" href="/"><img class="brand-logo" src="frp-mark.png" alt="" />FRP <span>LIVE</span></a>
-      <nav class="menu">
-        <a href="/scorebug" target="_blank" rel="noopener">Scorebug</a>
-        <a href="/tv" target="_blank" rel="noopener">Court TV</a>
-        <a href="/standings" target="_blank" rel="noopener">Standings</a>
-        <a class="yt" id="youtubeLink" hidden href="#" target="_blank" rel="noopener">YouTube Live</a>
-        <a class="needs-key" hidden href="/mobile" data-keyed target="_blank" rel="noopener">Referee</a>
-        <a class="needs-key" hidden href="/admin" data-keyed target="_blank" rel="noopener">Score settings</a>
-        <a class="needs-key" hidden href="/teams" data-keyed target="_blank" rel="noopener">Teams</a>
-        <a class="needs-key" hidden href="/competition" data-keyed target="_blank" rel="noopener">Competition</a>
-        <a class="needs-key" hidden href="/media" data-keyed target="_blank" rel="noopener">Media</a>
-        <a class="needs-key" hidden href="/announcements" data-keyed target="_blank" rel="noopener">Announcements</a>
-      </nav>
       <a class="cta needs-key" hidden href="/mobile" data-keyed target="_blank" rel="noopener">Referee ↗</a>
-      <button class="menu-btn" id="menuBtn" type="button" aria-label="Menu" aria-expanded="false">☰</button>
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="Menu" aria-controls="sideNav" aria-expanded="false">☰</button>
     </div>
   </header>
+
+  <!-- Left menu: public pages for everyone, operator pages only with the access key -->
+  <aside class="side" id="sideNav" aria-label="Pages">
+    <div class="side-group">
+      <div class="side-title">Public pages</div>
+      <a class="side-link" href="/" aria-current="page"><span class="side-ico">⌂</span>Live score</a>
+      <a class="side-link" href="/scorebug" target="_blank" rel="noopener"><span class="side-ico">▦</span>Scorebug</a>
+      <a class="side-link" href="/tv" target="_blank" rel="noopener"><span class="side-ico">▭</span>Court TV</a>
+      <a class="side-link" href="/standings" target="_blank" rel="noopener"><span class="side-ico">≡</span>Standings</a>
+      <a class="side-link yt" id="youtubeLink" hidden href="#" target="_blank" rel="noopener"><span class="side-ico">▶</span>YouTube Live</a>
+    </div>
+    <div class="side-group side-private">
+      <div class="side-title"><span class="lock">🔒</span> Operators · access key</div>
+      <div class="needs-key" hidden>
+        <a class="side-link" href="/mobile" data-keyed target="_blank" rel="noopener"><span class="side-ico">◉</span>Referee</a>
+        <a class="side-link" href="/admin" data-keyed target="_blank" rel="noopener"><span class="side-ico">⚙</span>Score settings</a>
+        <a class="side-link" href="/teams" data-keyed target="_blank" rel="noopener"><span class="side-ico">👥</span>Teams</a>
+        <a class="side-link" href="/competition" data-keyed target="_blank" rel="noopener"><span class="side-ico">🏆</span>Competition</a>
+        <a class="side-link" href="/media" data-keyed target="_blank" rel="noopener"><span class="side-ico">🎬</span>Media</a>
+        <a class="side-link" href="/announcements" data-keyed target="_blank" rel="noopener"><span class="side-ico">📢</span>Announcements</a>
+      </div>
+      <a class="side-link side-unlock no-key" href="#unlockSection" id="sideUnlock"><span class="side-ico">🔑</span>Enter the access key</a>
+    </div>
+  </aside>
+  <div class="side-backdrop" id="sideBackdrop" hidden></div>
+
+  <div class="page">
 
   <section class="hero">
     <div class="wrap">
@@ -122,6 +137,7 @@
       <span>FRP Live · live production</span>
     </div>
   </footer>
+  </div>
 
   <script src="scoring.js"></script>
   <script src="countries.js"></script>

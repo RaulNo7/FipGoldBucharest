@@ -12,17 +12,21 @@
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-  // ---- mobile menu (☰) ------------------------------------------------------
-  const top = $('.top');
+  // ---- left menu: always shown on wide screens, a drawer opened with ☰ on phones ----
   const menuBtn = $('#menuBtn');
-  menuBtn.addEventListener('click', () => {
-    const open = top.classList.toggle('open');
+  const backdrop = $('#sideBackdrop');
+  function setNav(open) {
+    document.body.classList.toggle('nav-open', open);
+    backdrop.hidden = !open;
     menuBtn.setAttribute('aria-expanded', String(open));
     menuBtn.textContent = open ? '✕' : '☰';
+  }
+  menuBtn.addEventListener('click', () => setNav(!document.body.classList.contains('nav-open')));
+  backdrop.addEventListener('click', () => setNav(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setNav(false);
   });
-  document.addEventListener('click', (e) => {
-    if (top.classList.contains('open') && !top.contains(e.target)) menuBtn.click();
-  });
+  $$('#sideNav a').forEach((a) => a.addEventListener('click', () => setNav(false)));
 
   // ---- access key -----------------------------------------------------------
   const params = new URLSearchParams(location.search);
@@ -50,6 +54,9 @@
     $$('.needs-key').forEach((el) => {
       el.hidden = !k;
     });
+    $$('.no-key').forEach((el) => {
+      el.hidden = !!k;
+    });
     $('#unlockSection').hidden = !!k;
   }
 
@@ -76,6 +83,13 @@
     e.preventDefault();
     form.hidden = false;
     input.focus();
+  });
+  // the menu's "Enter the access key": the same form, at the bottom of the page
+  $('#sideUnlock').addEventListener('click', (e) => {
+    e.preventDefault();
+    form.hidden = false;
+    $('#unlockSection').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => input.focus({ preventScroll: true }), 300);
   });
   form.addEventListener('submit', (e) => {
     e.preventDefault();

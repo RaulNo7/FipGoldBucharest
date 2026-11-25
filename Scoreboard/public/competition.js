@@ -14,6 +14,7 @@
   let openTie = null;
   const dirty = new Set(); // "tieId:index" being edited (not overwritten by the refresh)
   const msgs = new Map(); // "tieId:index" -> { text, cls }
+  const expanded = new Set(); // past days opened (they are folded by default)
 
   // The Teams link only makes sense where the Teams page is (the app, or with the key).
   if (!document.documentElement.classList.contains('in-app')) $('#teamsLink').hidden = true;
@@ -92,21 +93,24 @@
   function renderSchedule(box, c) {
     // keep a game being edited as it is (the refresh must not wipe what is typed)
     const keep = openTie && [...dirty].some((k) => k.startsWith(openTie + ':')) ? box.querySelector(`[data-tie="${openTie}"]`) : null;
-    const frag = document.createDocumentFragment();
-    let day = '';
-    for (const t of c.ties) {
-      if (t.day !== day) {
-        day = t.day;
-        frag.appendChild(el('div', 'day-title', V.dayText(day)));
-      }
+    const render1 = (t) => {
       if (keep && t.id === openTie) {
         updateHead(keep, t);
-        frag.appendChild(keep);
-        continue;
+        return keep;
       }
-      frag.appendChild(tieCard(t));
-    }
-    box.replaceChildren(frag);
+      return tieCard(t);
+    };
+    box.replaceChildren(
+      V.dayGroups(c.ties, render1, {
+        expanded,
+        keepOpen: (t) => t.id === openTie,
+        onToggle: (day, opened) => {
+          // folding a day closes the game open in it
+          if (!opened && openTie && c.ties.some((t) => t.id === openTie && t.day === day)) openTie = null;
+          render();
+        },
+      })
+    );
   }
 
   function scoreText(t) {

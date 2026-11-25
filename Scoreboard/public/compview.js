@@ -76,6 +76,53 @@
     return `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
   }
 
+  function todayIso() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+
+  /**
+   * The games grouped by day. A past day is folded into one line ("▸ Sat 28 Nov · 4 games")
+   * that opens on a tap; today and the days ahead are always open.
+   * expanded: Set of past days opened by the viewer; keepOpen(tie): a day with such a tie stays open;
+   * onToggle(day, opened) after a tap (the page renders again).
+   */
+  function dayGroups(ties, renderTie, { expanded, onToggle, keepOpen }) {
+    const frag = document.createDocumentFragment();
+    const today = todayIso();
+    const days = [];
+    for (const t of ties) {
+      let g = days[days.length - 1];
+      if (!g || g.day !== t.day) days.push((g = { day: t.day, ties: [] }));
+      g.ties.push(t);
+    }
+    for (const g of days) {
+      const past = g.day < today;
+      const open = !past || expanded.has(g.day) || (!!keepOpen && g.ties.some(keepOpen));
+      if (!past) {
+        frag.appendChild(el('div', 'day-title', dayText(g.day)));
+      } else {
+        const btn = el('button', 'day-title day-toggle' + (open ? ' open' : ''));
+        btn.type = 'button';
+        btn.setAttribute('aria-expanded', String(open));
+        const done = g.ties.filter((t) => t.result.finished).length;
+        btn.append(
+          el('span', 'day-name', (open ? '▾ ' : '▸ ') + dayText(g.day)),
+          el('span', 'day-sum', `${g.ties.length} games · ${done === g.ties.length ? 'all finished' : done + ' finished'}`)
+        );
+        btn.addEventListener('click', () => {
+          if (open) expanded.delete(g.day);
+          else expanded.add(g.day);
+          onToggle(g.day, !open);
+        });
+        frag.appendChild(btn);
+      }
+      if (open) for (const t of g.ties) frag.appendChild(renderTie(t));
+    }
+    return frag;
+  }
+
   function signed(n) {
     return n > 0 ? '+' + n : String(n);
   }
@@ -146,5 +193,5 @@
     return box;
   }
 
-  global.CompView = { el, chip, regionName, ordinal, slotText, phaseText, setsText, pairText, shortName, dayText, standings, ranking, inkFor };
+  global.CompView = { el, chip, regionName, ordinal, slotText, phaseText, setsText, pairText, shortName, dayText, dayGroups, todayIso, standings, ranking, inkFor };
 })(window);

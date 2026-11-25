@@ -51,14 +51,13 @@
     $('#games').replaceChildren(games(c));
   }
 
+  const expanded = new Set(); // past days opened by the viewer
+
   function games(c) {
-    const frag = document.createDocumentFragment();
-    let day = '';
-    for (const t of c.ties) {
-      if (t.day !== day) {
-        day = t.day;
-        frag.appendChild(el('div', 'day-title', V.dayText(day)));
-      }
+    return V.dayGroups(c.ties, tieBox, { expanded, onToggle: render });
+  }
+
+  function tieBox(t) {
       const box = el('div', 'st-tie');
       const head = el('div', 'st-tie-head');
       const left = el('div');
@@ -88,9 +87,7 @@
         });
         box.appendChild(list);
       }
-      frag.appendChild(box);
-    }
-    return frag;
+      return box;
   }
 
   load();
