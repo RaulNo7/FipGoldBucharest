@@ -72,20 +72,6 @@ a {
   color: var(--gold-bright);
 }
 
-.cta .short {
-  display: none;
-}
-
-.cta {
-  background: var(--gold-bright);
-  color: var(--black);
-  font-weight: 700;
-  font-size: 14px;
-  padding: 10px 18px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
 /* ---- Hero ---- */
 .hero {
   position: relative;
@@ -674,20 +660,6 @@ main .lead.small b {
     font-size: 22px;
   }
 
-  .cta {
-    margin-left: auto;
-    padding: 9px 14px;
-    font-size: 13px;
-  }
-
-  .cta .full {
-    display: none;
-  }
-
-  .cta .short {
-    display: inline;
-  }
-
   .brand {
     min-width: 0;
     overflow: hidden;
@@ -701,10 +673,6 @@ main .lead.small b {
     margin-left: auto;
   }
 
-  .cta + .menu-btn,
-  .cta:not([hidden]) ~ .menu-btn {
-    margin-left: 0;
-  }
 
 
   .hero {
@@ -942,9 +910,6 @@ main .lead.small b {
     order: -1;
     margin-left: 0;
   }
-  .cta {
-    margin-left: auto;
-  }
 }
 @media (max-width: 720px) {
   .menu-btn {
@@ -954,7 +919,4 @@ main .lead.small b {
 /* the top bar spans the whole width: the logo sits above the left menu */
 .top .wrap {
   max-width: none;
-}
-.top .cta {
-  margin-left: auto;
 }
