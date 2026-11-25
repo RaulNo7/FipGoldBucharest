@@ -985,6 +985,50 @@ function cleanupAndExit() {
   await waitFor(() => filterVolume['DJI Mic Teren/To headset 1'] === 50, 5000);
   assert(filterVolume['DJI Mic Teren/To headset 1'] === 50, 'headsets: unmuted, it is heard again at its level');
 
+  // ---- Regional competition: games, scores from a phone (key), public standings ----
+  {
+  const jpost =(base, p, body, headers = {}) =>
+    fetch(`${base}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+  const LAN = `http://127.0.0.1:${SB_PORT}`;
+  const PUB = `http://127.0.0.1:${PUBLIC_PORT}`;
+  let cv = await (await fetch(`${PUB}/api/competition`)).json();
+  assert(cv.exists === false, 'competition: none before a regional event');
+  assert((await jpost(LAN, '/api/competition/create', {})).status === 400, 'competition: needs a regional event');
+  await jpost(LAN, '/api/regional/start', { name: 'Echipa Nationala 2027 — Etapa I' });
+  await jpost(LAN, '/api/regional/players', { region: 'BI', gender: 'M', text: 'Armand Baboian\nDinu Serbanescu\nAlex Carpen\nVasile Antonescu\nRazvan Codescu\nDragos Popeanga' });
+  await jpost(LAN, '/api/regional/players', { region: 'NV', gender: 'M', text: 'Vlad Ulici\nVlad Nicolae\nMihai Grec\nKazmer Tussai\nLorand Tussai\nBogdan Chivu' });
+  const created = await jpost(LAN, '/api/competition/create', {});
+  assert(created.status === 200 && created.body.view.exists && created.body.view.categories.M.ties.length === 16 && created.body.view.categories.F.ties.length === 12, 'competition: the Etapa I schedule is created (16 men\'s and 12 women\'s games)');
+  assert((await jpost(LAN, '/api/competition/create', {})).status === 400, 'competition: not created twice by accident');
+  const pl = created.body.view.players;
+  const ids = (region) => pl.filter((p) => p.region === region).map((p) => p.id);
+  const [bi, nv] = [ids('BI'), ids('NV')];
+  // from a phone over the internet: only with the access key
+  const matchBody = { tieId: 'M-A1-17', index: 0, home: bi.slice(0, 2), away: nv.slice(0, 2), sets: [[6, 3], [4, 6]], tiebreak: [10, 6] };
+  assert((await jpost(PUB, '/api/competition/match', matchBody)).status === 403, 'competition: entering a score needs the access key on the public port');
+  assert((await pub('/competition')).status === 403, 'competition page: needs the access key on the public port');
+  const keyedRes = await jpost(PUB, '/api/competition/match?key=testkey', matchBody);
+  assert(keyedRes.status === 200, 'competition: a score entered from a phone with the key' + (keyedRes.status === 200 ? '' : ' (' + JSON.stringify(keyedRes.body) + ')'));
+  const t17 = keyedRes.body.view.categories.M.ties.find((t) => t.id === 'M-A1-17');
+  assert(JSON.stringify(t17.matches[0].sets[2]) === JSON.stringify({ h: 7, a: 6, tbh: 10, tba: 6 }) && t17.matches[0].result.winner === 'home', 'competition: the super tie-break 10-6 is kept as 7-6');
+  const bad = await jpost(LAN, '/api/competition/match', { ...matchBody, index: 1, home: bi.slice(2, 4), away: nv.slice(2, 4), sets: [[6, 5]] });
+  assert(bad.status === 400 && /not a finished set/.test(bad.body.error), 'competition: an impossible set score is refused with a reason');
+  await jpost(LAN, '/api/competition/match', { tieId: 'M-A1-17', index: 1, home: bi.slice(2, 4), away: nv.slice(2, 4), sets: [[6, 2], [6, 2]] });
+  await jpost(LAN, '/api/competition/match', { tieId: 'M-A1-17', index: 2, home: bi.slice(4, 6), away: nv.slice(4, 6), sets: [[2, 6], [2, 6]] });
+  cv = await (await fetch(`${PUB}/api/competition`)).json();
+  const g = cv.categories.M.groups.A.rows;
+  assert(g[0].region === 'BI' && g[0].won === 1 && g[0].matchesW === 2 && g[0].setsW === 4 && g[0].setsL === 3, 'standings (public): BI first after winning 2-1 (' + JSON.stringify(g[0]) + ')');
+  assert(cv.categories.M.ties.find((t) => t.id === 'M-A1-17').result.finished, 'competition: the game is finished after its three matches');
+  const tm = await jpost(LAN, '/api/competition/tie', { id: 'M-P1', time: '15:30', court: 'T5' });
+  const p1t = tm.body.view.categories.M.ties.find((t) => t.id === 'M-P1');
+  assert(p1t.time === '15:30' && p1t.court === 'T5', 'competition: time and court of a game can be changed');
+  assert((await pub('/standings')).status === 200 && (await pub('/standings.js')).status === 200 && (await pub('/compview.js')).status === 200, 'standings page: public');
+  assert((await pub('/competition?key=testkey')).status === 200 && (await pub('/competition.js')).status === 200, 'competition page: opens on the phone with the key');
+  assert((await jpost(PUB, '/api/competition', {})).status === 405, 'competition: nothing can be changed through the public read-only route');
+  const teamsPage = await (await fetch(`${LAN}/teams`)).text();
+  assert(/id="competitionLink"/.test(teamsPage), 'Teams tab: link to the Competition page');
+  }
+
   cleanupAndExit();
 })().catch((err) => {
   console.error(err);

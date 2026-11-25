@@ -9,6 +9,7 @@ const scoring = require('./src/scoring');
 const { ObsClient } = require('./src/obsclient');
 const padeltour = require('./src/padeltour');
 const regions = require('./src/regions');
+const competition = require('./src/competition');
 const atem = require('./src/atem');
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -1725,6 +1726,58 @@ function handleRegionalRequest(req, res, pathname) {
   return true;
 }
 
+/**
+ * Regional competition (groups, ties, standings, final ranking): stored in the
+ * regional roster as `competition`. GET /api/competition is public (the
+ * Standings page); the changes need the access key on the public port.
+ */
+function competitionView() {
+  return competition.view(regions.isRegional(teamsData) ? teamsData.competition || null : null, teamsData);
+}
+
+function handleCompetitionRequest(req, res, pathname) {
+  if (pathname === '/api/competition' && (req.method === 'GET' || req.method === 'HEAD')) {
+    sendJson(res, 200, competitionView());
+    return true;
+  }
+  if (req.method !== 'POST') return false;
+  const routes = {
+    // the Etapa I schedule (groups, every tie, no results); replace: true starts it again
+    '/api/competition/create': (body) => {
+      needRegional();
+      if (teamsData.competition && body.replace !== true) throw new Error('the competition already exists');
+      teamsData.competition = competition.createCompetition(body.name || teamsData.tournament);
+    },
+    '/api/competition/remove': () => {
+      needRegional();
+      delete teamsData.competition;
+    },
+    '/api/competition/tie': (body) => {
+      needCompetition();
+      competition.updateTie(teamsData.competition, body.id, body);
+    },
+    '/api/competition/match': (body) => {
+      needCompetition();
+      competition.updateMatch(teamsData.competition, teamsData, body);
+    },
+  };
+  const route = routes[pathname];
+  if (!route) return false;
+  readJsonBody(req)
+    .then((body) => {
+      route(body || {});
+      saveRoster();
+      sendJson(res, 200, { ok: true, view: competitionView() });
+    })
+    .catch((err) => sendJson(res, 400, { ok: false, error: err.message }));
+  return true;
+}
+
+function needCompetition() {
+  needRegional();
+  if (!teamsData.competition) throw new Error('no competition yet - create it on the Competition page');
+}
+
 function needRegional() {
   if (!regions.isRegional(teamsData)) throw new Error('no regional event yet - start one on the Admin tab');
 }
@@ -2458,6 +2511,7 @@ function handleMainRequest(req, res) {
   if (pathname.startsWith('/api/import/') && handleImportRequest(req, res, pathname, url)) return;
   // Regional event. Only the pair/player calls are in KEYED_PATHS (Teams / Score settings with the key).
   if (pathname.startsWith('/api/regional/') && handleRegionalRequest(req, res, pathname)) return;
+  if (pathname.startsWith('/api/competition') && handleCompetitionRequest(req, res, pathname)) return;
 
   // REST fallback for posting commands (useful for stream decks / hotkey apps).
   if (req.method === 'POST' && pathname === '/api/command') {
@@ -2757,6 +2811,8 @@ function handleMainRequest(req, res) {
   if (pathname === '/admin') pathname = '/admin.html';
   if (pathname === '/mobile') pathname = '/mobile.html';
   if (pathname === '/teams') pathname = '/teams.html';
+  if (pathname === '/competition') pathname = '/competition.html';
+  if (pathname === '/standings') pathname = '/standings.html';
   if (pathname === '/tv') pathname = '/tv.html';
   if (pathname === '/intro') pathname = '/intro.html';
   if (pathname === '/media') pathname = '/media.html';
@@ -2810,19 +2866,21 @@ server.listen(PORT, HOST, () => {
 const PUBLIC_PAGES = {
   '/': 'home.html', '/home': 'home.html', '/scorebug': 'scorebug.html',
   '/overlay': 'overlay.html', '/tv': 'tv.html', '/intro': 'intro.html', '/ticker': 'ticker.html',
+  '/standings': 'standings.html',
 };
-const PUBLIC_ASSET = /^\/(home|scorebug|overlay|tv|intro|ticker)\.(html|css|js)$|^\/(mobile|admin|teams|media|announcements)\.(css|js)$|^\/(client|countries|wakelock)\.js$|^\/(fip-logo|frp-logo|frp-logo-light|frp-mark)\.png$|^\/wakelock\.(mp4|webm)$|^\/flags\/[a-z]{2}\.svg$/;
+const PUBLIC_ASSET = /^\/(home|scorebug|overlay|tv|intro|ticker|standings|compview)\.(html|css|js)$|^\/(mobile|admin|teams|media|announcements|competition)\.(css|js)$|^\/(client|countries|wakelock)\.js$|^\/(fip-logo|frp-logo|frp-logo-light|frp-mark)\.png$|^\/wakelock\.(mp4|webm)$|^\/flags\/[a-z]{2}\.svg$/;
 
 // Operator pages (referee, admin, teams, media) and the APIs they use: only
 // with the access key, given as ?key=... or as the cookie set when a page was
 // opened with the key. They are then handled by the main server's own routing.
 const KEYED_PAGES = new Set([
   '/mobile', '/mobile.html', '/admin', '/admin.html', '/teams', '/teams.html', '/media', '/media.html',
-  '/announcements', '/announcements.html',
+  '/announcements', '/announcements.html', '/competition', '/competition.html',
 ]);
 const KEYED_PATHS = new Set([
   ...KEYED_PAGES, '/api/command', '/api/teams', '/api/info', '/api/obs-settings', '/api/commercials', '/api/replays',
   '/api/announcements', '/api/regional/pair', '/api/regional/pair/remove', '/api/regional/player',
+  '/api/competition/create', '/api/competition/remove', '/api/competition/tie', '/api/competition/match',
 ]);
 
 /** True when the request carries the configured access key (?key=... or cookie). */
@@ -2891,6 +2949,10 @@ if (PUBLIC_PORT) {
     if (pathname === '/api/state') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
       res.end(JSON.stringify(state));
+      return;
+    }
+    if (pathname === '/api/competition') {
+      sendJson(res, 200, competitionView()); // groups, results, standings: public (the Standings page)
       return;
     }
     if (pathname === '/scoring.js') {

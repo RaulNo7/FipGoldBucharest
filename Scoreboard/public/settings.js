@@ -369,6 +369,8 @@
     $('#pubAdminUrl').value = keyed('/admin');
     $('#pubTeamsUrl').value = keyed('/teams');
     $('#pubMediaUrl').value = keyed('/media');
+    $('#pubCompetitionUrl').value = keyed('/competition');
+    $('#pubStandingsUrl').value = base ? `${base}/standings` : '';
   }
 
   $('#publicHostname').addEventListener('input', updatePublicUrls);

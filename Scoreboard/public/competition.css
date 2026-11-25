@@ -1,0 +1,309 @@
+/* Competition page (games, score entry, standings) — phone first, on top of admin.css + compview.css. */
+
+.comp-layout {
+  max-width: 820px;
+  gap: 14px;
+}
+
+.top-link {
+  color: var(--accent-light);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 13px;
+  margin-left: 12px;
+}
+
+.comp-bar {
+  justify-content: space-between;
+}
+
+.comp-hint {
+  margin-top: 0;
+}
+
+.btn-primary-c {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.setup-row {
+  margin-top: 12px;
+}
+
+.day-title {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-light);
+  margin: 16px 2px 8px;
+}
+.day-title:first-child {
+  margin-top: 4px;
+}
+
+/* one game (tie) */
+.tie {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.tie.open {
+  border-color: var(--accent);
+}
+.tie-head {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tie-when {
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+.tie-when b {
+  font-size: 15px;
+}
+.tie-when span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.tie-sides {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.tie-phase {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+.tie-vs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-weight: 600;
+}
+.tie-vs .vs {
+  color: var(--muted);
+  font-size: 12px;
+}
+.tie-score {
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  min-width: 52px;
+  text-align: right;
+}
+.tie-score.done {
+  color: var(--green);
+}
+.tie-score.live {
+  color: var(--accent-light);
+}
+.tie-score.none {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+/* the editor of a game */
+.tie-body {
+  border-top: 1px solid var(--line);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.match {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.match-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.match-head b {
+  font-size: 14px;
+}
+.match-res {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.match-res.done {
+  color: var(--green);
+}
+.pairs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.pair-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.pair-side .side-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.pair-side select {
+  font-size: 15px;
+  padding: 8px 9px;
+}
+.sets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+.set-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+.set-box span {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.set-box .pair-in {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.set-box input {
+  width: 46px;
+  text-align: center;
+  padding: 8px 4px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.set-box.tb input {
+  width: 50px;
+}
+.set-box.off {
+  opacity: 0.45;
+}
+.match-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+.match-msg {
+  font-size: 13px;
+  color: var(--muted);
+}
+.match-msg.err {
+  color: #ff7a7a;
+}
+.match-msg.ok {
+  color: var(--green);
+}
+.mismatch {
+  color: #ffb347;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.tie-meta {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 0.8fr auto;
+  gap: 8px;
+  align-items: end;
+}
+.tie-meta label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.tie-meta input {
+  font-size: 15px;
+  padding: 8px 9px;
+}
+.tie-meta input[type='date'] {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--fg);
+  font-family: inherit;
+  width: 100%;
+  color-scheme: dark;
+}
+.waiting {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.admin-card summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+@media (max-width: 560px) {
+  .layout.comp-layout {
+    padding: 12px 10px;
+  }
+  .topbar {
+    padding: 10px 12px;
+  }
+  .tie-head {
+    grid-template-columns: 54px 1fr auto;
+    gap: 8px;
+    padding: 10px;
+  }
+  .pairs {
+    grid-template-columns: 1fr;
+  }
+  .set-box input {
+    width: 42px;
+  }
+  .tie-meta {
+    grid-template-columns: 1fr 1fr;
+  }
+  .match-head {
+    flex-direction: column;
+    gap: 2px;
+  }
+  .seg button {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+}

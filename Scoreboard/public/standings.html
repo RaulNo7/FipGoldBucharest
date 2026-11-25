@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FRP Live — Standings</title>
+  <link rel="stylesheet" href="admin.css" />
+  <link rel="stylesheet" href="compview.css" />
+  <link rel="stylesheet" href="standings.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><a href="/" class="home-link"><img class="brand-logo" src="frp-mark.png" alt="" /> <span class="brand-name">FRP Live</span></a> <span class="brand-sub" id="compName">Standings</span></div>
+    <div class="topbar-right"><span class="cv-muted" id="updated"></span></div>
+  </header>
+
+  <main class="layout st-layout">
+    <p class="st-empty" id="empty" hidden>The standings appear here when the competition starts.</p>
+    <div id="main" hidden>
+      <h1 class="st-title" id="compTitle"></h1>
+      <div class="row gap wrap st-bar">
+        <div class="seg" id="catSeg">
+          <button type="button" data-cat="M" class="on">Men</button>
+          <button type="button" data-cat="F">Women</button>
+        </div>
+        <div class="seg" id="viewSeg">
+          <button type="button" data-view="games" class="on">Games</button>
+          <button type="button" data-view="standings">Standings</button>
+          <button type="button" data-view="ranking">Final ranking</button>
+        </div>
+      </div>
+      <div id="games"></div>
+      <div id="standings" hidden></div>
+      <div id="ranking" hidden></div>
+    </div>
+  </main>
+
+  <script src="compview.js"></script>
+  <script src="standings.js"></script>
+</body>
+</html>

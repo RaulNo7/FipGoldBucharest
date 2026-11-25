@@ -369,3 +369,10 @@
   color: var(--green);
   font-weight: 700;
 }
+
+.comp-link {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  font-size: 15px;
+}
