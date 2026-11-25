@@ -580,6 +580,8 @@ function applyCommandCore(prev, cmd) {
       dst.teamId = data.id;
       dst.name = '';
       dst.players = data.players.slice(0, 2).map((p) => ({ name: p.name || '', country: p.country || '' }));
+      // Regional event: { id, name, short, color } of the pair's region (the scorebug tag); null otherwise.
+      dst.region = data.region && typeof data.region === 'object' ? { ...data.region } : null;
       if (!Array.isArray(state.teamServers)) state.teamServers = [0, 0];
       state.teamServers[t] = 0; // a freshly picked pair starts its rotation at player 1
       if (state.server === t) state.servingPlayer = 0;

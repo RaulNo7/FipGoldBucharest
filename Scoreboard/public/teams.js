@@ -216,6 +216,11 @@
   function renderCards() {
     const box = $('#rosterCards');
     box.innerHTML = '';
+    const regional = roster.format === 'regions';
+    document.querySelector('.layout').classList.toggle('regional', regional);
+    $('#introHint').hidden = regional;
+    $('#regionalHint').hidden = !regional;
+    if (regional) return renderRegions(box);
     const groups = C.rosterGroups(roster.teams);
     if (!groups.length) {
       const empty = document.createElement('div');
@@ -355,6 +360,252 @@
     actions.append(refresh, btn);
 
     row.append(pos, playersBox, badges, actions);
+    return row;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Regional event: one card per region, each with its men and women — the
+  // player pool (tick two players -> "Make pair") and the pairs built so far.
+  // ---------------------------------------------------------------------------
+
+  const ticked = new Map(); // "region|gender" -> Set of player ids (ticked to make a pair)
+
+  function regionalPost(path, body) {
+    return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then((r) => (r.status === 404 || r.status === 403 ? Promise.reject(new Error('only inside the app / on the venue network')) : r.json()))
+      .then((r) => {
+        if (!r.ok) throw new Error(r.error || 'failed');
+        return r;
+      })
+      .catch((err) => {
+        profStatus('✗ ' + err.message, true);
+        throw err;
+      });
+  }
+
+  function renderRegions(box) {
+    const players = roster.players || [];
+    if (!players.length) {
+      const empty = document.createElement('div');
+      empty.className = 'card';
+      empty.textContent = 'No players yet — add the players of each region on the Admin tab (Regional event).';
+      box.appendChild(empty);
+    }
+    for (const region of roster.regions || []) {
+      const mine = players.filter((p) => p.region === region.id);
+      const pairs = (roster.teams || []).filter((t) => t.region === region.id);
+      if (!mine.length && !pairs.length) continue;
+
+      const card = document.createElement('div');
+      card.className = 'card region-card';
+      card.style.setProperty('--region', region.color || '#888');
+      const head = document.createElement('div');
+      head.className = 'card-head';
+      const h2 = document.createElement('h2');
+      const sw = document.createElement('span');
+      sw.className = 'region-swatch';
+      sw.textContent = region.short || '';
+      h2.append(sw, document.createTextNode(' ' + region.name));
+      const right = document.createElement('div');
+      right.className = 'row gap';
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = `${mine.length} players · ${pairs.length} pairs`;
+      const readAll = document.createElement('button');
+      readAll.type = 'button';
+      readAll.className = 'btn btn-ghost prof-refresh';
+      readAll.textContent = '⟳ Profiles';
+      readAll.title = `Read the padeltour.ro profiles of all ${region.name} players (a few seconds each)`;
+      readAll.addEventListener('click', () => refreshPlayers(mine.map((p) => p.id), readAll));
+      right.append(badge, readAll);
+      head.append(h2, right);
+
+      const cols = document.createElement('div');
+      cols.className = 'reg-cols';
+      for (const gender of ['M', 'F']) cols.appendChild(genderColumn(region, gender, mine, pairs));
+      card.append(head, cols);
+      box.appendChild(card);
+    }
+  }
+
+  function refreshPlayers(playerIds, btn) {
+    if (!playerIds.length) return;
+    const buttons = document.querySelectorAll('#refreshMatchBtn, .prof-refresh');
+    buttons.forEach((b) => (b.disabled = true));
+    if (btn) btn.classList.add('is-playing');
+    profStatus(`Reading ${playerIds.length} profile${playerIds.length === 1 ? '' : 's'} from padeltour.ro…`);
+    fetch('/api/profiles/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teamIds: [], playerIds }) })
+      .then((r) => (r.status === 404 ? Promise.reject(new Error('only inside the app / on the venue network')) : r.json()))
+      .then((r) => {
+        if (!r.ok) throw new Error(r.error || 'failed');
+        const bad = r.results.filter((x) => !x.ok);
+        const good = r.results.length - bad.length;
+        profStatus(`✓ ${good} of ${r.results.length} profiles read.` + (bad.length ? ' Not read: ' + bad.map((x) => `${x.name} (${x.error})`).join(', ') : ''), bad.length > 0);
+        loadRoster();
+      })
+      .catch((err) => profStatus('✗ ' + err.message, true))
+      .finally(() => {
+        buttons.forEach((b) => (b.disabled = false));
+        if (btn) btn.classList.remove('is-playing');
+      });
+  }
+
+  function genderColumn(region, gender, mine, pairs) {
+    const key = region.id + '|' + gender;
+    const pool = mine.filter((p) => p.gender === gender);
+    const gPairs = pairs.filter((t) => t.gender === gender);
+    const sel = ticked.get(key) || new Set();
+    for (const id of [...sel]) if (!pool.some((p) => p.id === id && p.available !== false)) sel.delete(id);
+    ticked.set(key, sel);
+
+    const col = document.createElement('div');
+    col.className = 'reg-col';
+    const title = document.createElement('div');
+    title.className = 'group-title';
+    title.textContent = `${gender === 'M' ? 'Masculin' : 'Feminin'} — players (${pool.length})`;
+    col.appendChild(title);
+    if (!pool.length) {
+      const none = document.createElement('p');
+      none.className = 'hint';
+      none.textContent = 'No players yet.';
+      col.appendChild(none);
+    }
+    pool.forEach((p) => col.appendChild(poolRow(p, sel, key)));
+
+    const make = document.createElement('button');
+    make.type = 'button';
+    make.className = 'btn make-pair ' + (sel.size === 2 ? 'btn-accent' : 'btn-ghost');
+    make.disabled = sel.size !== 2;
+    make.textContent = sel.size === 2 ? 'Make pair of the 2 ticked' : 'Tick 2 players to make a pair';
+    make.addEventListener('click', () => {
+      const ids = [...sel];
+      regionalPost('/api/regional/pair', { playerIds: ids }).then(() => {
+        sel.clear();
+        profStatus(`✓ Pair ready — pick it on Score settings (${region.name}).`);
+      });
+    });
+    if (pool.length >= 2) col.appendChild(make);
+
+    const pt = document.createElement('div');
+    pt.className = 'group-title';
+    pt.textContent = `${gender === 'M' ? 'Masculin' : 'Feminin'} — pairs (${gPairs.length})`;
+    col.appendChild(pt);
+    gPairs.forEach((t) => col.appendChild(pairRow(t)));
+    return col;
+  }
+
+  function poolRow(p, sel, key) {
+    const available = p.available !== false;
+    const row = document.createElement('div');
+    row.className = 'pool-row' + (available ? '' : ' eliminated');
+
+    const tick = document.createElement('input');
+    tick.type = 'checkbox';
+    tick.checked = sel.has(p.id);
+    tick.disabled = !available;
+    tick.title = available ? 'Tick two players, then "Make pair"' : 'Not available';
+    tick.addEventListener('change', () => {
+      if (tick.checked) sel.add(p.id);
+      else sel.delete(p.id);
+      if (sel.size > 2) sel.delete(sel.values().next().value); // keep the last two ticked
+      ticked.set(key, sel);
+      renderAll();
+    });
+
+    const flag = document.createElement('span');
+    flag.className = 'rp-flag';
+    const url = C.flagUrl(p.country);
+    if (url) flag.style.backgroundImage = `url('${url}')`;
+
+    const nm = document.createElement('span');
+    nm.className = 'rp-name';
+    nm.textContent = p.name;
+    nm.title = 'Click to correct the name';
+    nm.addEventListener('click', () => {
+      const name = window.prompt('Player name:', p.name);
+      if (name && name.trim() && name.trim() !== p.name) regionalPost('/api/regional/player', { id: p.id, name: name.trim() }).catch(() => {});
+    });
+
+    const cc = document.createElement('span');
+    cc.className = 'rp-cc';
+    cc.textContent = p.country || '';
+    cc.title = 'Click to change the country (e.g. RO, MD)';
+    cc.addEventListener('click', () => {
+      const code = window.prompt(`Country code of ${p.name} (2 or 3 letters):`, p.country || 'RO');
+      if (code && /^[A-Za-z]{2,3}$/.test(code.trim())) regionalPost('/api/regional/player', { id: p.id, country: code.trim() }).catch(() => {});
+    });
+
+    const prof = document.createElement('button');
+    prof.type = 'button';
+    prof.className = 'rp-prof' + (p.profileAt ? ' read' : p.profile ? ' linked' : '');
+    prof.textContent = p.profileAt ? '🪪 ' + shortDate(p.profileAt) : p.profile ? '🪪 not read' : '🪪 no link';
+    prof.title = p.profile ? `padeltour.ro${p.profile}. Click to change the link.` : 'No padeltour.ro profile link yet — click to paste it.';
+    prof.addEventListener('click', () => {
+      const current = p.profile ? 'https://www.padeltour.ro' + p.profile : '';
+      const link = window.prompt(`padeltour.ro profile of ${p.name} (empty = none):`, current);
+      if (link === null) return;
+      regionalPost('/api/profiles/link', { playerId: p.id, url: link }).then(() => profStatus(link.trim() ? `Link saved for ${p.name} — press ⟳ to read it.` : `Link removed for ${p.name}.`));
+    });
+
+    // eligibility hint: the profile's county is not in this region
+    const info = document.createElement('span');
+    info.className = 'pool-info';
+    if (p.county) {
+      info.textContent = p.county;
+      info.classList.toggle('warn', p.countyOk === false);
+      info.title = p.countyOk === false ? `Profile county ${p.county} is not in this region — check the eligibility` : `County on the profile: ${p.county}`;
+    }
+
+    const read = document.createElement('button');
+    read.type = 'button';
+    read.className = 'rp-edit prof-refresh';
+    read.textContent = '⟳';
+    read.title = 'Read the padeltour.ro profile';
+    read.disabled = !p.profile;
+    read.addEventListener('click', () => refreshPlayers([p.id], read));
+
+    const avail = document.createElement('button');
+    avail.type = 'button';
+    avail.className = 'btn toggle small ' + (available ? 'is-active' : 'is-out');
+    avail.textContent = available ? 'Available' : 'Out';
+    avail.title = available ? 'Click if the player cannot play (injury…)' : 'Click to make the player available again';
+    avail.addEventListener('click', () => regionalPost('/api/regional/player', { id: p.id, available: !available }).catch(() => {}));
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'rp-edit';
+    del.textContent = '✕';
+    del.title = 'Remove the player from the event (and their pairs)';
+    del.addEventListener('click', () => {
+      if (confirm(`Remove ${p.name} from the event? Their pairs are removed too.`)) regionalPost('/api/regional/player', { id: p.id, remove: true }).catch(() => {});
+    });
+
+    row.append(tick, flag, nm, cc, info, prof, read, avail, del);
+    return row;
+  }
+
+  function pairRow(t) {
+    const onCourt = state && [0, 1].some((s) => state.teams[s] && state.teams[s].teamId === t.id);
+    const row = document.createElement('div');
+    row.className = 'pair-row' + (onCourt ? ' on-court' : '');
+    const pos = document.createElement('span');
+    pos.className = 'roster-pos';
+    pos.textContent = t.position;
+    const names = document.createElement('span');
+    names.className = 'rp-name';
+    names.textContent = (t.players || []).map((p) => p.name).join(' / ');
+    const tag = document.createElement('span');
+    tag.className = 'pool-info';
+    tag.textContent = onCourt ? 'on court' : '';
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'rp-edit';
+    del.textContent = '✕';
+    del.title = 'Remove this pair (the players stay in the pool)';
+    del.addEventListener('click', () => {
+      if (confirm(`Remove the pair ${names.textContent}? The players stay.`)) regionalPost('/api/regional/pair/remove', { teamId: t.id }).catch(() => {});
+    });
+    row.append(pos, names, tag, del);
     return row;
   }
 })();

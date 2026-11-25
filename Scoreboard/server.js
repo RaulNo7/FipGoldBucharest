@@ -8,6 +8,7 @@ const { createWsHub } = require('./src/wsserver');
 const scoring = require('./src/scoring');
 const { ObsClient } = require('./src/obsclient');
 const padeltour = require('./src/padeltour');
+const regions = require('./src/regions');
 const atem = require('./src/atem');
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -35,6 +36,7 @@ let rosterRev = 0; // bumps on every import: pages reload their team lists when 
 
 function setRoster(data) {
   teamsData = { tournament: '', ...data, teams: Array.isArray(data && data.teams) ? data.teams : [] };
+  if (regions.isRegional(teamsData)) regions.migrateRoster(teamsData);
   teamById = new Map(teamsData.teams.map((t) => [t.id, t]));
   rosterRev++;
 }
@@ -134,10 +136,19 @@ async function downloadPhoto(url, slug) {
  * Players without a profile link get one from the tournament's registrations page
  * first (rosters imported before the links were kept). Returns one line per player.
  */
-async function refreshProfiles(teamIds) {
+async function refreshProfiles(teamIds, playerIds = []) {
   if (profileJob.busy) throw new Error('profiles are already being read - wait a moment');
-  const recs = [...new Set(teamIds)].map((id) => teamById.get(id)).filter(Boolean);
-  if (!recs.length) throw new Error('no such team');
+  let recs = [...new Set(teamIds)].map((id) => teamById.get(id)).filter(Boolean);
+  // Regional event: the pool players are read (a pair's ⟳ reads its two players),
+  // so the pool keeps the data and every pair of that player shows it.
+  let pool = [];
+  if (regions.isRegional(teamsData)) {
+    const want = new Set(playerIds);
+    for (const r of recs) for (const id of r.playerIds || []) want.add(id);
+    pool = (teamsData.players || []).filter((p) => want.has(p.id));
+    recs = [];
+    if (!pool.length) throw new Error('no such player');
+  } else if (!recs.length) throw new Error('no such team');
   profileJob.busy = true;
   const results = [];
   let session = null;
@@ -180,6 +191,11 @@ async function refreshProfiles(teamIds) {
         else results.push({ teamId: r.id, player: i, name: p.name, ok: false, error: 'no padeltour.ro profile link' });
       });
     }
+    for (const p of pool) {
+      const url = padeltour.profileUrl(p.profile);
+      if (url) jobs.push({ playerId: p.id, name: p.name, url });
+      else results.push({ playerId: p.id, name: p.name, ok: false, error: 'no padeltour.ro profile link' });
+    }
     const read = jobs.length ? await padeltour.readProfiles(jobs.map((j) => j.url), { session }) : [];
     for (let k = 0; k < jobs.length; k++) {
       const j = jobs[k];
@@ -203,14 +219,64 @@ async function refreshProfiles(teamIds) {
       }
       profiles[slug] = { ...r.data, slug, url: j.url, photo, fetchedAt: new Date().toISOString() };
       results.push({ ...j, ok: true, fetchedAt: profiles[slug].fetchedAt });
+      // a player pasted as a bare link gets the name shown on the profile
+      const pp = j.playerId && pool.find((p) => p.id === j.playerId);
+      if (pp && pp.nameFromLink && r.data.name) {
+        pp.name = r.data.name.slice(0, 60);
+        delete pp.nameFromLink;
+      }
     }
     await saveProfiles();
+    if (pool.length) {
+      regions.syncPairs(teamsData);
+      saveRoster();
+      syncLiveRegionalTeams();
+    }
   } finally {
     if (session) await session.close();
     profileJob.busy = false;
     broadcastState();
   }
   return results;
+}
+
+/**
+ * Regional event: after the pool or the regions changed, the pairs on court
+ * show the new names, flags and region badge right away (no re-pick needed).
+ */
+function syncLiveRegionalTeams() {
+  if (!state || !state.teams) return;
+  let changed = false;
+  if (!regions.isRegional(teamsData)) {
+    // back to a padeltour.ro roster: no region tag on the scorebug
+    for (const team of state.teams) {
+      if (team && team.region) {
+        team.region = null;
+        changed = true;
+      }
+    }
+    if (changed) persist();
+    return;
+  }
+  for (let t = 0; t < 2; t++) {
+    const team = state.teams[t];
+    const rec = team && team.teamId ? teamById.get(team.teamId) : null;
+    if (!rec || rec.format !== 'regions') continue;
+    (rec.players || []).slice(0, 2).forEach((p, i) => {
+      const dst = team.players[i];
+      if (dst && (dst.name !== p.name || dst.country !== (p.country || ''))) {
+        dst.name = p.name;
+        dst.country = p.country || '';
+        changed = true;
+      }
+    });
+    const badge = regions.regionBadge(teamsData, rec.region);
+    if (JSON.stringify(team.region || null) !== JSON.stringify(badge)) {
+      team.region = badge;
+      changed = true;
+    }
+  }
+  if (changed) persist();
 }
 
 /** What the player cards need for the four players of the current match ("0-0" ... "1-1"). */
@@ -677,6 +743,7 @@ let autoEliminatedTeamId = null;
 
 function eliminateLoser() {
   if (state.winner !== 0 && state.winner !== 1) return;
+  if (regions.isRegional(teamsData)) return; // every region plays to the end: nobody is eliminated
   const loser = state.teams[1 - state.winner];
   if (!loser || !loser.teamId) return;
   autoEliminatedTeamId = loser.teamId;
@@ -1490,7 +1557,7 @@ async function readImport(src) {
       };
     }),
     teams: teams.length,
-    existing: { teams: teamsData.teams.length, tournament: teamsData.tournament || '', newIfKept },
+    existing: { teams: teamsData.teams.length, tournament: teamsData.tournament || '', newIfKept, regional: regions.isRegional(teamsData) },
   };
 }
 
@@ -1502,6 +1569,12 @@ function applyImport(token, mode) {
   let teams;
   let added = 0;
   let skipped = 0;
+  // A padeltour.ro import over a regional event: the event is backed up (Admin tab
+  // "Switch back" restores it) and its pairs are never mixed into the new roster.
+  if (regions.isRegional(teamsData)) {
+    backupRoster();
+    mode = 'replace';
+  }
   if (mode === 'replace') {
     teams = p.teams;
     added = teams.length;
@@ -1534,9 +1607,126 @@ function applyImport(token, mode) {
   fs.writeFileSync(ROSTER_FILE, JSON.stringify(roster, null, 2));
   setRoster(roster);
   importState.pending = null;
+  syncLiveRegionalTeams();
   persist();
   broadcastState();
   return { ok: true, mode, added, skipped, total: teams.length, tournament: roster.tournament };
+}
+
+// ---------------------------------------------------------------------------
+// Regional event (Admin tab "Regional event", Teams tab region cards,
+// Score settings region game): players per region -> pairs -> games
+// ---------------------------------------------------------------------------
+
+/**
+ * Saves the roster in use to roster-backup-<time>.json (before a regional event
+ * replaces it, or the other way round), with its Active/Eliminated flags and
+ * name corrections, so "Switch back" brings everything back.
+ */
+function backupRoster() {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const file = path.join(path.dirname(ROSTER_FILE), `roster-backup-${stamp}.json`);
+  fs.writeFileSync(file, JSON.stringify({ ...teamsData, _registry: (state && state.teams_registry) || {} }, null, 2));
+  return path.basename(file);
+}
+
+function latestRosterBackup() {
+  const dir = path.dirname(ROSTER_FILE);
+  const files = fs.readdirSync(dir).filter((f) => /^roster-backup-.*\.json$/.test(f)).sort();
+  return files.length ? path.join(dir, files[files.length - 1]) : '';
+}
+
+/** Saves the regional roster and updates every page (and the pairs on court). */
+function commitRegional() {
+  regions.syncPairs(teamsData);
+  saveRoster();
+  syncLiveRegionalTeams();
+  broadcastState();
+}
+
+function handleRegionalRequest(req, res, pathname) {
+  if (req.method !== 'POST') return false;
+  const routes = {
+    // a new, empty regional event (the current roster is backed up first)
+    '/api/regional/start': (body) => {
+      const backup = backupRoster();
+      const roster = regions.newRegionalRoster(body.name);
+      fs.writeFileSync(ROSTER_FILE, JSON.stringify(roster, null, 2));
+      setRoster(roster);
+      state.teams_registry = {}; // eliminations / corrections belonged to the old roster (they are in the backup)
+      syncLiveRegionalTeams();
+      persist();
+      broadcastState();
+      return { ok: true, tournament: roster.tournament, backup };
+    },
+    // back to the roster in use before (the current one is backed up, so this can be undone the same way)
+    '/api/regional/restore': () => {
+      const file = latestRosterBackup();
+      if (!file) throw new Error('there is no earlier roster to go back to');
+      const { _registry, ...data } = JSON.parse(fs.readFileSync(file, 'utf8'));
+      backupRoster();
+      fs.writeFileSync(ROSTER_FILE, JSON.stringify(data, null, 2));
+      fs.rmSync(file, { force: true });
+      setRoster(data);
+      state.teams_registry = _registry && typeof _registry === 'object' ? _registry : {};
+      syncLiveRegionalTeams();
+      persist();
+      broadcastState();
+      return { ok: true, tournament: data.tournament || '', format: data.format || 'pairs' };
+    },
+    '/api/regional/regions': (body) => {
+      needRegional();
+      regions.updateRegions(teamsData, body.regions);
+      commitRegional();
+      return { ok: true };
+    },
+    // pasted players for one region (gender from the form, or per line)
+    '/api/regional/players': (body) => {
+      needRegional();
+      const gender = body.gender === 'F' ? 'F' : body.gender === 'M' ? 'M' : '';
+      const parsed = regions.parsePlayerLines(body.text, gender);
+      if (!parsed.players.length) throw new Error('no players found in the text - one player per line');
+      const r = regions.addPlayers(teamsData, body.region, parsed.players);
+      commitRegional();
+      return { ok: true, ...r, unreadable: parsed.skipped };
+    },
+    '/api/regional/player': (body) => {
+      needRegional();
+      const patch = { ...body };
+      if (typeof patch.profile === 'string' && patch.profile) {
+        const url = padeltour.profileUrl(patch.profile);
+        if (!url) throw new Error('that is not a padeltour.ro profile link');
+        patch.profile = new URL(url).pathname;
+      }
+      regions.updatePlayer(teamsData, body.id, patch);
+      commitRegional();
+      return { ok: true };
+    },
+    // the pair of two players (existing or new); with `team` (0/1) it is also put on that side
+    '/api/regional/pair': (body) => {
+      needRegional();
+      const team = regions.makePair(teamsData, body.playerIds);
+      commitRegional();
+      if (body.team === 0 || body.team === 1) handleCommand({ type: 'selectTeam', team: body.team, teamId: team.id });
+      return { ok: true, teamId: team.id };
+    },
+    '/api/regional/pair/remove': (body) => {
+      needRegional();
+      if (!regions.removePair(teamsData, body.teamId)) throw new Error('unknown pair');
+      commitRegional();
+      return { ok: true };
+    },
+  };
+  const route = routes[pathname];
+  if (!route) return false;
+  readJsonBody(req)
+    .then((body) => sendJson(res, 200, route(body || {})))
+    .catch((err) => sendJson(res, 400, { ok: false, error: err.message }));
+  return true;
+}
+
+function needRegional() {
+  if (!regions.isRegional(teamsData)) throw new Error('no regional event yet - start one on the Admin tab');
 }
 
 /** /api/import/* on the main port (the Admin page is app-only; never on the public port). */
@@ -2133,7 +2323,12 @@ function handleCommand(cmd) {
     if (!rec) return;
     cmd = {
       ...cmd,
-      teamData: { id: rec.id, players: rosterPlayers(rec).map((p) => ({ name: p.name, country: p.country })) },
+      teamData: {
+        id: rec.id,
+        players: rosterPlayers(rec).map((p) => ({ name: p.name, country: p.country })),
+        // regional event: the region's name/code/colour for the scorebug
+        region: regions.isRegional(teamsData) ? regions.regionBadge(teamsData, rec.region) : null,
+      },
     };
   }
 
@@ -2261,6 +2456,8 @@ function handleMainRequest(req, res) {
 
   // Import players (Admin tab). Not in KEYED_PATHS, so the public port never forwards here.
   if (pathname.startsWith('/api/import/') && handleImportRequest(req, res, pathname, url)) return;
+  // Regional event. Only the pair/player calls are in KEYED_PATHS (Teams / Score settings with the key).
+  if (pathname.startsWith('/api/regional/') && handleRegionalRequest(req, res, pathname)) return;
 
   // REST fallback for posting commands (useful for stream decks / hotkey apps).
   if (req.method === 'POST' && pathname === '/api/command') {
@@ -2293,7 +2490,8 @@ function handleMainRequest(req, res) {
   if (pathname === '/api/profiles/refresh' && req.method === 'POST') {
     readJsonBody(req).catch(() => null).then((body) => {
       const ids = body && Array.isArray(body.teamIds) ? body.teamIds.filter((x) => typeof x === 'string') : [];
-      refreshProfiles(ids).then(
+      const playerIds = body && Array.isArray(body.playerIds) ? body.playerIds.filter((x) => typeof x === 'string') : [];
+      refreshProfiles(ids, playerIds).then(
         (results) => sendJson(res, 200, { ok: true, results }),
         (err) => sendJson(res, 409, { ok: false, error: err.message }),
       );
@@ -2304,10 +2502,23 @@ function handleMainRequest(req, res) {
   // Teams tab: set a player's profile link by hand ('' clears it).
   if (pathname === '/api/profiles/link' && req.method === 'POST') {
     readJsonBody(req).catch(() => null).then((body) => {
-      const rec = body && teamById.get(body.teamId);
-      const i = body && body.player === 1 ? 1 : 0;
       const raw = String((body && body.url) || '').trim();
       const url = raw ? padeltour.profileUrl(raw) : '';
+      // Regional event: the link belongs to the pool player (every pair of that player follows).
+      if (body && body.playerId && regions.isRegional(teamsData)) {
+        if (url === null) return sendJson(res, 400, { ok: false, error: 'that is not a padeltour.ro profile link' });
+        try {
+          regions.updatePlayer(teamsData, body.playerId, { profile: url ? new URL(url).pathname : '' });
+        } catch (err) {
+          return sendJson(res, 400, { ok: false, error: err.message });
+        }
+        saveRoster();
+        broadcastState();
+        const p = teamsData.players.find((q) => q.id === body.playerId);
+        return sendJson(res, 200, { ok: true, profile: (p && p.profile) || '' });
+      }
+      const rec = body && teamById.get(body.teamId);
+      const i = body && body.player === 1 ? 1 : 0;
       if (!rec || !rec.players || !rec.players[i] || url === null) {
         sendJson(res, 400, { ok: false, error: 'that is not a padeltour.ro profile link' });
         return;
@@ -2343,8 +2554,26 @@ function handleMainRequest(req, res) {
         return { ...p, profileAt: prof ? prof.fetchedAt : null, hasPhoto: !!(prof && prof.photo) };
       }),
     }));
+    const out = { tournament: teamsData.tournament || '', teams };
+    if (regions.isRegional(teamsData)) {
+      out.format = 'regions';
+      out.regions = teamsData.regions || [];
+      out.players = (teamsData.players || []).map((p) => {
+        const prof = p.profile ? profiles[slugOf(p.profile)] : null;
+        const county = (prof && prof.county) || '';
+        return {
+          ...p,
+          profileAt: prof ? prof.fetchedAt : null,
+          hasPhoto: !!(prof && prof.photo),
+          county,
+          countyOk: regions.countyInRegion(county, p.region),
+          points: prof ? prof.points : null,
+          tournaments: prof ? prof.tournaments : null,
+        };
+      });
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ tournament: teamsData.tournament || '', teams }));
+    res.end(JSON.stringify(out));
     return;
   }
 
@@ -2593,7 +2822,7 @@ const KEYED_PAGES = new Set([
 ]);
 const KEYED_PATHS = new Set([
   ...KEYED_PAGES, '/api/command', '/api/teams', '/api/info', '/api/obs-settings', '/api/commercials', '/api/replays',
-  '/api/announcements',
+  '/api/announcements', '/api/regional/pair', '/api/regional/pair/remove', '/api/regional/player',
 ]);
 
 /** True when the request carries the configured access key (?key=... or cookie). */

@@ -160,6 +160,14 @@
     const fresh = ex.newIfKept == null ? p.teams : ex.newIfKept;
     const already = p.teams - fresh;
     const pairs = (n) => `${n} pair${n === 1 ? '' : 's'}`;
+    $('#impKeepBtn').hidden = !!ex.regional;
+    if (ex.regional) {
+      // a regional event is never mixed with imported pairs
+      $('#impModalText').textContent = `The app has the regional event “${ex.tournament}” now. Replace it with the ${pairs(p.teams)} just read? The event is saved first — “Switch back to the previous roster” (Regional event card) brings it back.`;
+      $('#impModal').hidden = false;
+      $('#impReplaceBtn').focus();
+      return;
+    }
     $('#impModalText').textContent = ex.teams
       ? `The app has ${ex.teams} team${ex.teams === 1 ? '' : 's'} now${ex.tournament ? ` (${ex.tournament})` : ''}. ` +
         `Keep them and add ${fresh ? `the ${pairs(fresh)} that ${fresh === 1 ? 'is' : 'are'} not there yet` : 'nothing (all are there already)'}` +
@@ -592,6 +600,144 @@
     });
     apply();
   });
+
+  // ---- Regional event: start / switch back, regions, players per region ----
+  // The pairs are built on the Teams tab; the games are picked on Score settings.
+  let regRoster = null; // /api/teams
+  const regStatus = (text, kind) => {
+    const el = $('#regStatus');
+    el.textContent = text || '';
+    el.className = 'hint imp-status' + (kind ? ' ' + kind : '');
+  };
+
+  function loadRegional() {
+    return fetch('/api/teams')
+      .then((r) => r.json())
+      .then((data) => {
+        regRoster = data;
+        renderRegional();
+      })
+      .catch(() => regStatus('Could not read the current roster.', 'error'));
+  }
+
+  function renderRegional() {
+    const regional = regRoster && regRoster.format === 'regions';
+    const players = (regRoster && regRoster.players) || [];
+    const teams = (regRoster && regRoster.teams) || [];
+    $('#regBadge').textContent = regional ? 'active' : '';
+    $('#regBadge').classList.toggle('live', regional);
+    $('#regCurrent').textContent = regRoster
+      ? regional
+        ? `Now: regional event “${regRoster.tournament}” — ${players.length} player${players.length === 1 ? '' : 's'}, ${teams.length} pair${teams.length === 1 ? '' : 's'}.`
+        : `Now: ${regRoster.tournament ? `“${regRoster.tournament}”, ` : ''}${teams.length} pairs (padeltour.ro / entry list).`
+      : '';
+    $('#regBody').hidden = !regional;
+    if (!regional) return;
+    if (document.activeElement !== $('#regName') && !$('#regName').value) $('#regName').value = regRoster.tournament || '';
+
+    // regions editor (kept while typing: only rebuilt when the list of ids changes)
+    const box = $('#regRegions');
+    const ids = regRoster.regions.map((r) => r.id).join(',');
+    if (box.dataset.ids !== ids) {
+      box.dataset.ids = ids;
+      box.innerHTML = '';
+      for (const r of regRoster.regions) {
+        const row = document.createElement('div');
+        row.className = 'reg-region';
+        row.dataset.id = r.id;
+        row.innerHTML = '<input type="color" class="reg-rcolor" title="Colour" /><input type="text" class="reg-rname" maxlength="40" /><input type="text" class="reg-rshort" maxlength="5" title="Short code" /><span class="reg-rcount"></span>';
+        row.querySelector('.reg-rcolor').value = (r.color || '#888888').toLowerCase();
+        row.querySelector('.reg-rname').value = r.name;
+        row.querySelector('.reg-rshort').value = r.short || '';
+        box.appendChild(row);
+      }
+    }
+    for (const row of box.children) {
+      const m = players.filter((p) => p.region === row.dataset.id && p.gender === 'M').length;
+      const f = players.filter((p) => p.region === row.dataset.id && p.gender === 'F').length;
+      row.querySelector('.reg-rcount').textContent = `${m} M · ${f} F`;
+      row.querySelector('.reg-rcount').title = `${m} men, ${f} women`;
+    }
+
+    // region picker of "Add players"
+    const sel = $('#regRegion');
+    const cur = sel.value;
+    sel.innerHTML = '';
+    for (const r of regRoster.regions) {
+      const o = document.createElement('option');
+      o.value = r.id;
+      o.textContent = r.name;
+      sel.appendChild(o);
+    }
+    if (cur) sel.value = cur;
+  }
+
+  $('#regStartBtn').addEventListener('click', () => {
+    const name = $('#regName').value.trim();
+    if (!name) return $('#regName').focus();
+    const regional = regRoster && regRoster.format === 'regions';
+    const msg = regional
+      ? `Start a NEW regional event “${name}”? The current event (${regRoster.players.length} players) is saved and can be brought back with “Switch back”.`
+      : `Start the regional event “${name}”? The current teams are saved and can be brought back with “Switch back”.`;
+    if (!confirm(msg)) return;
+    postJson('/api/regional/start', { name })
+      .then((r) => {
+        regStatus(`Regional event “${r.tournament}” started. Add the players of each region below.`, 'ok');
+        return loadRegional();
+      })
+      .catch((err) => regStatus(err.message, 'error'));
+  });
+
+  $('#regRestoreBtn').addEventListener('click', () => {
+    if (!confirm('Switch back to the roster used before? The current one is saved, so you can switch again.')) return;
+    postJson('/api/regional/restore', {})
+      .then((r) => {
+        $('#regName').value = '';
+        regStatus(`Back to “${r.tournament || 'the previous roster'}”${r.format === 'regions' ? ' (regional event)' : ''}.`, 'ok');
+        return loadRegional();
+      })
+      .catch((err) => regStatus(err.message, 'error'));
+  });
+
+  $('#regSaveRegionsBtn').addEventListener('click', () => {
+    const list = Array.from($('#regRegions').children).map((row) => ({
+      id: row.dataset.id,
+      name: row.querySelector('.reg-rname').value,
+      short: row.querySelector('.reg-rshort').value,
+      color: row.querySelector('.reg-rcolor').value,
+    }));
+    postJson('/api/regional/regions', { regions: list })
+      .then(() => {
+        regStatus('Regions saved — the scorebug shows the new names and colours.', 'ok');
+        $('#regRegions').dataset.ids = ''; // redraw with the saved values
+        return loadRegional();
+      })
+      .catch((err) => regStatus(err.message, 'error'));
+  });
+
+  $('#regAddBtn').addEventListener('click', () => {
+    const text = $('#regText').value;
+    if (!text.trim()) return $('#regText').focus();
+    const region = $('#regRegion').value;
+    const regionName = $('#regRegion').selectedOptions[0] ? $('#regRegion').selectedOptions[0].textContent : region;
+    $('#regAddBtn').disabled = true;
+    postJson('/api/regional/players', { region, gender: $('#regGender').value, text })
+      .then((r) => {
+        const notes = [];
+        if (r.duplicates.length) notes.push(`already in the event: ${r.duplicates.join(', ')}`);
+        if (r.unreadable.length) notes.push(`not read: ${r.unreadable.join(' | ')}`);
+        regStatus(`${r.added} player${r.added === 1 ? '' : 's'} added to ${regionName}.` + (notes.length ? ' ' + notes.join(' · ') : ''), notes.length ? '' : 'ok');
+        if (r.added) $('#regText').value = '';
+        return loadRegional();
+      })
+      .catch((err) => regStatus(err.message, 'error'))
+      .finally(() => ($('#regAddBtn').disabled = false));
+  });
+
+  loadRegional();
+  // a padeltour.ro import replaces the roster: show it here too
+  $('#impReplaceBtn').addEventListener('click', () => setTimeout(loadRegional, 1500));
+  $('#impKeepBtn').addEventListener('click', () => setTimeout(loadRegional, 1500));
 
   // ---- helpers ----
   function copyField(input, btn) {

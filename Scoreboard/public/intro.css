@@ -290,3 +290,25 @@ body {
 /* No profile read yet: name, flag and initials only. */
 .pcard.no-data .pc-big,
 .pcard.no-data .pc-strip { display: none; }
+
+/* Regional event: the pair's region above its two names */
+.intro-region:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: var(--font-names);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--white);
+  font-size: 0.85em;
+}
+
+.intro-region-code {
+  min-width: 2.6em;
+  padding: 0.12em 0.4em;
+  border-radius: 0.2em;
+  background: var(--region, #fcd116);
+  color: #061433;
+  text-align: center;
+}

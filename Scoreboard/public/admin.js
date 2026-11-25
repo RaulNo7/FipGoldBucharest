@@ -40,6 +40,7 @@
       .then((data) => {
         roster = data;
         buildPickers();
+        buildRegionalPick();
         if (state) renderSidePreviews(state);
       })
       .catch(() => {
@@ -178,14 +179,182 @@
     }
 
     syncPickersFromState();
+    syncRegionalFromState(s);
     renderSidePreviews(s);
     syncForms(s);
+  }
+
+  // ---- regional event: Region vs Region game ----
+  // Per side: region -> an existing pair, or two players -> "Put on court"
+  // (the server makes the pair if it is new, then puts it on that side).
+  const isRegional = () => !!roster && roster.format === 'regions';
+  const regSynced = [undefined, undefined]; // teamId last copied from the live state into each side's pickers
+
+  function regionOf(id) {
+    return ((roster && roster.regions) || []).find((r) => r.id === id) || null;
+  }
+
+  function buildRegionalPick() {
+    const regional = isRegional();
+    $('#regGameHead').hidden = !regional;
+    $('#regGameHint').hidden = !regional;
+    $('#pairsHint').hidden = regional;
+    $('#matchCardTitle').textContent = regional ? 'Game — Region vs Region' : 'Match — select teams';
+    $$('.pair-pick').forEach((l) => (l.hidden = regional));
+    $$('[data-reg-pick]').forEach((box) => (box.hidden = !regional));
+    if (!regional) return;
+    for (const side of [0, 1]) {
+      const box = $(`[data-reg-pick="${side}"]`);
+      if (!box.firstChild) {
+        box.innerHTML =
+          `<label>Side ${side + 1} — region<select class="rg-region"></select></label>` +
+          '<label>Pair<select class="rg-pair"></select></label>' +
+          '<div class="rg-players"><label>Player 1<select class="rg-p" data-i="0"></select></label><label>Player 2<select class="rg-p" data-i="1"></select></label></div>' +
+          `<div class="row gap wrap"><button class="btn btn-accent rg-go" type="button">Put on court (side ${side + 1})</button><span class="hint rg-note"></span></div>`;
+        box.querySelector('.rg-region').addEventListener('change', () => fillSide(side));
+        box.querySelector('.rg-pair').addEventListener('change', (e) => {
+          const t = (roster.teams || []).find((x) => x.id === e.target.value);
+          if (t) box.querySelectorAll('.rg-p').forEach((s, i) => (s.value = t.playerIds[i] || ''));
+          markPair(side);
+        });
+        box.querySelectorAll('.rg-p').forEach((s) => s.addEventListener('change', () => markPair(side)));
+        box.querySelector('.rg-go').addEventListener('click', () => putOnCourt(side));
+      }
+      const regionSel = box.querySelector('.rg-region');
+      const cur = regionSel.value;
+      regionSel.innerHTML = '<option value="">— pick a region —</option>';
+      for (const r of roster.regions || []) {
+        const o = document.createElement('option');
+        o.value = r.id;
+        o.textContent = r.name;
+        regionSel.appendChild(o);
+      }
+      regionSel.value = cur;
+      fillSide(side);
+    }
+    regSynced[0] = regSynced[1] = undefined; // copy the live pairs into the fresh pickers
+    if (state) syncRegionalFromState(state);
+  }
+
+  /** Pair and player options of one side, for its region and the chosen competition. */
+  function fillSide(side) {
+    const box = $(`[data-reg-pick="${side}"]`);
+    const region = box.querySelector('.rg-region').value;
+    const gender = $('#regGameGender').value;
+    const pool = (roster.players || []).filter((p) => p.region === region && p.gender === gender);
+    const pairs = (roster.teams || []).filter((t) => t.region === region && t.gender === gender);
+    const pairSel = box.querySelector('.rg-pair');
+    const keepPair = pairSel.value;
+    pairSel.innerHTML = `<option value="">${pairs.length ? '— new pair (pick the players) —' : '— no pairs yet: pick the players —'}</option>`;
+    for (const t of pairs) {
+      const o = document.createElement('option');
+      o.value = t.id;
+      const out = t.playerIds.some((id) => (pool.find((p) => p.id === id) || {}).available === false);
+      o.textContent = `${t.position}. ${(t.players || []).map((p) => C.shortName(p.name)).join(' / ')}${out ? ' (a player is out)' : ''}`;
+      pairSel.appendChild(o);
+    }
+    box.querySelectorAll('.rg-p').forEach((s) => {
+      const keep = s.value;
+      s.innerHTML = '<option value="">— player —</option>';
+      for (const p of pool) {
+        const o = document.createElement('option');
+        o.value = p.id;
+        o.textContent = p.name + (p.available === false ? ' (out)' : '');
+        o.disabled = p.available === false;
+        s.appendChild(o);
+      }
+      s.value = pool.some((p) => p.id === keep) ? keep : '';
+    });
+    pairSel.value = pairs.some((t) => t.id === keepPair) ? keepPair : '';
+    markPair(side);
+    if (!region) note(side, '');
+    else if (pool.length < 2) note(side, `${regionOf(region).name} has ${pool.length} ${gender === 'M' ? 'men' : 'women'} — add players on the Admin tab.`, true);
+    else note(side, '');
+  }
+
+  /** Shows the existing pair when the two picked players already are one. */
+  function markPair(side) {
+    const box = $(`[data-reg-pick="${side}"]`);
+    const ids = Array.from(box.querySelectorAll('.rg-p')).map((s) => s.value);
+    const key = [...ids].sort().join('+');
+    const t = (roster.teams || []).find((x) => [...x.playerIds].sort().join('+') === key);
+    box.querySelector('.rg-pair').value = t ? t.id : '';
+    const go = box.querySelector('.rg-go');
+    go.disabled = !(ids[0] && ids[1] && ids[0] !== ids[1]);
+    const onCourt = t && state && state.teams[side] && state.teams[side].teamId === t.id;
+    go.textContent = onCourt ? `On court (side ${side + 1}) ✓` : `Put on court (side ${side + 1})`;
+  }
+
+  function note(side, text, warn) {
+    const el = $(`[data-reg-pick="${side}"] .rg-note`);
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle('warn', !!warn);
+  }
+
+  function putOnCourt(side) {
+    const box = $(`[data-reg-pick="${side}"]`);
+    const ids = Array.from(box.querySelectorAll('.rg-p')).map((s) => s.value);
+    if (!ids[0] || !ids[1] || ids[0] === ids[1]) return note(side, 'Pick two different players.', true);
+    const other = state && state.teams[1 - side];
+    const otherRec = other && other.teamId && (roster.teams || []).find((t) => t.id === other.teamId);
+    if (otherRec && otherRec.playerIds.some((id) => ids.includes(id))) return note(side, 'That player is already on the other side.', true);
+    note(side, 'Putting the pair on court…');
+    fetch('/api/regional/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playerIds: ids, team: side }) })
+      .then((r) => (r.status === 404 || r.status === 403 ? Promise.reject(new Error('only inside the app / on the venue network')) : r.json()))
+      .then((r) => {
+        if (!r.ok) throw new Error(r.error || 'failed');
+        regSynced[side] = undefined; // take the new pair from the next state
+        note(side, '✓ On court.');
+      })
+      .catch((err) => note(side, '✗ ' + err.message, true));
+  }
+
+  $('#regGameGender').addEventListener('change', () => {
+    fillSide(0);
+    fillSide(1);
+  });
+
+  /** The live pairs (picked here, by the referee, or after a restart) shown in the pickers. */
+  function syncRegionalFromState(s) {
+    if (!isRegional()) return;
+    for (const side of [0, 1]) {
+      const id = s.teams[side] && s.teams[side].teamId;
+      if (regSynced[side] === id) {
+        markPair(side);
+        continue;
+      }
+      const box = $(`[data-reg-pick="${side}"]`);
+      if (box.contains(document.activeElement)) continue;
+      const t = (roster.teams || []).find((x) => x.id === id);
+      regSynced[side] = id;
+      if (!t) continue;
+      $('#regGameGender').value = t.gender;
+      box.querySelector('.rg-region').value = t.region;
+      fillSide(side);
+      box.querySelectorAll('.rg-p').forEach((sel, i) => (sel.value = t.playerIds[i] || ''));
+      markPair(side);
+      // the other side follows the competition
+      const o = 1 - side;
+      const ob = $(`[data-reg-pick="${o}"]`);
+      if (!ob.contains(document.activeElement)) fillSide(o);
+    }
   }
 
   function renderSidePreviews(s) {
     for (let side = 0; side < 2; side++) {
       const box = $(`[data-side-preview="${side}"]`);
       box.innerHTML = '';
+      const region = s.teams[side].region;
+      if (region && isRegional()) {
+        const chip = document.createElement('div');
+        chip.className = 'sp-region';
+        chip.style.setProperty('--region', region.color || '#888');
+        chip.innerHTML = '<span class="sp-region-code"></span><span class="sp-region-name"></span>';
+        chip.firstChild.textContent = region.short || '';
+        chip.lastChild.textContent = region.name || '';
+        box.appendChild(chip);
+      }
       (s.teams[side].players || []).slice(0, 2).forEach((p) => {
         const row = document.createElement('div');
         row.className = 'sp-row';

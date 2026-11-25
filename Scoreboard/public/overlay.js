@@ -136,6 +136,17 @@
       const team = state.teams[t] || {};
       const players = team.players || [];
 
+      // Regional event: the region's code on its colour, at the start of the pair's block
+      const tag = root.querySelector(`[data-region="${t}"]`);
+      if (tag) {
+        const reg = team.region;
+        tag.parentNode.classList.toggle('has-region', !!(reg && reg.short));
+        tag.textContent = reg && reg.short ? reg.short : '';
+        tag.title = reg ? reg.name || '' : '';
+        if (reg && reg.color) tag.style.setProperty('--region', reg.color);
+        else tag.style.removeProperty('--region');
+      }
+
       for (let p = 0; p < 2; p++) {
         const player = players[p];
         el.pname[t][p].textContent = C.shortName(C.playerName(player));

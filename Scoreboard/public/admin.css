@@ -677,3 +677,114 @@ label.imp-cat {
   letter-spacing: 0.02em;
   color: var(--accent-light, #ffe14d);
 }
+
+/* ---- Regional event (Admin tab) ---- */
+.reg-sub {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.reg-regions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 8px 14px;
+}
+
+.reg-region {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reg-region input[type='color'] {
+  width: 38px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.reg-region .reg-rname {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.reg-region .reg-rshort {
+  width: 66px;
+  flex: 0 0 auto;
+  text-transform: uppercase;
+}
+
+.reg-region .reg-rcount {
+  width: 62px;
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+
+#regCard textarea {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--fg);
+  padding: 10px 11px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+/* ---- Score settings: regional game picker ---- */
+.reg-game-head {
+  max-width: 260px;
+  margin-bottom: 12px;
+}
+
+.reg-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.reg-pick .rg-players {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.reg-pick .rg-go {
+  flex: none;
+}
+
+.reg-pick .rg-note.warn {
+  color: #ff6b7d;
+}
+
+.sp-region {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.sp-region-code {
+  min-width: 40px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--region, var(--accent));
+  color: #061433;
+  font-weight: 800;
+  text-align: center;
+}

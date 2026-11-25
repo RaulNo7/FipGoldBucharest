@@ -335,3 +335,24 @@ body {
   background-repeat: no-repeat;
   background-position: top left;
 }
+
+/* Regional event: region code tag (court TV sizes) */
+.region-tag {
+  display: none;
+}
+
+.team-block.has-region .region-tag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 2.6em;
+  padding: 0 0.35em;
+  background: var(--region, var(--gold));
+  color: #061433;
+  font-family: var(--font-names);
+  font-size: 0.9em;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}

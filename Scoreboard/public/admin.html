@@ -19,22 +19,33 @@
 
   <main class="layout">
     <div class="card">
-      <div class="card-head"><h2>Match — select teams</h2></div>
+      <div class="card-head"><h2 id="matchCardTitle">Match — select teams</h2></div>
+      <div class="reg-game-head" id="regGameHead" hidden>
+        <label>Competition
+          <select id="regGameGender">
+            <option value="M">Masculin</option>
+            <option value="F">Feminin</option>
+          </select>
+        </label>
+      </div>
       <div class="match-grid">
         <div class="side-pick">
-          <label>Side 1
+          <div class="reg-pick" data-reg-pick="0" hidden></div>
+          <label class="pair-pick">Side 1
             <select data-team-select="0"><option value="">— pick a team —</option></select>
           </label>
           <div class="side-preview" data-side-preview="0"></div>
         </div>
         <div class="side-pick">
-          <label>Side 2
+          <div class="reg-pick" data-reg-pick="1" hidden></div>
+          <label class="pair-pick">Side 2
             <select data-team-select="1"><option value="">— pick a team —</option></select>
           </label>
           <div class="side-preview" data-side-preview="1"></div>
         </div>
       </div>
-      <p class="hint">Teams come from the official entry lists. Eliminated teams are greyed out — the pair that loses a match is eliminated automatically; manage exceptions on the <b>Teams</b> page.</p>
+      <p class="hint" id="regGameHint" hidden>Regional event: pick the competition, then for each side the <b>region</b> and its <b>two players</b> (or a pair already made on the Teams tab) and press <b>Put on court</b>. The scorebug shows the region's code and colour. Nobody is eliminated after a game.</p>
+      <p class="hint" id="pairsHint">Teams come from the official entry lists. Eliminated teams are greyed out — the pair that loses a match is eliminated automatically; manage exceptions on the <b>Teams</b> page.</p>
     </div>
 
     <div class="card">

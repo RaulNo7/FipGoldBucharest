@@ -43,6 +43,15 @@
 
     for (let t = 0; t < 2; t++) {
       const players = (state.teams[t] || {}).players || [];
+      // Regional event: the pair's region (code on its colour + name) above the two names
+      const regEl = document.querySelector(`[data-region="${t}"]`);
+      if (regEl) {
+        const reg = (state.teams[t] || {}).region;
+        regEl.hidden = !(reg && reg.name);
+        regEl.querySelector('.intro-region-code').textContent = (reg && reg.short) || '';
+        regEl.querySelector('.intro-region-name').textContent = (reg && reg.name) || '';
+        if (reg && reg.color) regEl.style.setProperty('--region', reg.color);
+      }
       for (let p = 0; p < 2; p++) {
         const player = players[p];
         el.pname[t][p].textContent = C.shortName(C.playerName(player));

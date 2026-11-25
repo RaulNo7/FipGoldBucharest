@@ -253,3 +253,119 @@
 .roster-actions .btn {
   width: 100%;
 }
+
+/* ---- Regional event: one card per region (players pool + pairs) ---- */
+.layout.regional {
+  max-width: 1180px;
+}
+
+.region-card {
+  border-top: 4px solid var(--region, var(--accent));
+}
+
+.region-card .card-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.region-swatch {
+  display: inline-block;
+  min-width: 42px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--region, var(--accent));
+  color: #061433;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.reg-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+@media (max-width: 900px) {
+  .reg-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reg-col {
+  min-width: 0;
+}
+
+.pool-row,
+.pair-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 10px;
+  margin-bottom: 5px;
+}
+
+.pool-row.eliminated {
+  opacity: 0.5;
+}
+
+.pool-row input[type='checkbox'] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.pool-row .rp-prof {
+  margin-left: 0;
+}
+
+.pool-info {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pool-info.warn {
+  color: #ff6b7d;
+  font-weight: 700;
+}
+
+.pool-info:empty {
+  display: none;
+}
+
+.btn.toggle.small {
+  width: auto;
+  flex: none;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+.make-pair {
+  width: 100%;
+  margin: 4px 0 6px;
+}
+
+.pair-row .roster-pos {
+  width: 22px;
+  flex: none;
+}
+
+.pair-row.on-court {
+  border-color: var(--region, var(--accent));
+}
+
+.pair-row.on-court .pool-info {
+  color: var(--green);
+  font-weight: 700;
+}

@@ -461,3 +461,24 @@ body {
   background-repeat: no-repeat;
   background-position: top left;
 }
+
+/* Regional event: the region's code on its colour, at the start of each pair's block */
+.region-tag {
+  display: none;
+}
+
+.team-block.has-region .region-tag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 46px;
+  padding: 0 7px;
+  background: var(--region, var(--gold));
+  color: #061433;
+  font-family: var(--font-names);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
