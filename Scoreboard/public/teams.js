@@ -220,7 +220,6 @@
     document.querySelector('.layout').classList.toggle('regional', regional);
     $('#introHint').hidden = regional;
     $('#regionalHint').hidden = !regional;
-    $('#competitionLink').hidden = !regional;
     if (regional) return renderRegions(box);
     const groups = C.rosterGroups(roster.teams);
     if (!groups.length) {
