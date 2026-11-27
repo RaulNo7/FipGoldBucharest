@@ -1255,7 +1255,7 @@ async function seekToLastSeconds(inputName, lastSeconds, waitMs) {
 
 /**
  * Put one replay clip on the stream: replay scene + its media source, back to live when it ends.
- * lastSeconds = only the end of the clip (10 / 15 s buttons); null = all of it.
+ * lastSeconds = only the end of the clip (5 / 10 / 15 s buttons); null = all of it.
  */
 async function runReplayClip(file, lastSeconds = null) {
   if (breakState.phase === 'running') return;
@@ -2287,7 +2287,7 @@ function handleCommand(cmd) {
   }
 
   // Replay button: save the last N seconds from OBS and play the clip.
-  // seconds: 10 / 15 buttons play only the end of the saved clip (shorter than the buffer)
+  // seconds: 5 / 10 / 15 buttons play only the end of the saved clip (shorter than the buffer)
   // play: false = only save it (shown later from the list)
   if (cmd.type === 'saveReplay') {
     const last = Math.round(Number(cmd.seconds));
@@ -2301,7 +2301,7 @@ function handleCommand(cmd) {
     const clip = name && listReplays(1000).find((r) => r.name === name);
     if (!clip) return;
     if (breakState.phase === 'countdown') cancelBreak();
-    const last = clip.last >= 3 ? clip.last : null; // saved with 10 / 15 s: only that end
+    const last = clip.last >= 3 ? clip.last : null; // saved with 5 / 10 / 15 s: only that end
     if (breakState.phase !== 'running') runReplayClip(path.join(replayDir(), name), last);
     return;
   }
