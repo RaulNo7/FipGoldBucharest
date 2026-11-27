@@ -116,7 +116,7 @@
   }
   loadReplays();
 
-  // "Play right away": off = the 10 / 15 / 20 s buttons only save the clip (Play it later from the list).
+  // "Play right away": off = the 5 / 10 / 15 / 20 s buttons only save the clip (Play it later from the list).
   // Remembered in this browser.
   const playNow = $('#replayPlayNow');
   try {
